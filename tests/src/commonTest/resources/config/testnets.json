@@ -1,0 +1,21 @@
+{
+  "testnets": [
+    {
+      "type": "LocalSecret",
+      "chainId": "secretdev-1",
+      "grpcGatewayEndpoint": "http://localhost:1317",
+      "faucetAddressEndpoint": "http://localhost:5000/faucet?address="
+    },
+    {
+      "type": "Gitpod",
+      "chainId": "secretdev-1",
+      "gitpodId": "eqotylabs-gitpodlocalse-6gb1i8s8yxx.ws-us69"
+    },
+    {
+      "type": "Pulsar2",
+      "chainId": "pulsar-2",
+      "grpcGatewayEndpoint": "https://api.pulsar.scrttestnet.com",
+      "faucetAddressEndpoint": "https://faucetbe.pulsar.scrttestnet.com/credit"
+    }
+  ]
+}
