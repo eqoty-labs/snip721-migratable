@@ -6,7 +6,7 @@ import io.eqoty.dapp.secret.utils.TestnetInfo
 import io.eqoty.dapp.secret.utils.getTestnet
 import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.wallet.DirectSigningWallet
-import java.util.concurrent.Semaphore
+import kotlinx.coroutines.sync.Semaphore
 
 /***
  * IntegrationTests will be re-instantiated for each test.

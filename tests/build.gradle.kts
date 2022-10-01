@@ -10,7 +10,7 @@ version = "1.0"
 
 object Targets {
     val iosTargets = arrayOf<String>()
-    val macosTargets = arrayOf<String>(/*"macosX64", "macosArm64"*/)
+    val macosTargets = arrayOf("macosX64", "macosArm64")
     val darwinTargets = iosTargets + macosTargets
     val linuxTargets = arrayOf<String>()
     val mingwTargets = arrayOf<String>()

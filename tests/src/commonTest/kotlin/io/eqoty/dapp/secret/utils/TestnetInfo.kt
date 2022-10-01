@@ -1,5 +1,7 @@
 package io.eqoty.dapp.secret.utils
 
+import io.eqoty.dapp.secret.utils.Constants.CI_ENV_ID
+import io.eqoty.dapp.secret.utils.Constants.selectedLocalRunTestnet
 import io.ktor.util.reflect.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -54,15 +56,13 @@ class Custom(
 @Serializable
 data class ConfigTestnets(val testnets: List<TestnetInfo>)
 
-val selectedLocalRunTestnet = Gitpod::class
-
 fun getTestnet(): TestnetInfo {
     val testnets: Path = "src/commonTest/resources/config/testnets.json".toPath()
     val jsonString = fileSystem.read(testnets) {
         readUtf8()
     }
     val config: ConfigTestnets = Json.decodeFromString(jsonString)
-    val isRunningOnCI = fileSystem.exists("isRunningOnCI".toPath())
+    val isRunningOnCI = getEnv("TEST_ENV") == CI_ENV_ID
     return if (isRunningOnCI) {
         config.testnets.first { it is LocalSecret }
     } else {
