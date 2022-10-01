@@ -16,9 +16,7 @@ import io.eqoty.secretk.types.MsgExecuteContract
 import io.eqoty.secretk.types.MsgInstantiateContract
 import io.eqoty.secretk.types.MsgStoreCode
 import io.eqoty.secretk.types.TxOptions
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okio.Path
@@ -145,21 +143,18 @@ class IntegrationTests {
 
     @BeforeTest
     fun beforeEach() = runTest {
-        withContext(Dispatchers.IO) {
-            initTestsSemaphore.acquire()
-            try {
-                if (needsInit) {
-                    Logger.setTag("dapp")
-                    initializeAndUploadContract()
-                    needsInit = false
-                }
-            } catch (t: Throwable) {
-                throw t
-            } finally {
-                initTestsSemaphore.release()
+        initTestsSemaphore.acquire()
+        try {
+            if (needsInit) {
+                Logger.setTag("dapp")
+                initializeAndUploadContract()
+                needsInit = false
             }
+        } catch (t: Throwable) {
+            throw t
+        } finally {
+            initTestsSemaphore.release()
         }
-
     }
 
     @Test
