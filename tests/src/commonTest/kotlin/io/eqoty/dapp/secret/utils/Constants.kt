@@ -1,6 +1,6 @@
 package io.eqoty.dapp.secret.utils
 
 object Constants {
-    val selectedLocalRunTestnet = Gitpod::class
-    const val CI_ENV_ID = "CI"
+    const val TESTNET_TYPE_ENV_NAME = "TESTNET_TYPE"
+    const val GITPOD_ID_ENV_NAME = "GITPOD_ID"
 }

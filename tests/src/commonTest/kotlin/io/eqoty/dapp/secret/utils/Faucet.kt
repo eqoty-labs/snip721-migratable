@@ -5,10 +5,13 @@ import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
 
 object Faucet {
 
-    private val httpClient = HttpClient {}
+    private val httpClient = HttpClient {
+        expectSuccess = true
+    }
 
     suspend fun fillUp(
         testnetInfo: TestnetInfo,
@@ -54,24 +57,26 @@ object Faucet {
     }
 
     private suspend fun getFromFaucet(testnetInfo: TestnetInfo, address: String): String {
-        return when (testnetInfo) {
+        val response = when (testnetInfo) {
             is Pulsar2 -> {
                 httpClient.post(testnetInfo.faucetAddressEndpoint) {
+                    contentType(ContentType.Application.Json)
                     setBody(
                         """
                             {
                                 "denom": "uscrt",
-                                "address": $address
+                                "address": "$address"
                             }
                         """
                     )
-                }.bodyAsText()
+                }
             }
 
             else -> {
-                httpClient.get(testnetInfo.createFaucetAddressGetEndpoint(address)).bodyAsText()
+                httpClient.get(testnetInfo.createFaucetAddressGetEndpoint(address))
             }
         }
+        return response.bodyAsText()
     }
 
 }

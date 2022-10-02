@@ -1,8 +1,7 @@
 package io.eqoty.dapp.secret.utils
 
-import io.eqoty.dapp.secret.utils.Constants.CI_ENV_ID
-import io.eqoty.dapp.secret.utils.Constants.selectedLocalRunTestnet
-import io.ktor.util.reflect.*
+import io.eqoty.dapp.secret.utils.Constants.GITPOD_ID_ENV_NAME
+import io.eqoty.dapp.secret.utils.Constants.TESTNET_TYPE_ENV_NAME
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -12,6 +11,7 @@ import okio.Path.Companion.toPath
 
 @Serializable
 sealed interface TestnetInfo {
+    val type: String
     val chainId: String
     val grpcGatewayEndpoint: String
     val faucetAddressEndpoint: String
@@ -21,6 +21,7 @@ sealed interface TestnetInfo {
 @Serializable
 @SerialName("LocalSecret")
 class LocalSecret(
+    override val type: String,
     override val chainId: String,
     override val grpcGatewayEndpoint: String,
     override val faucetAddressEndpoint: String,
@@ -29,17 +30,17 @@ class LocalSecret(
 @Serializable
 @SerialName("Pulsar2")
 class Pulsar2(
+    override val type: String,
     override val chainId: String,
     override val grpcGatewayEndpoint: String,
     override val faucetAddressEndpoint: String,
 ) : TestnetInfo
 
-@Serializable
-@SerialName("Gitpod")
 class Gitpod(
-    override val chainId: String,
     val gitpodId: String,
 ) : TestnetInfo {
+    override val type: String = "Gitpod"
+    override val chainId = "secretdev-1"
     override val grpcGatewayEndpoint: String = "https://1317-$gitpodId.gitpod.io"
     override val faucetAddressEndpoint: String =
         "https://5000-$gitpodId.gitpod.io/faucet?address=".replace("\$gitpodId", gitpodId)
@@ -48,6 +49,7 @@ class Gitpod(
 @Serializable
 @SerialName("Custom")
 class Custom(
+    override val type: String,
     override val chainId: String,
     override val grpcGatewayEndpoint: String,
     override val faucetAddressEndpoint: String,
@@ -62,10 +64,18 @@ fun getTestnet(): TestnetInfo {
         readUtf8()
     }
     val config: ConfigTestnets = Json.decodeFromString(jsonString)
-    val isRunningOnCI = getEnv("TEST_ENV") == CI_ENV_ID
-    return if (isRunningOnCI) {
-        config.testnets.first { it is LocalSecret }
+    val testnetType = getEnv(TESTNET_TYPE_ENV_NAME)
+    return if (testnetType == "Gitpod") {
+        val gitpodId = try {
+            getEnv(GITPOD_ID_ENV_NAME)!!
+        } catch (t: Throwable) {
+            throw RuntimeException(
+                "GITPOD_ID environment variable not found. GITPOD_ID Should be set " +
+                        "in local.properties or directly as an environment variable."
+            )
+        }
+        Gitpod(gitpodId)
     } else {
-        config.testnets.first { it.instanceOf(selectedLocalRunTestnet) }
+        config.testnets.first { it.type == testnetType }
     }
 }

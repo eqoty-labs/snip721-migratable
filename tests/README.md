@@ -13,6 +13,23 @@ In order to run the tests for jvm only run:
 ./gradlew jvmTest
 ```
 
+## Setting Testnet Endpoints
+Testnet endpoints can be configured in `tests/src/commonTest/resources/config/testnets.json`
+
+Choosing a testnet type is done through environment variables.
+The default testnet type is set in `gradle.properties`
+Creating a `local.properties` file and setting `TESTNET_TYPE` will override `gradle.properties`
+By default `TESTNET_TYPE=Pulsar2` is set in `gradle.properties`
+
+For CI we override this to use `TESTNET_TYPE=LocalSecret`
+
+To use gitpod, in `local.properties` set for example:
+
+```
+TESTNET_TYPE=Gitpod
+GITPOD_ID=eqotylabs-gitpodlocalse-mztv8v7iwww.ws-us69
+```
+
 ## Conventions
 
 There are no strict conventions, the only recommendation is to write test functions with "snake_case" naming sense (Only for the function name)
