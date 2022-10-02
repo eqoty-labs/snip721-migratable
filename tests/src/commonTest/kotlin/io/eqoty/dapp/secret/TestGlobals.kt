@@ -1,3 +1,5 @@
+@file:Suppress("VARIABLE_IN_SINGLETON_WITHOUT_THREAD_LOCAL")
+
 package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger

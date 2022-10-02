@@ -1,3 +1,8 @@
+import org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
+import org.jetbrains.kotlin.gradle.tasks.KotlinTest
+import java.util.*
+
 plugins {
     @Suppress("DSL_SCOPE_VIOLATION")
     val libs = libs
@@ -71,7 +76,32 @@ kotlin {
     }
 }
 
+fun createEnvVariables(environment: Map<String, Any>): MutableMap<String, Any> {
+    val envMap = mutableMapOf<String, Any>()
+    envMap.putAll(environment)
+    if (envMap["TESTNET_TYPE"] == null) {
+        val properties = Properties()
+        properties.load(project.rootProject.file("gradle.properties").reader())
+        properties.load(project.rootProject.file("local.properties").reader())
+        val testnetType = properties["TESTNET_TYPE"]
+        val gitpodId = properties["GITPOD_ID"]
+        envMap["TESTNET_TYPE"] = testnetType!!
+        gitpodId?.let {
+            envMap.put("GITPOD_ID", it)
+        }
+    }
+    return envMap
+}
+
 tasks.withType<Test> {
+    environment = createEnvVariables(environment)
+    testLogging {
+        showStandardStreams = true
+    }
+}
+
+tasks.withType<KotlinNativeTest> {
+    environment = createEnvVariables(environment)
     testLogging {
         showStandardStreams = true
     }
