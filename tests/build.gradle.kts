@@ -82,7 +82,10 @@ fun createEnvVariables(environment: Map<String, Any>): MutableMap<String, Any> {
     if (envMap["TESTNET_TYPE"] == null) {
         val properties = Properties()
         properties.load(project.rootProject.file("gradle.properties").reader())
-        properties.load(project.rootProject.file("local.properties").reader())
+        val localPropertiesFile = project.rootProject.file("local.properties")
+        if(localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.reader())
+        }
         val testnetType = properties["TESTNET_TYPE"]
         val gitpodId = properties["GITPOD_ID"]
         val contractPath = properties["CONTRACT_PATH"]
