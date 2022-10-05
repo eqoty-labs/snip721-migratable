@@ -85,7 +85,9 @@ fun createEnvVariables(environment: Map<String, Any>): MutableMap<String, Any> {
         properties.load(project.rootProject.file("local.properties").reader())
         val testnetType = properties["TESTNET_TYPE"]
         val gitpodId = properties["GITPOD_ID"]
+        val contractPath = properties["CONTRACT_PATH"]
         envMap["TESTNET_TYPE"] = testnetType!!
+        envMap["CONTRACT_PATH"] = contractPath!!
         gitpodId?.let {
             envMap.put("GITPOD_ID", it)
         }
