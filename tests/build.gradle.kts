@@ -95,6 +95,7 @@ fun createEnvVariables(environment: Map<String, Any>): MutableMap<String, Any> {
             envMap.put("GITPOD_ID", it)
         }
     }
+    println(envMap.toString())
     return envMap
 }
 
