@@ -1,6 +1,4 @@
-import org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
-import org.jetbrains.kotlin.gradle.tasks.KotlinTest
 import java.util.*
 
 plugins {
@@ -79,23 +77,21 @@ kotlin {
 fun createEnvVariables(environment: Map<String, Any>): MutableMap<String, Any> {
     val envMap = mutableMapOf<String, Any>()
     envMap.putAll(environment)
-    if (envMap["TESTNET_TYPE"] == null) {
-        val properties = Properties()
-        properties.load(project.rootProject.file("gradle.properties").reader())
-        val localPropertiesFile = project.rootProject.file("local.properties")
-        if(localPropertiesFile.exists()) {
-            properties.load(localPropertiesFile.reader())
-        }
-        val testnetType = properties["TESTNET_TYPE"]
-        val gitpodId = properties["GITPOD_ID"]
-        val contractPath = properties["CONTRACT_PATH"]
-        envMap["TESTNET_TYPE"] = testnetType!!
-        envMap["CONTRACT_PATH"] = contractPath!!
-        gitpodId?.let {
-            envMap.put("GITPOD_ID", it)
-        }
+    val properties = Properties()
+    properties.load(project.rootProject.file("gradle.properties").reader())
+    val localPropertiesFile = project.rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        properties.load(localPropertiesFile.reader())
     }
-    println(envMap.toString())
+    if (envMap["TESTNET_TYPE"] == null) {
+        envMap["TESTNET_TYPE"] = properties["TESTNET_TYPE"]!!
+    }
+    properties["GITPOD_ID"]?.let {
+        envMap.put("GITPOD_ID", it)
+    }
+    properties["CONTRACT_PATH"]?.let {
+        envMap.put("CONTRACT_PATH", it)
+    }
     return envMap
 }
 
