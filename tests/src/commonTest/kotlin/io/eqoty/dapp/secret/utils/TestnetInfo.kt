@@ -2,8 +2,8 @@ package io.eqoty.dapp.secret.utils
 
 import io.eqoty.dapp.secret.utils.Constants.GITPOD_ID_ENV_NAME
 import io.eqoty.dapp.secret.utils.Constants.TESTNET_TYPE_ENV_NAME
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okio.Path

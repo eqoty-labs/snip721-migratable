@@ -9,8 +9,10 @@ import io.eqoty.dapp.secret.TestGlobals.needsInit
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
 import io.eqoty.dapp.secret.types.ContractInfo
 import io.eqoty.dapp.secret.types.contract.CountResponse
+import io.eqoty.dapp.secret.utils.Constants
 import io.eqoty.dapp.secret.utils.Faucet
 import io.eqoty.dapp.secret.utils.fileSystem
+import io.eqoty.dapp.secret.utils.getEnv
 import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.types.MsgExecuteContract
 import io.eqoty.secretk.types.MsgInstantiateContract
@@ -29,7 +31,7 @@ import kotlin.test.assertEquals
 
 class IntegrationTests {
 
-    private val contractCodePath: Path = "../contract.wasm.gz".toPath()
+    private val contractCodePath: Path = getEnv(Constants.CONTRACT_PATH_ENV_NAME)!!.toPath()
 
     // Initialization procedure
     private suspend fun initializeAndUploadContract() {
