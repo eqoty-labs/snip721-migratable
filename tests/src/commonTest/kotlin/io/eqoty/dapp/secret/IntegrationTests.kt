@@ -124,18 +124,21 @@ class IntegrationTests {
     private suspend fun incrementTx(
         contractInfo: ContractInfo
     ) {
+        val customerClient = with(testnetInfo) { initializeClient(grpcGatewayEndpoint, chainId) }
+        Faucet.fillUp(testnetInfo, customerClient, 100_000_000)
+
         val incrementMsg = """{"increment": {}}"""
 
         val msgs1 = listOf(
             MsgExecuteContract(
-                sender = client.senderAddress,
+                sender = customerClient.senderAddress,
                 contractAddress = contractInfo.contractAddress,
                 codeHash = contractInfo.codeHash,
                 msg = incrementMsg,
             )
         )
         val gasLimit = 200000
-        val result = client.execute(
+        val result = customerClient.execute(
             msgs1,
             txOptions = TxOptions(gasLimit = gasLimit)
         )
