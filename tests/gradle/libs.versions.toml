@@ -7,21 +7,19 @@ org-jetbrains-kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.
 
 [versions]
 
-kotlin = "1.7.20"
+kotlin = "1.7.21"
+##  ⬆ = "1.8.0-Beta"
 
-ktor = "2.1.2"
+ktor = "2.1.3"
 
 kotlinx-serialization = "1.4.1"
 kotlinx-coroutines = "1.6.4"
 
 okio = "3.2.0"
 
-kermit = "1.1.3"
-##  ⬆ = "1.2.0-M1"
-##  ⬆ = "1.2.0-M2"
-##  ⬆ = "1.2.1-alpha"
+kermit = "1.2.2"
 
-secretk = "0.8.1"
+secretk = "0.16.0"
 
 bignum = "0.3.7"
 libsodium = "0.8.7"
