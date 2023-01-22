@@ -1,5 +1,5 @@
 [package]
-name = "migratable_snip721_v1"
+name = "purchaseable-snip721-v1"
 version = "0.1.0"
 authors = ["Luca Spinazzola"]
 edition = "2021"
@@ -23,6 +23,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 schema = ["cosmwasm-schema"]
 
 [dependencies]
+snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", branch = "as-library" }
+serde-cw-value = { version = "0.7.0" }
 serde = { version = "1.0.147", default-features = false, features = ["derive"] }
 schemars = "0.8.11"
 cosmwasm-std = { package = "secret-cosmwasm-std", version = "1.0.0", default-features = false }

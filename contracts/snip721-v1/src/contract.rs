@@ -1,186 +1,153 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    BankMsg, Binary, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Response, StdError,
+    StdResult, to_binary,
 };
+use snip721_reference_impl::contract::mint;
+use snip721_reference_impl::msg::{ContractStatus, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, load};
 
-use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::state::{config, config_read, State};
 
 #[entry_point]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    let mut deps = deps;
+    if msg.prices.len() == 0 {
+        return Err(StdError::generic_err(
+            format!("No purchase prices were specified"),
+        ));
+    }
     let state = State {
-        count: msg.count,
-        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
+        prices: msg.prices,
+        public_metadata: msg.public_metadata,
+        private_metadata: msg.private_metadata,
     };
 
-    deps.api
-        .debug(format!("Contract was initialized by {}", info.sender).as_str());
     config(deps.storage).save(&state)?;
+    let instantiate_msg = Snip721InstantiateMsg {
+        name: "PurchasableSnip721".to_string(),
+        symbol: "PUR721".to_string(),
+        admin: Some(msg.admin.clone()),
+        entropy: msg.entropy,
+        royalty_info: msg.royalty_info,
+        config: Some(
+            InstantiateConfig {
+                public_token_supply: Some(true),
+                public_owner: Some(true),
+                enable_sealed_metadata: None,
+                unwrapped_metadata_is_private: None,
+                minter_may_update_metadata: None,
+                owner_may_update_metadata: None,
+                enable_burn: Some(false),
+            }
+        ),
+        post_init_callback: None,
+    };
+    snip721_reference_impl::contract::instantiate(&mut deps, env, info.clone(), instantiate_msg).unwrap();
 
+    deps.api
+        .debug(format!("PurchasableSnip721 was initialized by {}", info.sender).as_str());
     Ok(Response::default())
 }
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    match msg {
-        ExecuteMsg::Increment {} => try_increment(deps, env),
-        ExecuteMsg::Reset { count } => try_reset(deps, info, count),
-    }
-}
-
-pub fn try_increment(deps: DepsMut, _env: Env) -> StdResult<Response> {
-    config(deps.storage).update(|mut state| -> Result<_, StdError> {
-        state.count += 1;
-        Ok(state)
-    })?;
-
-    deps.api.debug("count incremented successfully");
-    Ok(Response::default())
-}
-
-pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> StdResult<Response> {
-    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    config(deps.storage).update(|mut state| {
-        if sender_address_raw != state.owner {
-            return Err(StdError::generic_err("Only the owner can reset count"));
+    let mut config: Config = load(deps.storage, CONFIG_KEY)?;
+    let mut deps = deps;
+    return match msg {
+        ExecuteMsg::Base(base_msg) => snip721_reference_impl::contract::execute(deps, env, info, base_msg),
+        ExecuteMsg::Ext(ext_msg) => match ext_msg {
+            ExecuteMsgExt::PurchaseMint { .. } => purchase_and_mint(&mut deps, env, info, &mut config),
         }
-        state.count = count;
-        Ok(state)
-    })?;
+    };
+}
 
-    deps.api.debug("count reset successfully");
-    Ok(Response::default())
+fn purchase_and_mint(deps: &mut DepsMut, env: Env, info: MessageInfo, config: &mut Config) -> StdResult<Response> {
+    let state = config_read(deps.storage).load()?;
+    if info.funds.len() != 1 {
+        return Err(StdError::generic_err(
+            format!("Purchase requires one coin denom to be sent with transaction, {} were sent.", info.funds.len()),
+        ));
+    }
+    let msg_fund = &info.funds[0];
+    let selected_coin_price = state.prices.iter().find(|c| c.denom == msg_fund.denom);
+    if let Some(selected_coin_price) = selected_coin_price {
+        if msg_fund.amount != selected_coin_price.amount {
+            return Err(StdError::generic_err(
+                format!("Purchase price in {} is {}, but {} was sent",
+                        selected_coin_price.denom,
+                        selected_coin_price.amount,
+                        msg_fund),
+            ));
+        }
+    } else {
+        return Err(StdError::generic_err(
+            format!("Purchasing in denom:{} is not allowed", msg_fund.denom),
+        ));
+    }
+    let sender = info.clone().sender;
+    let pay_to_addr = deps.api.addr_humanize(&config.admin).unwrap();
+    let send_funds_messages = vec![
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: pay_to_addr.to_string(),
+            amount: info.funds.clone(),
+        })];
+    let admin_addr = deps.api.addr_humanize(&config.admin).unwrap();
+
+    let mint_result = mint(
+        deps,
+        &env,
+        &admin_addr,
+        config,
+        ContractStatus::Normal.to_u8(),
+        None,
+        Some(sender.to_string()),
+        state.public_metadata,
+        state.private_metadata,
+        None,
+        None,
+        None,
+        None,
+    );
+    if let Err(mint_err) = mint_result {
+        return Err(mint_err);
+    };
+    let mint_res = mint_result.unwrap().clone();
+    Ok(Response::new()
+        .add_messages(send_funds_messages)
+        .add_attributes(mint_res.attributes)
+        .set_data(mint_res.data.unwrap())
+    )
 }
 
 #[entry_point]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
-    }
-}
-
-fn query_count(deps: Deps) -> StdResult<CountResponse> {
-    let state = config_read(deps.storage).load()?;
-    Ok(CountResponse { count: state.count })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::testing::*;
-    use cosmwasm_std::{from_binary, Coin, StdError, Uint128};
-
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies();
-        let info = mock_info(
-            "creator",
-            &[Coin {
-                denom: "earth".to_string(),
-                amount: Uint128::new(1000),
-            }],
-        );
-        let init_msg = InstantiateMsg { count: 17 };
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-
-        assert_eq!(0, res.messages.len());
-
-        // it worked, let's query the state
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(17, value.count);
-    }
-
-    #[test]
-    fn increment() {
-        let mut deps = mock_dependencies_with_balance(&[Coin {
-            denom: "token".to_string(),
-            amount: Uint128::new(2),
-        }]);
-        let info = mock_info(
-            "creator",
-            &[Coin {
-                denom: "token".to_string(),
-                amount: Uint128::new(2),
-            }],
-        );
-        let init_msg = InstantiateMsg { count: 17 };
-
-        let _res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-
-        // anyone can increment
-        let info = mock_info(
-            "anyone",
-            &[Coin {
-                denom: "token".to_string(),
-                amount: Uint128::new(2),
-            }],
-        );
-
-        let exec_msg = ExecuteMsg::Increment {};
-        let _res = execute(deps.as_mut(), mock_env(), info, exec_msg).unwrap();
-
-        // should increase counter by 1
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(18, value.count);
-    }
-
-    #[test]
-    fn reset() {
-        let mut deps = mock_dependencies_with_balance(&[Coin {
-            denom: "token".to_string(),
-            amount: Uint128::new(2),
-        }]);
-        let info = mock_info(
-            "creator",
-            &[Coin {
-                denom: "token".to_string(),
-                amount: Uint128::new(2),
-            }],
-        );
-        let init_msg = InstantiateMsg { count: 17 };
-
-        let _res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-
-        // not anyone can reset
-        let info = mock_info(
-            "anyone",
-            &[Coin {
-                denom: "token".to_string(),
-                amount: Uint128::new(2),
-            }],
-        );
-        let exec_msg = ExecuteMsg::Reset { count: 5 };
-
-        let res = execute(deps.as_mut(), mock_env(), info, exec_msg);
-
-        match res {
-            Err(StdError::GenericErr { .. }) => {}
-            _ => panic!("Must return unauthorized error"),
+pub fn query(
+    deps: Deps,
+    _env: Env,
+    msg: QueryMsg,
+) -> StdResult<Binary> {
+    return match msg {
+        QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, _env, base_msg),
+        QueryMsg::Ext(ext_msg) => match ext_msg {
+            QueryMsgExt::GetPrices {} => query_prices(deps),
         }
+    };
+}
 
-        // only the original creator can reset the counter
-        let info = mock_info(
-            "creator",
-            &[Coin {
-                denom: "token".to_string(),
-                amount: Uint128::new(2),
-            }],
-        );
-        let exec_msg = ExecuteMsg::Reset { count: 5 };
+/// Returns StdResult<Binary> displaying prices to mint in all acceptable currency denoms
+///
+/// # Arguments
+///
+/// * `deps` - a reference to Extern containing all the contract's external dependencies
+pub fn query_prices(deps: Deps) -> StdResult<Binary> {
+    let state = config_read(deps.storage).load()?;
 
-        let _res = execute(deps.as_mut(), mock_env(), info, exec_msg).unwrap();
-
-        // should now be 5
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(5, value.count);
-    }
+    to_binary(&QueryAnswer::GetPrices {
+        prices: state.prices
+    })
 }
