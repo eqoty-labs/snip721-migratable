@@ -18,15 +18,15 @@ Testnet endpoints can be configured in `tests/src/commonTest/resources/config/te
 
 Choosing a testnet type is done through environment variables.
 The default testnet type is set in `gradle.properties`
-Creating a `local.properties` file and setting `TESTNET_TYPE` will override `gradle.properties`
-By default `TESTNET_TYPE=Pulsar2` is set in `gradle.properties`
+Creating a `local.properties` file and setting `NODE_TYPE` will override `gradle.properties`
+By default `NODE_TYPE=Pulsar2` is set in `gradle.properties`
 
-For CI we override this to use `TESTNET_TYPE=LocalSecret`
+For CI we override this to use `NODE_TYPE=LocalSecret`
 
 To use gitpod, in `local.properties` set for example:
 
 ```
-TESTNET_TYPE=Gitpod
+NODE_TYPE=Gitpod
 GITPOD_ID=eqotylabs-gitpodlocalse-mztv8v7iwww.ws-us69
 ```
 

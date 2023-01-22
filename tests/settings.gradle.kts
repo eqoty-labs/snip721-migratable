@@ -11,6 +11,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
+        maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
         maven {
             name = "luca992/KHash GitHub Packages"
             url = uri("https://maven.pkg.github.com/luca992/KHash")

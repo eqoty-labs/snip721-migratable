@@ -4,8 +4,8 @@ package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.types.ContractInfo
-import io.eqoty.dapp.secret.utils.TestnetInfo
-import io.eqoty.dapp.secret.utils.getTestnet
+import io.eqoty.dapp.secret.utils.NodeInfo
+import io.eqoty.dapp.secret.utils.getNode
 import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.wallet.DirectSigningWallet
 import kotlinx.coroutines.sync.Semaphore
@@ -18,7 +18,7 @@ import kotlinx.coroutines.sync.Semaphore
 object TestGlobals {
     lateinit var client: SigningCosmWasmClient
     lateinit var contractInfo: ContractInfo
-    val testnetInfo: TestnetInfo = getTestnet()
+    val testnetInfo: NodeInfo = getNode("src/commonTest/resources/config/nodes.json")
 
     var needsInit = true
     val initTestsSemaphore = Semaphore(1)
