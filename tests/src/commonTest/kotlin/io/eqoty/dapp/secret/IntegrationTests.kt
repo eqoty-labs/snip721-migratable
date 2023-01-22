@@ -14,10 +14,19 @@ import io.eqoty.dapp.secret.types.MintedRelease
 import io.eqoty.dapp.secret.types.contract.EqotyPurchaseMsgs
 import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
 import io.eqoty.dapp.secret.types.contract.Snip721Msgs
-import io.eqoty.dapp.secret.utils.*
+import io.eqoty.dapp.secret.utils.BalanceUtils
+import io.eqoty.dapp.secret.utils.Constants
+import io.eqoty.dapp.secret.utils.getEnv
 import io.eqoty.secretk.client.SigningCosmWasmClient
-import io.eqoty.secretk.types.*
+import io.eqoty.secretk.extensions.accesscontrol.PermitFactory
+import io.eqoty.secretk.types.Coin
+import io.eqoty.secretk.types.MsgExecuteContract
+import io.eqoty.secretk.types.MsgInstantiateContract
+import io.eqoty.secretk.types.TxOptions
+import io.eqoty.secretk.types.extensions.Permission
+import io.eqoty.secretk.types.extensions.Permit
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okio.Path
@@ -26,6 +35,7 @@ import kotlin.math.ceil
 import kotlin.random.Random
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class IntegrationTests {
 
@@ -102,6 +112,28 @@ class IntegrationTests {
         return ExecuteResult(res, Coin(gasFee, "uscrt"))
     }
 
+    suspend fun getNumTokensOfOwner(
+        ownerAddress: String,
+        permit: Permit,
+        contractAddr: String
+    ): Snip721Msgs.QueryAnswer.NumTokens {
+        val numTokensQuery = Json.encodeToString(
+            Snip721Msgs.Query(
+                withPermit = Snip721Msgs.Query.WithPermit(
+                    permit,
+                    query = Snip721Msgs.QueryWithPermit(
+                        numTokensOfOwner = Snip721Msgs.QueryWithPermit.NumTokensOfOwner(ownerAddress),
+                    )
+                )
+            )
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(
+            client.queryContractSmart(
+                contractAddr,
+                numTokensQuery
+            )
+        ).numTokens!!
+    }
 
     @BeforeTest
     fun beforeEach() = runTest {
@@ -120,10 +152,29 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_count_on_initialization() = runTest {
+    fun test_purchase_one() = runTest {
+        val permit = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contractInfo.address),
+            listOf(Permission.Owner)
+        )
+        val startingNumTokensOfOwner = getNumTokensOfOwner(
+            client.senderAddress,
+            permit,
+            contractInfo.address
+        ).count
         val purchaseOneMintResult =
             purchaseOneMint(client, contractInfo, purchasePrices)
-
+        // verify customer received one nft
+        val numTokensOfOwner = getNumTokensOfOwner(
+            client.senderAddress,
+            permit,
+            contractInfo.address
+        ).count
+        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
     }
 
 
