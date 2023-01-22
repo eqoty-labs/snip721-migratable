@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Coin, MessageInfo, StdError, Uint128};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{Coin, MessageInfo, StdError, Uint128};
 
     use crate::contract::instantiate;
     use crate::msg::InstantiateMsg;
@@ -13,7 +13,7 @@ mod tests {
             private_metadata: None,
             admin: admin_info.sender.to_string(),
             entropy: "".to_string(),
-            royalty_info: None
+            royalty_info: None,
         }
     }
 
@@ -30,11 +30,14 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg);
-
-        assert!(
-            res.is_ok(),
+        let res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
         );
+
+        assert!(res.is_ok(),);
     }
 
     #[test]
@@ -47,11 +50,14 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg);
-
-        assert!(
-            res.is_err(),
+        let res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
         );
+
+        assert!(res.is_err(),);
         assert_eq!(
             res.err().unwrap(),
             StdError::generic_err("No purchase prices were specified")

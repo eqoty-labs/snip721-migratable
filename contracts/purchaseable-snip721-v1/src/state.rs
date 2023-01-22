@@ -1,5 +1,5 @@
 use cosmwasm_std::{Coin, Storage};
-use cosmwasm_storage::{ReadonlySingleton, singleton, Singleton, singleton_read};
+use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::token::Metadata;

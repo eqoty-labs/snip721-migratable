@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{BankMsg, Coin, CosmosMsg, Deps, DepsMut, from_binary, MessageInfo, StdError, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, BankMsg, Coin, CosmosMsg, Deps, DepsMut, MessageInfo, StdError, Uint128,
+        WasmMsg,
+    };
 
     use crate::contract::{execute, instantiate, query};
     use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryMsg};
@@ -18,28 +21,23 @@ mod tests {
     }
 
     pub fn set_viewing_key(deps: DepsMut, viewing_key: String, message_info: MessageInfo) {
-        let set_view_key_msg = ExecuteMsg::Base(snip721_reference_impl::msg::ExecuteMsg::SetViewingKey {
-            key: viewing_key.clone(),
-            padding: None,
-        });
+        let set_view_key_msg =
+            ExecuteMsg::Base(snip721_reference_impl::msg::ExecuteMsg::SetViewingKey {
+                key: viewing_key.clone(),
+                padding: None,
+            });
         let res = execute(deps, mock_env(), message_info.clone(), set_view_key_msg);
-        assert!(
-            res.is_ok(),
-            "execute failed: {}",
-            res.err().unwrap()
-        );
+        assert!(res.is_ok(), "execute failed: {}", res.err().unwrap());
     }
 
     pub fn get_tokens(deps: Deps, viewing_key: String, message_info: MessageInfo) -> Vec<String> {
-        let query_msg = QueryMsg::Base(
-            snip721_reference_impl::msg::QueryMsg::Tokens {
-                owner: message_info.sender.to_string(),
-                viewer: None,
-                viewing_key: Some(viewing_key.clone()),
-                start_after: None,
-                limit: None,
-            }
-        );
+        let query_msg = QueryMsg::Base(snip721_reference_impl::msg::QueryMsg::Tokens {
+            owner: message_info.sender.to_string(),
+            viewer: None,
+            viewing_key: Some(viewing_key.clone()),
+            start_after: None,
+            limit: None,
+        });
         let query_res = query(deps, mock_env(), query_msg);
 
         assert!(
@@ -47,7 +45,8 @@ mod tests {
             "query failed: {}",
             query_res.err().unwrap()
         );
-        let query_answer: snip721_reference_impl::msg::QueryAnswer = from_binary(&query_res.unwrap()).unwrap();
+        let query_answer: snip721_reference_impl::msg::QueryAnswer =
+            from_binary(&query_res.unwrap()).unwrap();
         return match query_answer {
             snip721_reference_impl::msg::QueryAnswer::TokenList { tokens } => tokens,
             _ => panic!("unexpected"),
@@ -67,27 +66,44 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg).unwrap();
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
+        )
+        .unwrap();
 
         // there should be one message
         assert_eq!(exec_purchase_res.messages.len(), 1);
         // the message should be a Bank Send message
         println!("{:#?}", exec_purchase_res.messages[0].msg);
-        assert!(matches!(exec_purchase_res.messages[0].msg, CosmosMsg::Bank(BankMsg::Send{ .. })));
+        assert!(matches!(
+            exec_purchase_res.messages[0].msg,
+            CosmosMsg::Bank(BankMsg::Send { .. })
+        ));
         // the Bank Send message should have the price of one purchase being sent to admin
         match &exec_purchase_res.messages[0].msg {
-            CosmosMsg::Bank(msg) => {
-                match msg {
-                    BankMsg::Send { to_address: contract_addr, amount: funds, .. } => {
-                        assert_eq!(contract_addr, &pay_to_addr);
-                        assert_eq!(funds, &prices);
-                    }
-                    _ => panic!("unexpected"),
+            CosmosMsg::Bank(msg) => match msg {
+                BankMsg::Send {
+                    to_address: contract_addr,
+                    amount: funds,
+                    ..
+                } => {
+                    assert_eq!(contract_addr, &pay_to_addr);
+                    assert_eq!(funds, &prices);
                 }
-            }
+                _ => panic!("unexpected"),
+            },
             _ => panic!("unexpected"),
         }
 
@@ -111,20 +127,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchase requires one coin denom to be sent with transaction, {} were sent.", invalid_funds.len()),
-            )
+            StdError::generic_err(format!(
+                "Purchase requires one coin denom to be sent with transaction, {} were sent.",
+                invalid_funds.len()
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -135,14 +160,18 @@ mod tests {
 
     #[test]
     fn purchase_and_mint_fails_w_correct_denom_w_insufficient_amount() {
-        let prices = vec![
-            Coin {
-                amount: Uint128::new(100),
-                denom: "`uscrt`".to_string(),
-            },
-        ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: c.clone().denom, amount: c.amount - Uint128::from(1u8) }).collect::<Vec<Coin>>();
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: c.clone().denom,
+                amount: c.amount - Uint128::from(1u8),
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -150,23 +179,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchase price in {} is {}, but {} was sent",
-                        prices[0].denom,
-                        prices[0].amount,
-                        invalid_funds[0]),
-            )
+            StdError::generic_err(format!(
+                "Purchase price in {} is {}, but {} was sent",
+                prices[0].denom, prices[0].amount, invalid_funds[0]
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -175,17 +210,20 @@ mod tests {
         assert_eq!(tokens.len(), 0);
     }
 
-
     #[test]
     fn purchase_and_mint_fails_w_correct_denom_w_excessive_amount() {
-        let prices = vec![
-            Coin {
-                amount: Uint128::new(100),
-                denom: "`uscrt`".to_string(),
-            },
-        ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: c.clone().denom, amount: c.amount + Uint128::from(1u8) }).collect::<Vec<Coin>>();
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: c.clone().denom,
+                amount: c.amount + Uint128::from(1u8),
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -193,23 +231,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchase price in {} is {}, but {} was sent",
-                        prices[0].denom,
-                        prices[0].amount,
-                        invalid_funds[0]),
-            )
+            StdError::generic_err(format!(
+                "Purchase price in {} is {}, but {} was sent",
+                prices[0].denom, prices[0].amount, invalid_funds[0]
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -220,14 +264,18 @@ mod tests {
 
     #[test]
     fn purchase_and_mint_fails_w_wrong_denom_w_correct_amount() {
-        let prices = vec![
-            Coin {
-                amount: Uint128::new(100),
-                denom: "`uscrt`".to_string(),
-            },
-        ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: "`atom`".to_string(), amount: c.amount }).collect::<Vec<Coin>>();
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: "`atom`".to_string(),
+                amount: c.amount,
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -235,20 +283,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchasing in denom:{} is not allowed", invalid_funds[0].denom),
-            )
+            StdError::generic_err(format!(
+                "Purchasing in denom:{} is not allowed",
+                invalid_funds[0].denom
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -259,14 +316,18 @@ mod tests {
 
     #[test]
     fn purchase_and_mint_fails_w_wrong_denom_w_insufficient_amount() {
-        let prices = vec![
-            Coin {
-                amount: Uint128::new(100),
-                denom: "`uscrt`".to_string(),
-            },
-        ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: "`atom`".to_string(), amount: c.amount - Uint128::from(1u8) }).collect::<Vec<Coin>>();
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: "`atom`".to_string(),
+                amount: c.amount - Uint128::from(1u8),
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -274,20 +335,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchasing in denom:{} is not allowed", invalid_funds[0].denom),
-            )
+            StdError::generic_err(format!(
+                "Purchasing in denom:{} is not allowed",
+                invalid_funds[0].denom
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -298,14 +368,18 @@ mod tests {
 
     #[test]
     fn purchase_and_mint_fails_w_wrong_denom_w_excessive_amount() {
-        let prices = vec![
-            Coin {
-                amount: Uint128::new(100),
-                denom: "`uscrt`".to_string(),
-            },
-        ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: "`atom`".to_string(), amount: c.amount + Uint128::from(1u8) }).collect::<Vec<Coin>>();
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: "`atom`".to_string(),
+                amount: c.amount + Uint128::from(1u8),
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -313,20 +387,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchasing in denom:{} is not allowed", invalid_funds[0].denom),
-            )
+            StdError::generic_err(format!(
+                "Purchasing in denom:{} is not allowed",
+                invalid_funds[0].denom
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -355,20 +438,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchase requires one coin denom to be sent with transaction, {} were sent.", invalid_funds.len()),
-            )
+            StdError::generic_err(format!(
+                "Purchase requires one coin denom to be sent with transaction, {} were sent.",
+                invalid_funds.len()
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -389,8 +481,14 @@ mod tests {
                 denom: "`SCRT`".to_string(),
             },
         ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: c.clone().denom, amount: c.amount - Uint128::from(1u8) }).collect::<Vec<Coin>>();
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: c.clone().denom,
+                amount: c.amount - Uint128::from(1u8),
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -398,20 +496,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchase requires one coin denom to be sent with transaction, {} were sent.", invalid_funds.len()),
-            )
+            StdError::generic_err(format!(
+                "Purchase requires one coin denom to be sent with transaction, {} were sent.",
+                invalid_funds.len()
+            ),)
         );
 
         let viewing_key = "key".to_string();
@@ -432,8 +539,14 @@ mod tests {
                 denom: "`SCRT`".to_string(),
             },
         ];
-        let invalid_funds = prices.clone().iter()
-            .map(|c| Coin { denom: c.clone().denom, amount: c.amount + Uint128::from(1u8) }).collect::<Vec<Coin>>();
+        let invalid_funds = prices
+            .clone()
+            .iter()
+            .map(|c| Coin {
+                denom: c.clone().denom,
+                amount: c.amount + Uint128::from(1u8),
+            })
+            .collect::<Vec<Coin>>();
 
         let admin_info = mock_info("creator", &[]);
         let minter_info = mock_info("minty", &invalid_funds);
@@ -441,20 +554,29 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
-        let _res = instantiate(deps.as_mut(), mock_env(), admin_info.clone(), instantiate_msg).unwrap();
+        let _res = instantiate(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
-        let exec_purchase_res = execute(deps.as_mut(), mock_env(), minter_info.clone(), exec_purchase_msg);
-
-        assert!(
-            exec_purchase_res.is_err(),
-            "execute didn't fail"
+        let exec_purchase_res = execute(
+            deps.as_mut(),
+            mock_env(),
+            minter_info.clone(),
+            exec_purchase_msg,
         );
+
+        assert!(exec_purchase_res.is_err(), "execute didn't fail");
         assert_eq!(
             exec_purchase_res.err().unwrap(),
-            StdError::generic_err(
-                format!("Purchase requires one coin denom to be sent with transaction, {} were sent.", invalid_funds.len()),
-            )
+            StdError::generic_err(format!(
+                "Purchase requires one coin denom to be sent with transaction, {} were sent.",
+                invalid_funds.len()
+            ),)
         );
 
         let viewing_key = "key".to_string();
