@@ -1,4 +1,4 @@
-use cosmwasm_std::Coin;
+use cosmwasm_std::{Binary, Coin};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
@@ -35,6 +35,11 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
     PurchaseMint {},
+    /// Set migration secret, and the address of the new contract
+    Migrate {
+        address: String,
+        code_hash: String,
+    },
 }
 
 // https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
@@ -83,6 +88,12 @@ const _: () = {
         }
     }
 };
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MigrationContractTargetExecuteMsg {
+    SetMigrationSecret { secret: Binary },
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

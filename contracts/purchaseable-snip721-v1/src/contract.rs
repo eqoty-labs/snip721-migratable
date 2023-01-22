@@ -1,15 +1,12 @@
-use cosmwasm_std::{
-    entry_point, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult,
-};
+use cosmwasm_std::{BankMsg, Binary, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Response, StdError, StdResult, to_binary, WasmMsg};
 use snip721_reference_impl::contract::mint;
 use snip721_reference_impl::msg::{
     ContractStatus, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
 };
-use snip721_reference_impl::state::{load, Config, CONFIG_KEY};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, load};
 
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryAnswer, QueryMsg, QueryMsgExt};
-use crate::state::{config, config_read, State};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrationContractTargetExecuteMsg, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::state::{config, config_read, ContractMode, State};
 
 #[entry_point]
 pub fn instantiate(
@@ -28,6 +25,9 @@ pub fn instantiate(
         prices: msg.prices,
         public_metadata: msg.public_metadata,
         private_metadata: msg.private_metadata,
+        migration_addr: None,
+        migration_secret: None,
+        mode: ContractMode::Running,
     };
 
     config(deps.storage).save(&state)?;
@@ -60,14 +60,24 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
     let mut deps = deps;
+    let mut state = config_read(deps.storage).load()?;
+    if let ContractMode::Migrated = state.mode {
+        return Err(StdError::generic_err(format!(
+            "This contract has been migrated to {:?}. No further state changes are allowed!",
+            state.migration_addr.unwrap()
+        )));
+    }
+
     return match msg {
         ExecuteMsg::Base(base_msg) => {
             snip721_reference_impl::contract::execute(deps, env, info, base_msg)
         }
         ExecuteMsg::Ext(ext_msg) => match ext_msg {
             ExecuteMsgExt::PurchaseMint { .. } => {
-                purchase_and_mint(&mut deps, env, info, &mut config)
+                purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
             }
+            ExecuteMsgExt::Migrate { address, code_hash } =>
+                migrate(deps, info, &mut config, &mut state, address, code_hash),
         },
     };
 }
@@ -77,8 +87,8 @@ fn purchase_and_mint(
     env: Env,
     info: MessageInfo,
     config: &mut Config,
+    state: &mut State,
 ) -> StdResult<Response> {
-    let state = config_read(deps.storage).load()?;
     if info.funds.len() != 1 {
         return Err(StdError::generic_err(format!(
             "Purchase requires one coin denom to be sent with transaction, {} were sent.",
@@ -116,8 +126,8 @@ fn purchase_and_mint(
         ContractStatus::Normal.to_u8(),
         None,
         Some(sender.to_string()),
-        state.public_metadata,
-        state.private_metadata,
+        state.public_metadata.clone(),
+        state.private_metadata.clone(),
         None,
         None,
         None,
@@ -132,6 +142,45 @@ fn purchase_and_mint(
         .add_attributes(mint_res.attributes)
         .set_data(mint_res.data.unwrap()))
 }
+
+pub fn migrate(
+    deps: DepsMut,
+    info: MessageInfo,
+    snip721config: &mut Config,
+    state: &mut State,
+    address: String,
+    code_hash: String,
+) -> StdResult<Response> {
+    let admin_addr = deps.api.addr_humanize(&snip721config.admin).unwrap();
+    if info.sender != admin_addr {
+        return Err(StdError::generic_err(
+            "Only the admin can set the contract to migrate!",
+        ));
+    }
+    if state.migration_addr.is_some() {
+        return Err(StdError::generic_err(
+            "The contract has already been migrated!",
+        ));
+    }
+    let address = deps.api.addr_validate(&address).unwrap();
+
+    // Generate the secret in some way
+    let secret = Binary::from(b"asdfgh");
+
+    state.migration_addr = Some(address.clone());
+    state.mode = ContractMode::Migrated;
+    state.migration_secret = Some(secret.clone());
+    config(deps.storage).save(&state)?;
+
+    let messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        msg: to_binary(&MigrationContractTargetExecuteMsg::SetMigrationSecret { secret })?,
+        contract_addr: address.to_string(),
+        code_hash,
+        funds: vec![],
+    })];
+    Ok(Response::default().add_messages(messages))
+}
+
 
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
