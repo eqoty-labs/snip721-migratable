@@ -38,10 +38,26 @@ build-mainnet-reproducible:
 
 .PHONY: compress-wasm
 compress-wasm:
-	cp ./target/wasm32-unknown-unknown/release/*.wasm ./contract.wasm
-	@## The following line is not necessary, may work only on linux (extra size optimization)
-	@# wasm-opt -Os ./contract.wasm -o ./contract.wasm
-	cat ./contract.wasm | gzip -9 > ./contract.wasm.gz
+	(mkdir -p ./build/ && rm -f ./build/* && cp ./target/wasm32-unknown-unknown/release/*.wasm ./build/)
+	@## The following line (wasm-opt) is not necessary, may work only on linux (extra size optimization)
+	if [ -x "$$(command -v wasm-opt)" ]; then \
+		for w in ./build/*.wasm; do \
+		  wasm-opt -Oz $$w -o $$w ; \
+		done \
+	fi
+	(cd ./build && gzip -9 -k -f *)
+
+.PHONY: compile-optimized-reproducible
+compile-optimized-reproducible:
+	(mkdir -p ./optimized-binaries/ && rm -f ./optimized-binaries/*)
+	for c in ./contracts/*; do \
+		docker run --rm -v "$$(pwd)":/contract -v /contract/contracts/ -v "$$(pwd)"/contracts/$$(basename $$c):/contract/contracts/$$(basename $$c) \
+			--mount type=volume,source="$$(basename "$$(pwd)")_cache_$$(basename $$c)",target=/contract/target \
+			--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+			enigmampc/secret-contract-optimizer:1.0.9; \
+		underscore_name=$$(tr '-' '_' <<< "$$c"); \
+		mv ./contract.wasm.gz ./optimized-binaries/$$(basename $$underscore_name).wasm.gz ; \
+	done \
 
 .PHONY: schema
 schema:
