@@ -81,4 +81,4 @@ store-contract-local:
 .PHONY: clean
 clean:
 	cargo clean
-	-rm -f ./contract.wasm ./contract.wasm.gz
+	-rm -f ./build/*
