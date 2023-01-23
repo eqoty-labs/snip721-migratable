@@ -110,8 +110,13 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsgExt {
-    // GetPrices returns the purchase price in acceptable coin types.
+    /// GetPrices returns the purchase price in acceptable coin types.
     GetPrices {},
+    /// The new contract can query this to extract all the information.
+    ExportMigrationData {
+        token_ids: Vec<String>,
+        secret: Binary,
+    },
 }
 
 // todo: remove when resolved

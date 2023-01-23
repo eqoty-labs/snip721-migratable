@@ -1,10 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::{BankMsg, Coin, CosmosMsg, Deps, DepsMut, from_binary, MessageInfo, StdError, StdResult, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{
-        from_binary, BankMsg, Coin, CosmosMsg, Deps, DepsMut, MessageInfo, StdError, Uint128,
-        WasmMsg,
-    };
 
     use crate::contract::{execute, instantiate, query};
     use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryMsg};
@@ -45,12 +42,16 @@ mod tests {
             "query failed: {}",
             query_res.err().unwrap()
         );
-        let query_answer: snip721_reference_impl::msg::QueryAnswer =
-            from_binary(&query_res.unwrap()).unwrap();
-        return match query_answer {
-            snip721_reference_impl::msg::QueryAnswer::TokenList { tokens } => tokens,
-            _ => panic!("unexpected"),
-        };
+        let query_answer: StdResult<snip721_reference_impl::msg::QueryAnswer> =
+            from_binary(&query_res.unwrap());
+        if query_answer.is_ok() {
+            return match query_answer.unwrap() {
+                snip721_reference_impl::msg::QueryAnswer::TokenList { tokens } => tokens,
+                _ => panic!("unexpected"),
+            };
+        } else {
+            panic!("{}", query_answer.unwrap_err())
+        }
     }
 
     #[test]
@@ -71,8 +72,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -80,8 +80,7 @@ mod tests {
             mock_env(),
             minter_info.clone(),
             exec_purchase_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         // there should be one message
         assert_eq!(exec_purchase_res.messages.len(), 1);
@@ -132,8 +131,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -149,7 +147,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -184,8 +182,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -201,7 +198,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase price in {} is {}, but {} was sent",
                 prices[0].denom, prices[0].amount, invalid_funds[0]
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -236,8 +233,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -253,7 +249,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase price in {} is {}, but {} was sent",
                 prices[0].denom, prices[0].amount, invalid_funds[0]
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -288,8 +284,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -305,7 +300,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -340,8 +335,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -357,7 +351,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -392,8 +386,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -409,7 +402,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -443,8 +436,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -460,7 +452,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -501,8 +493,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -518,7 +509,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
@@ -559,8 +550,7 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        ).unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -576,7 +566,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ),)
+            ), )
         );
 
         let viewing_key = "key".to_string();
