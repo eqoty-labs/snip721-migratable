@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{BankMsg, Coin, CosmosMsg, Deps, DepsMut, from_binary, MessageInfo, StdError, StdResult, Uint128, WasmMsg};
+    use cosmwasm_std::{BankMsg, Coin, CosmosMsg, Deps, DepsMut, from_binary, MessageInfo, StdError, StdResult, Uint128};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 
     use crate::contract::{execute, instantiate, query};
