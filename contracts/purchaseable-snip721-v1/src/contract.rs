@@ -3,6 +3,8 @@ use cosmwasm_std::{
     MessageInfo, Response, StdError, StdResult, to_binary, WasmMsg,
 };
 use cosmwasm_storage::ReadonlyPrefixedStorage;
+use secret_toolkit::crypto::Prng;
+use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::contract::{
     gen_snip721_approvals, get_token, mint, OwnerInfo, PermissionTypeInfo,
 };
@@ -94,8 +96,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ExecuteMsgExt::PurchaseMint { .. } => {
                 purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
             }
-            ExecuteMsgExt::Migrate { address, code_hash } =>
-                migrate(deps, info, &mut config, &mut state, address, code_hash),
+            ExecuteMsgExt::Migrate { address, code_hash, entropy } =>
+                migrate(deps, env, info, &mut config, &mut state, address, code_hash, entropy.as_str()),
         },
     };
 }
@@ -163,11 +165,13 @@ fn purchase_and_mint(
 
 pub fn migrate(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     snip721config: &mut Config,
     state: &mut State,
     address: String,
     code_hash: String,
+    entropy: &str,
 ) -> StdResult<Response> {
     let admin_addr = deps.api.addr_humanize(&snip721config.admin).unwrap();
     if info.sender != admin_addr {
@@ -183,7 +187,22 @@ pub fn migrate(
     let address = deps.api.addr_validate(&address).unwrap();
 
     // Generate the secret in some way
-    let secret = Binary::from(b"asdfgh");
+    // 16 here represents the lengths in bytes of the block height and time.
+    let entropy_len = 16 + info.sender.to_string().len() + entropy.len();
+    let mut rng_entropy = Vec::with_capacity(entropy_len);
+    rng_entropy.extend_from_slice(&env.block.height.to_be_bytes());
+    rng_entropy.extend_from_slice(&env.block.time.seconds().to_be_bytes());
+    rng_entropy.extend_from_slice(info.sender.as_bytes());
+    rng_entropy.extend_from_slice(entropy.as_ref());
+    const SEED_KEY: &[u8] = b"::seed";
+    let mut seed_key = Vec::with_capacity(ViewingKey::STORAGE_KEY.len() + SEED_KEY.len());
+    seed_key.extend_from_slice(ViewingKey::STORAGE_KEY);
+    seed_key.extend_from_slice(SEED_KEY);
+    let seed = &deps.storage.get(&seed_key).unwrap_or_default();
+
+    let mut rng = Prng::new(seed, &rng_entropy);
+
+    let secret = Binary::from(rng.rand_bytes());
 
     state.migration_addr = Some(address.clone());
     state.mode = ContractMode::Migrated;

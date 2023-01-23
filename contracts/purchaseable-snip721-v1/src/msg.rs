@@ -39,6 +39,7 @@ pub enum ExecuteMsgExt {
     Migrate {
         address: String,
         code_hash: String,
+        entropy: String
     },
 }
 

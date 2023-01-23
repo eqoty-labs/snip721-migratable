@@ -40,6 +40,7 @@ mod tests {
             ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
                 address: migration_target_addr.to_string(),
                 code_hash: migration_target_code_hash.to_string(),
+                entropy: "magnets, how do they work?".to_string()
             });
         let res = execute(deps, mock_env(), admin_message_info.clone(), set_view_key_msg);
         res
