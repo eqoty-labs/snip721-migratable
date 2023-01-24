@@ -1,9 +1,10 @@
 use cosmwasm_std::{
     BankMsg, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, entry_point, Env,
-    MessageInfo, Response, StdError, StdResult, to_binary, WasmMsg,
+    MessageInfo, Response, StdError, StdResult, to_binary,
 };
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
+use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::contract::{
     gen_snip721_approvals, get_token, mint, OwnerInfo, PermissionTypeInfo,
@@ -15,17 +16,10 @@ use snip721_reference_impl::msg::{
 };
 use snip721_reference_impl::msg::QueryAnswer::BatchNftDossier;
 use snip721_reference_impl::royalties::StoredRoyaltyInfo;
-use snip721_reference_impl::state::{
-    Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType,
-    PREFIX_ALL_PERMISSIONS, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META,
-    PREFIX_ROYALTY_INFO,
-};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
 use snip721_reference_impl::token::Metadata;
 
-use crate::msg::{
-    ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrationContractTargetExecuteMsg, QueryAnswer,
-    QueryMsg, QueryMsgExt,
-};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrateReplyDataMsg, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::state::{config, config_read, ContractMode, State};
 
 #[entry_point]
@@ -96,8 +90,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ExecuteMsgExt::PurchaseMint { .. } => {
                 purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
             }
-            ExecuteMsgExt::Migrate { params } =>
-                migrate(deps, env, info, &mut config, &mut state, params.address, params.code_hash, params.entropy.as_str()),
+            ExecuteMsgExt::Migrate { admin_permit, migrate_to } =>
+                migrate(deps, env, info, &mut config, &mut state, admin_permit, migrate_to.address, migrate_to.entropy.as_str()),
         },
     };
 }
@@ -169,12 +163,24 @@ pub fn migrate(
     info: MessageInfo,
     snip721config: &mut Config,
     state: &mut State,
+    admin_permit: Permit,
     address: String,
-    code_hash: String,
     entropy: &str,
 ) -> StdResult<Response> {
-    let admin_addr = deps.api.addr_humanize(&snip721config.admin).unwrap();
-    if info.sender != admin_addr {
+    let admin_addr = &snip721config.admin;
+    let permit_creator = &deps.api.addr_canonicalize(
+        deps.api
+            .addr_validate(&validate(
+                deps.as_ref(),
+                PREFIX_REVOKED_PERMITS,
+                &admin_permit,
+                env.contract.address.to_string(),
+                Some("secret"),
+            )?)?
+            .as_str(),
+    )?;
+
+    if permit_creator != admin_addr {
         return Err(StdError::generic_err(
             "Only the admin can set the contract to migrate!",
         ));
@@ -209,13 +215,9 @@ pub fn migrate(
     state.migration_secret = Some(secret.clone());
     config(deps.storage).save(&state)?;
 
-    let messages = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        msg: to_binary(&MigrationContractTargetExecuteMsg::SetMigrationSecret { secret })?,
-        contract_addr: address.to_string(),
-        code_hash,
-        funds: vec![],
-    })];
-    Ok(Response::default().add_messages(messages))
+    Ok(Response::default()
+        .set_data(to_binary(&MigrateReplyDataMsg { secret }).unwrap())
+    )
 }
 
 
@@ -225,8 +227,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
         QueryMsg::Ext(ext_msg) => match ext_msg {
             QueryMsgExt::GetPrices {} => query_prices(deps),
-            QueryMsgExt::ExportMigrationData { token_ids, secret } =>
-                migration_dossier_list(deps, &env.block, token_ids, secret)
+            QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
+                migration_dossier_list(deps, &env.block, start_index, max_count, secret)
         },
     };
 }
@@ -251,12 +253,14 @@ pub fn query_prices(deps: Deps) -> StdResult<Binary> {
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
 /// * `block` - a reference to the BlockInfo
-/// * `token_ids` - list of token ids to retrieve the info of
+/// * `start_index` - optionally only display token starting at this index
+/// * `max_count` - optional max number of tokens to display
 /// * `secret` - the migration secret
 pub fn migration_dossier_list(
     deps: Deps,
     block: &BlockInfo,
-    token_ids: Vec<String>,
+    start_index: Option<u32>,
+    max_count: Option<u32>,
     secret: Binary,
 ) -> StdResult<Binary> {
     let state = config_read(deps.storage).load()?;
@@ -292,99 +296,108 @@ pub fn migration_dossier_list(
     let run_store = ReadonlyPrefixedStorage::new(deps.storage, PREFIX_MINT_RUN);
     let all_store = ReadonlyPrefixedStorage::new(deps.storage, PREFIX_ALL_PERMISSIONS);
 
-    for id in token_ids.into_iter() {
-        let (mut token, idx) = get_token(deps.storage, &id, None)?;
-        let owner_slice = token.owner.as_slice();
-        // get the owner info either from the cache or storage
-        let owner_inf = if let Some(inf) = owner_cache.iter().find(|o| o.owner == token.owner) {
-            inf
-        } else {
-            let owner_is_public: bool =
-                may_load(&own_priv_store, owner_slice)?.unwrap_or(config.owner_is_public);
-            let mut all_perm: Vec<Permission> =
-                json_may_load(&all_store, owner_slice)?.unwrap_or_default();
-            let (inventory_approvals, view_owner_exp, view_meta_exp) =
-                gen_snip721_approvals(deps.api, block, &mut all_perm, incl_exp, &perm_type_info)?;
-            owner_cache.push(OwnerInfo {
-                owner: token.owner.clone(),
-                owner_is_public,
-                inventory_approvals,
-                view_owner_exp,
-                view_meta_exp,
-            });
-            owner_cache.last().ok_or_else(|| {
-                StdError::generic_err("This can't happen since we just pushed an OwnerInfo!")
-            })?
-        };
-        let global_pass = owner_inf.owner_is_public;
-        // get the owner
-        let owner = Some(deps.api.addr_humanize(&token.owner)?);
-        // get the public metadata
-        let token_key = idx.to_le_bytes();
-        let public_metadata: Option<Metadata> = may_load(&pub_store, &token_key)?;
-        // get the private metadata if it is not sealed and if the viewer is permitted
-        let display_private_metadata_error = None;
-        let private_metadata: Option<Metadata> = may_load(&priv_store, &token_key)?;
-        // get the royalty information if present
-        let may_roy_inf: Option<StoredRoyaltyInfo> = may_load(&roy_store, &token_key)?;
-        let royalty_info = may_roy_inf
-            .map(|r| {
-                r.to_human(deps.api, false)
-            })
-            .transpose()?;
-        // get the mint run information
-        let mint_run: StoredMintRunInfo = load(&run_store, &token_key)?;
-        // get the token approvals
-        let (token_approv, token_owner_exp, token_meta_exp) = gen_snip721_approvals(
-            deps.api,
-            block,
-            &mut token.permissions,
-            incl_exp,
-            &perm_type_info,
-        )?;
-        // determine if ownership is public
-        let (public_ownership_expiration, owner_is_public) = if global_pass {
-            (Some(Expiration::Never), true)
-        } else if token_owner_exp.is_some() {
-            (token_owner_exp, true)
-        } else {
-            (
-                owner_inf.view_owner_exp.as_ref().cloned(),
-                owner_inf.view_owner_exp.is_some(),
-            )
-        };
-        // determine if private metadata is public
-        let (private_metadata_is_public_expiration, private_metadata_is_public) =
-            if token_meta_exp.is_some() {
-                (token_meta_exp, true)
+    let max_count = max_count.unwrap_or(300);
+    let mut count = 0u32;
+    let mut idx: u32 = start_index.unwrap_or(0);
+    let map2id = ReadonlyPrefixedStorage::new(deps.storage, PREFIX_MAP_TO_ID);
+    while count < max_count && idx < config.mint_cnt {
+        if let Some(id) = may_load::<String>(&map2id, &idx.to_le_bytes())? {
+            let (mut token, idx) = get_token(deps.storage, &id, None)?;
+            let owner_slice = token.owner.as_slice();
+            // get the owner info either from the cache or storage
+            let owner_inf = if let Some(inf) = owner_cache.iter().find(|o| o.owner == token.owner) {
+                inf
+            } else {
+                let owner_is_public: bool =
+                    may_load(&own_priv_store, owner_slice)?.unwrap_or(config.owner_is_public);
+                let mut all_perm: Vec<Permission> =
+                    json_may_load(&all_store, owner_slice)?.unwrap_or_default();
+                let (inventory_approvals, view_owner_exp, view_meta_exp) =
+                    gen_snip721_approvals(deps.api, block, &mut all_perm, incl_exp, &perm_type_info)?;
+                owner_cache.push(OwnerInfo {
+                    owner: token.owner.clone(),
+                    owner_is_public,
+                    inventory_approvals,
+                    view_owner_exp,
+                    view_meta_exp,
+                });
+                owner_cache.last().ok_or_else(|| {
+                    StdError::generic_err("This can't happen since we just pushed an OwnerInfo!")
+                })?
+            };
+            let global_pass = owner_inf.owner_is_public;
+            // get the owner
+            let owner = Some(deps.api.addr_humanize(&token.owner)?);
+            // get the public metadata
+            let token_key = idx.to_le_bytes();
+            let public_metadata: Option<Metadata> = may_load(&pub_store, &token_key)?;
+            // get the private metadata if it is not sealed and if the viewer is permitted
+            let display_private_metadata_error = None;
+            let private_metadata: Option<Metadata> = may_load(&priv_store, &token_key)?;
+            // get the royalty information if present
+            let may_roy_inf: Option<StoredRoyaltyInfo> = may_load(&roy_store, &token_key)?;
+            let royalty_info = may_roy_inf
+                .map(|r| {
+                    r.to_human(deps.api, false)
+                })
+                .transpose()?;
+            // get the mint run information
+            let mint_run: StoredMintRunInfo = load(&run_store, &token_key)?;
+            // get the token approvals
+            let (token_approv, token_owner_exp, token_meta_exp) = gen_snip721_approvals(
+                deps.api,
+                block,
+                &mut token.permissions,
+                incl_exp,
+                &perm_type_info,
+            )?;
+            // determine if ownership is public
+            let (public_ownership_expiration, owner_is_public) = if global_pass {
+                (Some(Expiration::Never), true)
+            } else if token_owner_exp.is_some() {
+                (token_owner_exp, true)
             } else {
                 (
-                    owner_inf.view_meta_exp.as_ref().cloned(),
-                    owner_inf.view_meta_exp.is_some(),
+                    owner_inf.view_owner_exp.as_ref().cloned(),
+                    owner_inf.view_owner_exp.is_some(),
                 )
             };
-        // display the approvals
-        let (token_approvals, inventory_approvals) = (
-            Some(token_approv),
-            Some(owner_inf.inventory_approvals.clone()),
-        );
-        dossiers.push(BatchNftDossierElement {
-            token_id: id,
-            owner,
-            public_metadata,
-            private_metadata,
-            royalty_info,
-            mint_run_info: Some(mint_run.to_human(deps.api, contract_creator.clone())?),
-            transferable: token.transferable,
-            unwrapped: token.unwrapped,
-            display_private_metadata_error,
-            owner_is_public,
-            public_ownership_expiration,
-            private_metadata_is_public,
-            private_metadata_is_public_expiration,
-            token_approvals,
-            inventory_approvals,
-        });
+            // determine if private metadata is public
+            let (private_metadata_is_public_expiration, private_metadata_is_public) =
+                if token_meta_exp.is_some() {
+                    (token_meta_exp, true)
+                } else {
+                    (
+                        owner_inf.view_meta_exp.as_ref().cloned(),
+                        owner_inf.view_meta_exp.is_some(),
+                    )
+                };
+            // display the approvals
+            let (token_approvals, inventory_approvals) = (
+                Some(token_approv),
+                Some(owner_inf.inventory_approvals.clone()),
+            );
+            dossiers.push(BatchNftDossierElement {
+                token_id: id,
+                owner,
+                public_metadata,
+                private_metadata,
+                royalty_info,
+                mint_run_info: Some(mint_run.to_human(deps.api, contract_creator.clone())?),
+                transferable: token.transferable,
+                unwrapped: token.unwrapped,
+                display_private_metadata_error,
+                owner_is_public,
+                public_ownership_expiration,
+                private_metadata_is_public,
+                private_metadata_is_public_expiration,
+                token_approvals,
+                inventory_approvals,
+            });
+            count += 1;
+        }
+        // idx can't overflow if it was less than a u32
+        idx += 1;
     }
     to_binary(&BatchNftDossier { nft_dossiers: dossiers })
 }

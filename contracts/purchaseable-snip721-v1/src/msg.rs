@@ -1,5 +1,6 @@
 use cosmwasm_std::{Binary, Coin};
 use schemars::JsonSchema;
+use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
@@ -32,7 +33,13 @@ pub enum ExecuteMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-pub struct MigrationParams {
+pub struct MigrateFrom {
+    pub address: String,
+    pub code_hash: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+pub struct MigrateTo {
     pub address: String,
     pub code_hash: String,
     pub entropy: String,
@@ -42,9 +49,11 @@ pub struct MigrationParams {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
     PurchaseMint {},
-    /// Set migration secret, and the address of the new contract
+    /// Set migration secret (using entropy for randomness), and the address of the new contract
     Migrate {
-        params: MigrationParams
+        /// permit used to verify address executing migration is admin
+        admin_permit: Permit,
+        migrate_to: MigrateTo
     },
 }
 
@@ -97,8 +106,8 @@ const _: () = {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum MigrationContractTargetExecuteMsg {
-    SetMigrationSecret { secret: Binary },
+pub struct MigrateReplyDataMsg {
+    pub secret: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
@@ -120,7 +129,8 @@ pub enum QueryMsgExt {
     GetPrices {},
     /// The new contract can query this to extract all the information.
     ExportMigrationData {
-        token_ids: Vec<String>,
+        start_index: Option<u32>,
+        max_count: Option<u32>,
         secret: Binary,
     },
 }
