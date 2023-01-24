@@ -8,10 +8,11 @@ mod tests {
 
     pub fn instantiate_msg(prices: Vec<Coin>, admin_info: MessageInfo) -> InstantiateMsg {
         InstantiateMsg {
-            prices: prices.clone(),
+            migrate_from: None,
+            prices: Some(prices.clone()),
             public_metadata: None,
             private_metadata: None,
-            admin: admin_info.sender.to_string(),
+            admin: Some(admin_info.sender.to_string()),
             entropy: "".to_string(),
             royalty_info: None,
         }

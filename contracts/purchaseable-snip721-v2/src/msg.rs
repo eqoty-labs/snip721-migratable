@@ -1,13 +1,17 @@
 use cosmwasm_std::{Binary, Coin};
 use schemars::JsonSchema;
+use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// optionally initialize using data from another contract. All other params will be ignored,
+    /// (besides entropy which should supplied) since they will be migrated from the old contract
+    pub migrate_from: Option<MigrateFrom>,
     /// Allowed Coin prices for purchasing a mint
-    pub prices: Vec<Coin>,
+    pub prices: Option<Vec<Coin>>,
     /// optional public metadata that can be seen by everyone
     pub public_metadata: Option<Metadata>,
     /// optional private metadata that can only be seen by the owner and whitelist
@@ -15,7 +19,7 @@ pub struct InstantiateMsg {
 
     // Selected fields from Snip721InstantiateMsg below
     /// optional admin address, env.message.sender if missing
-    pub admin: String,
+    pub admin: Option<String>,
     /// entropy used for prng seed
     pub entropy: String,
     /// optional royalty information to use as default when RoyaltyInfo is not provided to a
@@ -32,7 +36,15 @@ pub enum ExecuteMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-pub struct MigrationParams {
+pub struct MigrateFrom {
+    pub address: String,
+    pub code_hash: String,
+    /// permit for the  used to verify address executing migration is admin
+    pub admin_permit: Permit,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+pub struct MigrateTo {
     pub address: String,
     pub code_hash: String,
     pub entropy: String,
@@ -42,9 +54,11 @@ pub struct MigrationParams {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
     PurchaseMint {},
-    /// Set migration secret, and the address of the new contract
+    /// Set migration secret (using entropy for randomness), and the address of the new contract
     Migrate {
-        params: MigrationParams
+        /// permit used to verify address executing migration is admin
+        admin_permit: Permit,
+        migrate_to: MigrateTo,
     },
 }
 
@@ -97,8 +111,8 @@ const _: () = {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum MigrationContractTargetExecuteMsg {
-    SetMigrationSecret { secret: Binary },
+pub struct MigrateReplyDataMsg {
+    pub secret: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
@@ -120,7 +134,8 @@ pub enum QueryMsgExt {
     GetPrices {},
     /// The new contract can query this to extract all the information.
     ExportMigrationData {
-        token_ids: Vec<String>,
+        start_index: Option<u32>,
+        max_count: Option<u32>,
         secret: Binary,
     },
 }
