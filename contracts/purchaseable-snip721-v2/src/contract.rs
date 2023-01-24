@@ -96,8 +96,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ExecuteMsgExt::PurchaseMint { .. } => {
                 purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
             }
-            ExecuteMsgExt::Migrate { address, code_hash, entropy } =>
-                migrate(deps, env, info, &mut config, &mut state, address, code_hash, entropy.as_str()),
+            ExecuteMsgExt::Migrate { params } =>
+                migrate(deps, env, info, &mut config, &mut state, params.address, params.code_hash, params.entropy.as_str()),
         },
     };
 }

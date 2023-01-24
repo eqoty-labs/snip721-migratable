@@ -32,14 +32,19 @@ pub enum ExecuteMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+pub struct MigrationParams {
+    pub address: String,
+    pub code_hash: String,
+    pub entropy: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
     PurchaseMint {},
     /// Set migration secret, and the address of the new contract
     Migrate {
-        address: String,
-        code_hash: String,
-        entropy: String
+        params: MigrationParams
     },
 }
 

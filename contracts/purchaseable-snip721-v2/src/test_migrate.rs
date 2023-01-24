@@ -6,7 +6,7 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, query};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrationContractTargetExecuteMsg, QueryMsg};
+    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrationContractTargetExecuteMsg, MigrationParams, QueryMsg};
     use crate::msg::QueryMsgExt::ExportMigrationData;
 
     pub fn instantiate_msg(prices: Vec<Coin>, public_metadata: Option<Metadata>, private_metadata: Option<Metadata>, admin_info: MessageInfo) -> InstantiateMsg {
@@ -38,9 +38,11 @@ mod tests {
     ) -> StdResult<Response> {
         let set_view_key_msg =
             ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
-                address: migration_target_addr.to_string(),
-                code_hash: migration_target_code_hash.to_string(),
-                entropy: "magnets, how do they work?".to_string()
+                params: MigrationParams {
+                    address: migration_target_addr.to_string(),
+                    code_hash: migration_target_code_hash.to_string(),
+                    entropy: "magnets, how do they work?".to_string(),
+                }
             });
         let res = execute(deps, mock_env(), admin_message_info.clone(), set_view_key_msg);
         res
