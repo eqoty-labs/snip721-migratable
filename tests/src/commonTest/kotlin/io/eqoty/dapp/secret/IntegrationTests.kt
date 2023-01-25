@@ -135,6 +135,33 @@ class IntegrationTests {
         ).numTokens!!
     }
 
+    suspend fun getContractInfo(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.ContractInfo {
+        val query = Snip721Msgs.Query(contractInfo = Snip721Msgs.Query.ContractInfo())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).contractInfo!!
+    }
+
+    suspend fun getContractConfig(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.ContractConfig {
+        val query = Snip721Msgs.Query(contractConfig = Snip721Msgs.Query.ContractConfig())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).contractConfig!!
+    }
+
+    suspend fun getPurchasePrice(contractInfo: ContractInfo): List<Coin> {
+        val query = PurchasableSnip721Msgs.Query(getPrices = PurchasableSnip721Msgs.Query.GetPrices())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<EqotyPurchaseMsgs.QueryAnswer>(res).getPrices!!.prices
+    }
+
     @BeforeTest
     fun beforeEach() = runTest {
         Logger.setTag("dapp")
@@ -147,37 +174,42 @@ class IntegrationTests {
 
     @Test
     fun test_purchase_one_and_migrate() = runTest {
-        val contractInfo = initializeAndUploadContract()
-        Logger.i("contractInfo: $contractInfo")
+        val contractInfoV1 = initializeAndUploadContract()
+        Logger.i("v1 contractInfo: $contractInfoV1")
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
             client.getChainId(),
             "test",
-            listOf(contractInfo.address),
+            listOf(contractInfoV1.address),
             listOf(Permission.Owner)
         )
         val startingNumTokensOfOwner = getNumTokensOfOwner(
             client.senderAddress,
             permit,
-            contractInfo.address
+            contractInfoV1.address
         ).count
         val purchaseOneMintResult =
-            purchaseOneMint(client, contractInfo, purchasePrices)
+            purchaseOneMint(client, contractInfoV1, purchasePrices)
         // verify customer received one nft
         val numTokensOfOwner = getNumTokensOfOwner(
             client.senderAddress,
             permit,
-            contractInfo.address
+            contractInfoV1.address
         ).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
         val migrateFrom = MigrateFrom(
-            contractInfo.address,
-            contractInfo.codeInfo.codeHash,
+            contractInfoV1.address,
+            contractInfoV1.codeInfo.codeHash,
             permit
         )
-        val contractInfoMigrated = initializeAndUploadContract(migrateFrom)
-        Logger.i("v1 contractInfoMigrated: $contractInfoMigrated")
+        val contractInfoV2 = initializeAndUploadContract(migrateFrom)
+        Logger.i("v2 contractInfoMigrated: $contractInfoV2")
+
+        assertEquals(getContractInfo(contractInfoV1), getContractInfo(contractInfoV2))
+        assertEquals(getContractConfig(contractInfoV1), getContractConfig(contractInfoV2))
+        assertEquals(getPurchasePrice(contractInfoV1), getPurchasePrice(contractInfoV2))
+
     }
 
 
