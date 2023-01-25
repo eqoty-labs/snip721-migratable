@@ -3,10 +3,7 @@ package io.eqoty.dapp.secret
 import DeployContractUtils
 import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.TestGlobals.client
-import io.eqoty.dapp.secret.TestGlobals.contractInfo
-import io.eqoty.dapp.secret.TestGlobals.initTestsSemaphore
 import io.eqoty.dapp.secret.TestGlobals.initializeClient
-import io.eqoty.dapp.secret.TestGlobals.needsInit
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
 import io.eqoty.dapp.secret.types.ContractInfo
 import io.eqoty.dapp.secret.types.ExecuteResult
@@ -43,7 +40,7 @@ class IntegrationTests {
     private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure
-    private suspend fun initializeAndUploadContract() {
+    private suspend fun initializeAndUploadContract(): ContractInfo {
         val endpoint = testnetInfo.grpcGatewayEndpoint
 
         client = initializeClient(endpoint, testnetInfo.chainId)
@@ -66,7 +63,7 @@ class IntegrationTests {
                 codeHash = null // will be set later
             )
         )
-        contractInfo = DeployContractUtils.storeCodeAndInstantiate(
+        return DeployContractUtils.storeCodeAndInstantiate(
             client,
             contractCodePath,
             instantiateMsgs,
@@ -137,22 +134,12 @@ class IntegrationTests {
 
     @BeforeTest
     fun beforeEach() = runTest {
-        initTestsSemaphore.acquire()
-        try {
-            if (needsInit) {
-                Logger.setTag("dapp")
-                initializeAndUploadContract()
-                needsInit = false
-            }
-        } catch (t: Throwable) {
-            throw t
-        } finally {
-            initTestsSemaphore.release()
-        }
+        Logger.setTag("dapp")
     }
 
     @Test
     fun test_purchase_one() = runTest {
+        val contractInfo = initializeAndUploadContract()
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
