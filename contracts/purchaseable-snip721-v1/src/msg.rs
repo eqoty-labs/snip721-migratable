@@ -2,6 +2,7 @@ use cosmwasm_std::{Binary, Coin};
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
+use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
@@ -113,6 +114,8 @@ const _: () = {
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateByMigrationReplyDataMsg {
     pub migrated_instantiate_msg: InstantiateMsg,
+    pub migrate_from: MigrateFrom,
+    pub mint_count: u32,
     pub secret: Binary,
 }
 
@@ -193,4 +196,9 @@ const _: () = {
 pub enum QueryAnswer {
     // GetPrices returns the purchase price in acceptable coin types.
     GetPrices { prices: Vec<Coin> },
+
+    MigrationBatchNftDossier {
+        last_mint_index: u32,
+        nft_dossiers: Vec<BatchNftDossierElement>,
+    },
 }

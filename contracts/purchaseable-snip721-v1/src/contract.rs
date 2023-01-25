@@ -11,12 +11,12 @@ use snip721_reference_impl::mint_run::StoredMintRunInfo;
 use snip721_reference_impl::msg::{
     BatchNftDossierElement, ContractStatus, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
 };
-use snip721_reference_impl::msg::QueryAnswer::BatchNftDossier;
 use snip721_reference_impl::royalties::StoredRoyaltyInfo;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
 use snip721_reference_impl::token::Metadata;
 
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::msg::QueryAnswer::MigrationBatchNftDossier;
 use crate::state::{config, config_read, ContractMode, State};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
@@ -30,46 +30,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let mut deps = deps;
     if msg.migrate_from.is_none() {
-        let prices = msg.prices.unwrap();
-        if prices.len() == 0 {
-            return Err(StdError::generic_err(format!(
-                "No purchase prices were specified"
-            )));
-        }
-        let state = State {
-            prices: prices,
-            public_metadata: msg.public_metadata,
-            private_metadata: msg.private_metadata,
-            migration_addr: None,
-            migration_secret: None,
-            mode: ContractMode::Running,
-        };
-
-        config(deps.storage).save(&state)?;
-        let instantiate_msg = Snip721InstantiateMsg {
-            name: "PurchasableSnip721".to_string(),
-            symbol: "PUR721".to_string(),
-            admin: msg.admin.clone(),
-            entropy: msg.entropy,
-            royalty_info: msg.royalty_info,
-            config: Some(InstantiateConfig {
-                public_token_supply: Some(true),
-                public_owner: Some(true),
-                enable_sealed_metadata: None,
-                unwrapped_metadata_is_private: None,
-                minter_may_update_metadata: None,
-                owner_may_update_metadata: None,
-                enable_burn: Some(false),
-            }),
-            post_init_callback: None,
-        };
-        snip721_reference_impl::contract::instantiate(&mut deps, env, info.clone(), instantiate_msg)
-            .unwrap();
-
-        deps.api
-            .debug(format!("PurchasableSnip721 was initialized by {}", info.sender).as_str());
-
-        return Ok(Response::default());
+        return init_snip721(&mut deps, env, info, msg);
     } else {
         let migrate_from = msg.migrate_from.unwrap();
         let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
@@ -98,6 +59,55 @@ pub fn instantiate(
         );
     }
 }
+
+fn init_snip721(
+    deps: &mut DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
+    let prices = msg.prices.unwrap();
+    if prices.len() == 0 {
+        return Err(StdError::generic_err(format!(
+            "No purchase prices were specified"
+        )));
+    }
+    let state = State {
+        prices: prices,
+        public_metadata: msg.public_metadata,
+        private_metadata: msg.private_metadata,
+        migration_addr: None,
+        migration_secret: None,
+        mode: ContractMode::Running,
+    };
+
+    config(deps.storage).save(&state)?;
+    let instantiate_msg = Snip721InstantiateMsg {
+        name: "PurchasableSnip721".to_string(),
+        symbol: "PUR721".to_string(),
+        admin: msg.admin.clone(),
+        entropy: msg.entropy,
+        royalty_info: msg.royalty_info,
+        config: Some(InstantiateConfig {
+            public_token_supply: Some(true),
+            public_owner: Some(true),
+            enable_sealed_metadata: None,
+            unwrapped_metadata_is_private: None,
+            minter_may_update_metadata: None,
+            owner_may_update_metadata: None,
+            enable_burn: Some(false),
+        }),
+        post_init_callback: None,
+    };
+    snip721_reference_impl::contract::instantiate(deps, env, info.clone(), instantiate_msg)
+        .unwrap();
+
+    deps.api
+        .debug(format!("PurchasableSnip721 was initialized by {}", info.sender).as_str());
+
+    return Ok(Response::default());
+}
+
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
@@ -253,6 +263,12 @@ pub fn migrate(
                 entropy: entropy.to_string(),
                 royalty_info: None,
             },
+            migrate_from: MigrateFrom {
+                address: env.contract.address.to_string(),
+                code_hash: env.contract.code_hash,
+                admin_permit,
+            },
+            mint_count: snip721config.mint_cnt,
             secret,
         }).unwrap())
     )
@@ -267,6 +283,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 }
 
 fn perform_data_migration(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+    let mut deps = deps;
     deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
 
     let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
@@ -276,7 +293,30 @@ fn perform_data_migration(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Resp
         funds: vec![],
     };
     // actually instantiate the contract using the migrated data
-    instantiate(deps, env, info, reply_data.migrated_instantiate_msg).unwrap();
+    init_snip721(&mut deps, env, info, reply_data.migrated_instantiate_msg).unwrap();
+
+    let mut mint_idx = 0;
+    let mint_count = reply_data.mint_count;
+
+    while mint_idx < mint_count {
+        let query_answer: QueryAnswer = deps.querier.query_wasm_smart(
+            reply_data.migrate_from.code_hash.clone(),
+            reply_data.migrate_from.address.clone(),
+            &QueryMsgExt::ExportMigrationData {
+                start_index: Some(mint_idx),
+                max_count: None,
+                secret: reply_data.secret.clone(),
+            },
+        ).unwrap();
+        mint_idx = match query_answer {
+            MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
+                deps.api.debug(format!("{:?}", nft_dossiers).as_str());
+                // todo restore nft data
+                last_mint_index
+            }
+            _ => panic!("unexpected"),
+        };
+    }
 
     Ok(Response::new())
 }
@@ -307,7 +347,7 @@ pub fn query_prices(deps: Deps) -> StdResult<Binary> {
     })
 }
 
-/// Returns StdResult<Binary(Vec<BatchNftDossierElement>)> of all the token information for multiple tokens.
+/// Returns StdResult<Binary(MigrationBatchNftDossier)> of all the token information for multiple tokens.
 /// This can only be used by the contract being migrated to at migration_addr
 ///
 /// # Arguments
@@ -460,5 +500,5 @@ pub fn migration_dossier_list(
         // idx can't overflow if it was less than a u32
         idx += 1;
     }
-    to_binary(&BatchNftDossier { nft_dossiers: dossiers })
+    to_binary(&MigrationBatchNftDossier { last_mint_index: idx, nft_dossiers: dossiers })
 }
