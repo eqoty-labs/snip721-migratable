@@ -3,12 +3,14 @@ package io.eqoty.dapp.secret
 import DeployContractUtils
 import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.TestGlobals.client
+import io.eqoty.dapp.secret.TestGlobals.clientInitialized
 import io.eqoty.dapp.secret.TestGlobals.initializeClient
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
 import io.eqoty.dapp.secret.types.ContractInfo
 import io.eqoty.dapp.secret.types.ExecuteResult
 import io.eqoty.dapp.secret.types.MintedRelease
 import io.eqoty.dapp.secret.types.contract.EqotyPurchaseMsgs
+import io.eqoty.dapp.secret.types.contract.MigrateFrom
 import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
 import io.eqoty.dapp.secret.types.contract.Snip721Msgs
 import io.eqoty.dapp.secret.utils.BalanceUtils
@@ -40,20 +42,21 @@ class IntegrationTests {
     private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure
-    private suspend fun initializeAndUploadContract(): ContractInfo {
-        val endpoint = testnetInfo.grpcGatewayEndpoint
-
-        client = initializeClient(endpoint, testnetInfo.chainId)
-
-        BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000)
-
-        val initMsg = PurchasableSnip721Msgs.Instantiate(
-            prices = purchasePrices,
-            publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
-            privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
-            admin = client.senderAddress,
-            entropy = "sometimes you gotta close a door to open a window"
-        )
+    private suspend fun initializeAndUploadContract(migrateFrom: MigrateFrom? = null): ContractInfo {
+        val initMsg = if (migrateFrom == null) {
+            PurchasableSnip721Msgs.Instantiate(
+                prices = purchasePrices,
+                publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
+                privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
+                admin = client.senderAddress,
+                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+            )
+        } else {
+            PurchasableSnip721Msgs.Instantiate(
+                migrateFrom = migrateFrom,
+                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+            )
+        }
         val instantiateMsgs = listOf(
             MsgInstantiateContract(
                 sender = client.senderAddress,
@@ -135,11 +138,17 @@ class IntegrationTests {
     @BeforeTest
     fun beforeEach() = runTest {
         Logger.setTag("dapp")
+        if (!clientInitialized) {
+            val endpoint = testnetInfo.grpcGatewayEndpoint
+            initializeClient(endpoint, testnetInfo.chainId)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000)
+        }
     }
 
     @Test
-    fun test_purchase_one() = runTest {
+    fun test_purchase_one_and_migrate() = runTest {
         val contractInfo = initializeAndUploadContract()
+        Logger.i("contractInfo: $contractInfo")
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
@@ -162,6 +171,13 @@ class IntegrationTests {
             contractInfo.address
         ).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+        val migrateFrom = MigrateFrom(
+            contractInfo.address,
+            contractInfo.codeInfo.codeHash,
+            permit
+        )
+        val contractInfoMigrated = initializeAndUploadContract(migrateFrom)
+        Logger.i("v1 contractInfoMigrated: $contractInfoMigrated")
     }
 
 
