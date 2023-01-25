@@ -162,6 +162,15 @@ class IntegrationTests {
         return Json.decodeFromString<EqotyPurchaseMsgs.QueryAnswer>(res).getPrices!!.prices
     }
 
+    suspend fun getNumTokens(contractInfo: ContractInfo): Int {
+        val query = Snip721Msgs.Query(numTokens = Snip721Msgs.Query.NumTokens())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).numTokens!!.count
+    }
+
     @BeforeTest
     fun beforeEach() = runTest {
         Logger.setTag("dapp")
@@ -175,7 +184,7 @@ class IntegrationTests {
     @Test
     fun test_purchase_one_and_migrate() = runTest {
         val contractInfoV1 = initializeAndUploadContract()
-        Logger.i("v1 contractInfo: $contractInfoV1")
+        Logger.i("v1 contractInfo address: ${contractInfoV1.address}")
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
@@ -204,13 +213,19 @@ class IntegrationTests {
             permit
         )
         val contractInfoV2 = initializeAndUploadContract(migrateFrom)
-        Logger.i("v2 contractInfoMigrated: $contractInfoV2")
+        Logger.i("v2 contractInfoMigrated address: ${contractInfoV2.address}")
 
         assertEquals(getContractInfo(contractInfoV1), getContractInfo(contractInfoV2))
         assertEquals(getContractConfig(contractInfoV1), getContractConfig(contractInfoV2))
         assertEquals(getPurchasePrice(contractInfoV1), getPurchasePrice(contractInfoV2))
+        assertEquals(getNumTokens(contractInfoV1), getNumTokens(contractInfoV2))
 
     }
 
+
+    @Test
+    fun test_approved_minters_is_migrated() = runTest {
+        TODO()
+    }
 
 }
