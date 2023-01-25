@@ -1,17 +1,13 @@
-use cosmwasm_std::{BankMsg, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, entry_point, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use cosmwasm_std::{Addr, BankMsg, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, entry_point, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
-use snip721_reference_impl::contract::{
-    gen_snip721_approvals, get_token, mint, OwnerInfo, PermissionTypeInfo,
-};
+use snip721_reference_impl::contract::{gen_snip721_approvals, get_token, mint, mint_list, OwnerInfo, PermissionTypeInfo};
 use snip721_reference_impl::expiration::Expiration;
-use snip721_reference_impl::mint_run::StoredMintRunInfo;
-use snip721_reference_impl::msg::{
-    BatchNftDossierElement, ContractStatus, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
-};
-use snip721_reference_impl::royalties::StoredRoyaltyInfo;
+use snip721_reference_impl::mint_run::{SerialNumber, StoredMintRunInfo};
+use snip721_reference_impl::msg::{BatchNftDossierElement, ContractStatus, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg, Mint};
+use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
 use snip721_reference_impl::token::Metadata;
 
@@ -30,7 +26,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let mut deps = deps;
     if msg.migrate_from.is_none() {
-        return init_snip721(&mut deps, env, info, msg);
+        return init_snip721(&mut deps, &env, info, msg);
     } else {
         let migrate_from = msg.migrate_from.unwrap();
         let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
@@ -62,7 +58,7 @@ pub fn instantiate(
 
 fn init_snip721(
     deps: &mut DepsMut,
-    env: Env,
+    env: &Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
@@ -277,48 +273,97 @@ pub fn migrate(
 #[entry_point]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
-        MIGRATE_REPLY_ID => perform_data_migration(deps, env, msg),
+        MIGRATE_REPLY_ID => perform_data_migration(deps, &env, msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
 
-fn perform_data_migration(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+fn perform_data_migration(deps: DepsMut, env: &Env, msg: Reply) -> StdResult<Response> {
     let mut deps = deps;
     deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
 
     let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
     // admin of the contract being migrated should always be the sender here
-    let info = MessageInfo {
+    let admin_info = MessageInfo {
         sender: deps.api.addr_validate(reply_data.migrated_instantiate_msg.admin.clone().unwrap().as_str()).unwrap(),
         funds: vec![],
     };
     // actually instantiate the contract using the migrated data
-    init_snip721(&mut deps, env, info, reply_data.migrated_instantiate_msg).unwrap();
+    init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
 
-    let mut mint_idx = 0;
+    let mut start_at_idx = 0;
     let mint_count = reply_data.mint_count;
 
-    while mint_idx < mint_count {
+    while start_at_idx < mint_count {
+        // deps.api.debug(&*format!("start_at_idx: {} mint_count {}", start_at_idx, mint_count));
         let query_answer: QueryAnswer = deps.querier.query_wasm_smart(
             reply_data.migrate_from.code_hash.clone(),
             reply_data.migrate_from.address.clone(),
             &QueryMsgExt::ExportMigrationData {
-                start_index: Some(mint_idx),
+                start_index: Some(start_at_idx),
                 max_count: None,
                 secret: reply_data.secret.clone(),
             },
         ).unwrap();
-        mint_idx = match query_answer {
+        start_at_idx = match query_answer {
             MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
                 deps.api.debug(format!("{:?}", nft_dossiers).as_str());
-                // todo restore nft data
-                last_mint_index
+                save_migration_dossier_list(&mut deps, env, &admin_info.sender, nft_dossiers).unwrap();
+                last_mint_index + 1
             }
-            _ => panic!("unexpected"),
+            _ => panic!("unexpected ExportMigrationData query answer"),
         };
     }
 
     Ok(Response::new())
+}
+
+pub fn save_migration_dossier_list(
+    deps: &mut DepsMut,
+    env: &Env,
+    admin_addr: &Addr,
+    nft_dossiers: Vec<BatchNftDossierElement>,
+) -> StdResult<Vec<String>> {
+    let mints = nft_dossiers.iter().map(|nft| {
+        let royalty_info = if let Some(some_royalty_info) = nft.royalty_info.clone() {
+            Some(
+                RoyaltyInfo {
+                    decimal_places_in_rates: some_royalty_info.decimal_places_in_rates,
+                    royalties: some_royalty_info.royalties.iter().map(|r|
+                        Royalty { recipient: r.recipient.clone().unwrap().to_string(), rate: r.rate }
+                    ).collect(),
+                }
+            )
+        } else {
+            None
+        };
+
+        let mint_run_info = nft.mint_run_info.clone().unwrap();
+        let serial_number = if let Some(some_serial_number) = mint_run_info.serial_number {
+            Some(
+                SerialNumber {
+                    mint_run: mint_run_info.mint_run,
+                    serial_number: some_serial_number,
+                    quantity_minted_this_run: mint_run_info.quantity_minted_this_run,
+                }
+            )
+        } else {
+            None
+        };
+        Mint {
+            token_id: Some(nft.token_id.clone()),
+            owner: Some(nft.owner.clone().unwrap().to_string()),
+            public_metadata: nft.public_metadata.clone(),
+            private_metadata: nft.private_metadata.clone(),
+            serial_number,
+            royalty_info,
+            transferable: Some(nft.transferable.clone()),
+            memo: None,
+        }
+    }).collect();
+    let mut config: Config = load(deps.storage, CONFIG_KEY)?;
+    let sender_raw = &deps.api.addr_canonicalize(admin_addr.as_str())?;
+    mint_list(deps, env, &mut config, sender_raw, mints)
 }
 
 
