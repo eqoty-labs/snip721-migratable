@@ -35,6 +35,7 @@ import kotlin.random.Random
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class IntegrationTests {
 
@@ -184,7 +185,6 @@ class IntegrationTests {
     @Test
     fun test_purchase_one_and_migrate() = runTest {
         val contractInfoV1 = initializeAndUploadContract()
-        Logger.i("v1 contractInfo address: ${contractInfoV1.address}")
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
@@ -213,8 +213,8 @@ class IntegrationTests {
             permit
         )
         val contractInfoV2 = initializeAndUploadContract(migrateFrom)
-        Logger.i("v2 contractInfoMigrated address: ${contractInfoV2.address}")
 
+        assertNotEquals(contractInfoV1.address, contractInfoV2.address)
         assertEquals(getContractInfo(contractInfoV1), getContractInfo(contractInfoV2))
         assertEquals(getContractConfig(contractInfoV1), getContractConfig(contractInfoV2))
         assertEquals(getPurchasePrice(contractInfoV1), getPurchasePrice(contractInfoV2))
