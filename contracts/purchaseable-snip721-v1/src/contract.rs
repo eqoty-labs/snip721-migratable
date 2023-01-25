@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    BankMsg, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, entry_point, Env,
-    MessageInfo, Response, StdError, StdResult, to_binary,
-};
+use cosmwasm_std::{BankMsg, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, entry_point, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
@@ -19,8 +16,10 @@ use snip721_reference_impl::royalties::StoredRoyaltyInfo;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
 use snip721_reference_impl::token::Metadata;
 
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrateReplyDataMsg, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::state::{config, config_read, ContractMode, State};
+
+const MIGRATE_REPLY_ID: u64 = 1u64;
 
 #[entry_point]
 pub fn instantiate(
@@ -30,44 +29,74 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let mut deps = deps;
-    if msg.prices.len() == 0 {
-        return Err(StdError::generic_err(format!(
-            "No purchase prices were specified"
-        )));
+    if msg.migrate_from.is_none() {
+        let prices = msg.prices.unwrap();
+        if prices.len() == 0 {
+            return Err(StdError::generic_err(format!(
+                "No purchase prices were specified"
+            )));
+        }
+        let state = State {
+            prices: prices,
+            public_metadata: msg.public_metadata,
+            private_metadata: msg.private_metadata,
+            migration_addr: None,
+            migration_secret: None,
+            mode: ContractMode::Running,
+        };
+
+        config(deps.storage).save(&state)?;
+        let instantiate_msg = Snip721InstantiateMsg {
+            name: "PurchasableSnip721".to_string(),
+            symbol: "PUR721".to_string(),
+            admin: msg.admin.clone(),
+            entropy: msg.entropy,
+            royalty_info: msg.royalty_info,
+            config: Some(InstantiateConfig {
+                public_token_supply: Some(true),
+                public_owner: Some(true),
+                enable_sealed_metadata: None,
+                unwrapped_metadata_is_private: None,
+                minter_may_update_metadata: None,
+                owner_may_update_metadata: None,
+                enable_burn: Some(false),
+            }),
+            post_init_callback: None,
+        };
+        snip721_reference_impl::contract::instantiate(&mut deps, env, info.clone(), instantiate_msg)
+            .unwrap();
+
+        deps.api
+            .debug(format!("PurchasableSnip721 was initialized by {}", info.sender).as_str());
+
+        return Ok(Response::default());
+    } else {
+        let migrate_from = msg.migrate_from.unwrap();
+        let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
+            admin_permit: migrate_from.admin_permit,
+            migrate_to: MigrateTo {
+                address: env.contract.address.to_string(),
+                code_hash: env.contract.code_hash,
+                entropy: msg.entropy,
+            },
+        });
+        let migrate_wasm_msg: WasmMsg = WasmMsg::Execute {
+            contract_addr: migrate_from.address,
+            code_hash: migrate_from.code_hash,
+            msg: to_binary(&migrate_msg)?,
+            funds: vec![],
+        };
+
+        let migrate_submessage = SubMsg::reply_on_success(
+            migrate_wasm_msg,
+            MIGRATE_REPLY_ID,
+        );
+
+
+        return Ok(Response::new()
+            .add_submessages([migrate_submessage])
+        );
     }
-    let state = State {
-        prices: msg.prices,
-        public_metadata: msg.public_metadata,
-        private_metadata: msg.private_metadata,
-        migration_addr: None,
-        migration_secret: None,
-        mode: ContractMode::Running,
-    };
-
-    config(deps.storage).save(&state)?;
-    let instantiate_msg = Snip721InstantiateMsg {
-        name: "PurchasableSnip721".to_string(),
-        symbol: "PUR721".to_string(),
-        admin: Some(msg.admin.clone()),
-        entropy: msg.entropy,
-        royalty_info: msg.royalty_info,
-        config: Some(InstantiateConfig {
-            public_token_supply: Some(true),
-            public_owner: Some(true),
-            enable_sealed_metadata: None,
-            unwrapped_metadata_is_private: None,
-            minter_may_update_metadata: None,
-            owner_may_update_metadata: None,
-            enable_burn: Some(false),
-        }),
-        post_init_callback: None,
-    };
-    snip721_reference_impl::contract::instantiate(&mut deps, env, info.clone(), instantiate_msg)
-        .unwrap();
-
-    deps.api
-        .debug(format!("PurchasableSnip721 was initialized by {}", info.sender).as_str());
-    Ok(Response::default())
 }
 
 #[entry_point]
@@ -167,18 +196,16 @@ pub fn migrate(
     address: String,
     entropy: &str,
 ) -> StdResult<Response> {
-    let admin_addr = &snip721config.admin;
-    let permit_creator = &deps.api.addr_canonicalize(
-        deps.api
-            .addr_validate(&validate(
-                deps.as_ref(),
-                PREFIX_REVOKED_PERMITS,
-                &admin_permit,
-                env.contract.address.to_string(),
-                Some("secret"),
-            )?)?
-            .as_str(),
-    )?;
+    let admin_addr = &deps.api.addr_humanize(&snip721config.admin).unwrap();
+    let permit_creator = &deps.api.addr_validate(
+        &validate(
+            deps.as_ref(),
+            PREFIX_REVOKED_PERMITS,
+            &admin_permit,
+            env.contract.address.to_string(),
+            Some("secret"),
+        )?
+    ).unwrap();
 
     if permit_creator != admin_addr {
         return Err(StdError::generic_err(
@@ -216,8 +243,42 @@ pub fn migrate(
     config(deps.storage).save(&state)?;
 
     Ok(Response::default()
-        .set_data(to_binary(&MigrateReplyDataMsg { secret }).unwrap())
+        .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
+            migrated_instantiate_msg: InstantiateMsg {
+                migrate_from: None,
+                prices: Some(state.prices.clone()),
+                public_metadata: state.public_metadata.clone(),
+                private_metadata: state.private_metadata.clone(),
+                admin: Some(admin_addr.to_string()),
+                entropy: entropy.to_string(),
+                royalty_info: None,
+            },
+            secret,
+        }).unwrap())
     )
+}
+
+#[entry_point]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+    match msg.id {
+        MIGRATE_REPLY_ID => perform_data_migration(deps, env, msg),
+        id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
+    }
+}
+
+fn perform_data_migration(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+    deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
+
+    let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
+    // admin of the contract being migrated should always be the sender here
+    let info = MessageInfo {
+        sender: deps.api.addr_validate(reply_data.migrated_instantiate_msg.admin.clone().unwrap().as_str()).unwrap(),
+        funds: vec![],
+    };
+    // actually instantiate the contract using the migrated data
+    instantiate(deps, env, info, reply_data.migrated_instantiate_msg).unwrap();
+
+    Ok(Response::new())
 }
 
 
