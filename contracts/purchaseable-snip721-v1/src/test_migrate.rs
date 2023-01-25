@@ -7,7 +7,8 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, query};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, InstantiateByMigrationReplyDataMsg, MigrateTo, QueryMsg};
+    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateTo, QueryAnswer, QueryMsg};
+    use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
 
     pub fn instantiate_msg(prices: Vec<Coin>, public_metadata: Option<Metadata>, private_metadata: Option<Metadata>, admin_info: MessageInfo) -> InstantiateMsg {
@@ -144,11 +145,10 @@ mod tests {
             "query failed: {}",
             query_res.err().unwrap()
         );
-        let query_answer: StdResult<snip721_reference_impl::msg::QueryAnswer> =
-            from_binary(&query_res.unwrap());
+        let query_answer: StdResult<QueryAnswer> = from_binary(&query_res.unwrap());
         if query_answer.is_ok() {
             return match query_answer.unwrap() {
-                snip721_reference_impl::msg::QueryAnswer::BatchNftDossier { nft_dossiers } => nft_dossiers,
+                MigrationBatchNftDossier { last_mint_index: _, nft_dossiers } => nft_dossiers,
                 _ => panic!("unexpected"),
             };
         } else {
