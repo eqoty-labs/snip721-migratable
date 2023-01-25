@@ -18,7 +18,8 @@ okio = "3.3.0"
 
 kermit = "1.2.2"
 
-secretk = "1.2.0"
+secretk = "1.2.1"
+secret-contract-msgs="0.1.3-SNAPSHOT"
 
 bignum = "0.3.7"
 libsodium = "0.8.7"
@@ -36,6 +37,8 @@ com-squareup-okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 co-touchlab-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
 io-eqoty-secretk-client = { module = "io.eqoty.secretk:client", version.ref = "secretk" }
+io-eqoty-dapp-secret-contract-msgs = { module = "io.eqoty.dapp.secret:contract-msgs", version.ref = "secret-contract-msgs" }
+io-eqoty-dapp-secret-deploy-utils = { module = "io.eqoty.dapp.secret:deploy-utils", version.ref = "secret-contract-msgs" }
 
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-json = { module = "io.ktor:ktor-client-json", version.ref = "ktor" }

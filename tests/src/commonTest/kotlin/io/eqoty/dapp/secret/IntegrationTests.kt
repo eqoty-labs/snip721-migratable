@@ -1,25 +1,32 @@
 package io.eqoty.dapp.secret
 
+import DeployContractUtils
 import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.TestGlobals.client
-import io.eqoty.dapp.secret.TestGlobals.contractInfo
-import io.eqoty.dapp.secret.TestGlobals.initTestsSemaphore
+import io.eqoty.dapp.secret.TestGlobals.clientInitialized
 import io.eqoty.dapp.secret.TestGlobals.initializeClient
-import io.eqoty.dapp.secret.TestGlobals.needsInit
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
 import io.eqoty.dapp.secret.types.ContractInfo
-import io.eqoty.dapp.secret.types.contract.CountResponse
+import io.eqoty.dapp.secret.types.ExecuteResult
+import io.eqoty.dapp.secret.types.MintedRelease
+import io.eqoty.dapp.secret.types.contract.EqotyPurchaseMsgs
+import io.eqoty.dapp.secret.types.contract.MigrateFrom
+import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
+import io.eqoty.dapp.secret.types.contract.Snip721Msgs
+import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
-import io.eqoty.dapp.secret.utils.Faucet
-import io.eqoty.dapp.secret.utils.fileSystem
 import io.eqoty.dapp.secret.utils.getEnv
 import io.eqoty.secretk.client.SigningCosmWasmClient
+import io.eqoty.secretk.extensions.accesscontrol.PermitFactory
+import io.eqoty.secretk.types.Coin
 import io.eqoty.secretk.types.MsgExecuteContract
 import io.eqoty.secretk.types.MsgInstantiateContract
-import io.eqoty.secretk.types.MsgStoreCode
 import io.eqoty.secretk.types.TxOptions
+import io.eqoty.secretk.types.extensions.Permission
+import io.eqoty.secretk.types.extensions.Permit
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okio.Path
 import okio.Path.Companion.toPath
@@ -28,159 +35,235 @@ import kotlin.random.Random
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class IntegrationTests {
 
     private val contractCodePath: Path = getEnv(Constants.CONTRACT_PATH_ENV_NAME)!!.toPath()
+    private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure
-    private suspend fun initializeAndUploadContract() {
-        val endpoint = testnetInfo.grpcGatewayEndpoint
-
-        client = initializeClient(endpoint, testnetInfo.chainId)
-
-        Faucet.fillUp(testnetInfo, client, 100_000_000)
-
-        val initMsg = """{"count": 4}"""
+    private suspend fun initializeAndUploadContract(migrateFrom: MigrateFrom? = null): ContractInfo {
+        val initMsg = if (migrateFrom == null) {
+            PurchasableSnip721Msgs.Instantiate(
+                prices = purchasePrices,
+                publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
+                privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
+                admin = client.senderAddress,
+                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+            )
+        } else {
+            PurchasableSnip721Msgs.Instantiate(
+                migrateFrom = migrateFrom,
+                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+            )
+        }
         val instantiateMsgs = listOf(
             MsgInstantiateContract(
                 sender = client.senderAddress,
                 codeId = null, // will be set later
-                initMsg = initMsg,
+                initMsg = Json.encodeToString(initMsg),
                 label = "My Snip721" + ceil(Random.nextDouble() * 10000),
                 codeHash = null // will be set later
             )
         )
-        contractInfo = storeCodeAndInstantiate(
+        return DeployContractUtils.storeCodeAndInstantiate(
             client,
             contractCodePath,
-            instantiateMsgs
-        )
-    }
-
-    private suspend fun storeCodeAndInstantiate(
-        client: SigningCosmWasmClient,
-        codePath: Path,
-        instantiateMsgs: List<MsgInstantiateContract>
-    ): ContractInfo {
-        val accAddress = client.wallet.getAccounts()[0].address
-        val wasmBytes =
-            fileSystem.read(codePath) {
-                readByteArray()
-            }
-
-        val msgs0 = listOf(
-            MsgStoreCode(
-                sender = accAddress,
-                wasmByteCode = wasmBytes.toUByteArray(),
-            )
-        )
-        var simulate = client.simulate(msgs0)
-        var gasLimit = (simulate.gasUsed.toDouble() * 1.1).toInt()
-        val response = client.execute(
-            msgs0,
-            txOptions = TxOptions(gasLimit = gasLimit)
-        )
-
-        val codeId = response.logs[0].events
-            .find { it.type == "message" }
-            ?.attributes
-            ?.find { it.key == "code_id" }?.value!!
-        Logger.i("codeId:  $codeId")
-
-        val codeInfo = client.getCodeInfoByCodeId(codeId)
-        Logger.i("code hash: ${codeInfo.codeHash}")
-
-        val codeHash = codeInfo.codeHash
-
-        instantiateMsgs.forEach {
-            it.codeId = codeId.toInt()
-            it.codeHash = codeHash
-        }
-        simulate = client.simulate(instantiateMsgs)
-        gasLimit = (simulate.gasUsed.toDouble() * 1.1).toInt()
-        val instantiateResponse = client.execute(
             instantiateMsgs,
-            txOptions = TxOptions(gasLimit = gasLimit)
         )
-        val contractAddress = instantiateResponse.logs[0].events
-            .find { it.type == "message" }
-            ?.attributes
-            ?.find { it.key == "contract_address" }?.value!!
-        Logger.i("contract address:  $contractAddress")
-        return ContractInfo(codeHash, contractAddress)
     }
 
-    private suspend fun queryCount(): CountResponse {
-        val contractInfoQuery = """{"get_count": {}}"""
-        return Json.decodeFromString(
-            client.queryContractSmart(
-                contractInfo.contractAddress,
-                contractInfoQuery
+    private suspend fun purchaseOneMint(
+        client: SigningCosmWasmClient,
+        contractInfo: ContractInfo,
+        sentFunds: List<Coin>
+    ): ExecuteResult<MintedRelease> {
+        val purchaseMintMsg = Json.encodeToString(
+            EqotyPurchaseMsgs.Execute(
+                purchaseMint = EqotyPurchaseMsgs.Execute.PurchaseMint()
             )
         )
-    }
-
-    private suspend fun incrementTx(
-        contractInfo: ContractInfo
-    ) {
-        val incrementMsg = """{"increment": {}}"""
-
-        val msgs1 = listOf(
+        val msgs = listOf(
             MsgExecuteContract(
                 sender = client.senderAddress,
-                contractAddress = contractInfo.contractAddress,
-                codeHash = contractInfo.codeHash,
-                msg = incrementMsg,
+                contractAddress = contractInfo.address,
+                codeHash = contractInfo.codeInfo.codeHash,
+                msg = purchaseMintMsg,
+                sentFunds = sentFunds
             )
         )
-        val gasLimit = 200000
-        val result = client.execute(
-            msgs1,
-            txOptions = TxOptions(gasLimit = gasLimit)
-        )
-        Logger.i("Increment TX used ${result.gasUsed}")
+        val gasLimit = try {
+            val simulate = client.simulate(msgs)
+            (simulate.gasUsed.toDouble() * 1.1).toInt()
+        } catch (_: Throwable) {
+            200_000
+        }
+        val txOptions = TxOptions(gasLimit = gasLimit)
+        val res = try {
+            client.execute(
+                msgs,
+                txOptions = txOptions
+            )
+        } catch (t: Throwable) {
+            Logger.i(t.message ?: "")
+            null
+        }
+        val gasFee = client.gasToFee(txOptions.gasLimit, txOptions.gasPriceInFeeDenom)
+        return ExecuteResult(res, Coin(gasFee, "uscrt"))
     }
 
+    suspend fun getNumTokensOfOwner(
+        ownerAddress: String,
+        permit: Permit,
+        contractAddr: String
+    ): Snip721Msgs.QueryAnswer.NumTokens {
+        val numTokensQuery = Json.encodeToString(
+            Snip721Msgs.Query(
+                withPermit = Snip721Msgs.Query.WithPermit(
+                    permit,
+                    query = Snip721Msgs.QueryWithPermit(
+                        numTokensOfOwner = Snip721Msgs.QueryWithPermit.NumTokensOfOwner(ownerAddress),
+                    )
+                )
+            )
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(
+            client.queryContractSmart(
+                contractAddr,
+                numTokensQuery
+            )
+        ).numTokens!!
+    }
+
+    suspend fun getContractInfo(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.ContractInfo {
+        val query = Snip721Msgs.Query(contractInfo = Snip721Msgs.Query.ContractInfo())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).contractInfo!!
+    }
+
+    suspend fun getContractConfig(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.ContractConfig {
+        val query = Snip721Msgs.Query(contractConfig = Snip721Msgs.Query.ContractConfig())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).contractConfig!!
+    }
+
+    suspend fun getPurchasePrice(contractInfo: ContractInfo): List<Coin> {
+        val query = PurchasableSnip721Msgs.Query(getPrices = PurchasableSnip721Msgs.Query.GetPrices())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<EqotyPurchaseMsgs.QueryAnswer>(res).getPrices!!.prices
+    }
+
+    suspend fun getNumTokens(contractInfo: ContractInfo): Int {
+        val query = Snip721Msgs.Query(numTokens = Snip721Msgs.Query.NumTokens())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).numTokens!!.count
+    }
+
+    suspend fun getBatchNftDossiers(
+        contractInfo: ContractInfo,
+        permit: Permit,
+        tokenIds: List<String>
+    ): Snip721Msgs.QueryAnswer.BatchNftDossier {
+        val query = Snip721Msgs.Query(
+            withPermit = Snip721Msgs.Query.WithPermit(
+                permit = permit,
+                query = Snip721Msgs.QueryWithPermit(
+                    batchNftDossier = Snip721Msgs.QueryWithPermit.BatchNftDossier(tokenIds)
+                )
+            )
+        )
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        val json = Json { ignoreUnknownKeys = true }
+        // workaround deserialize public_ownership_expiration by ignoring it.
+        return json.decodeFromString<Snip721Msgs.QueryAnswer>(res).batchNftDossier!!
+    }
 
     @BeforeTest
     fun beforeEach() = runTest {
-        initTestsSemaphore.acquire()
-        try {
-            if (needsInit) {
-                Logger.setTag("dapp")
-                initializeAndUploadContract()
-                needsInit = false
-            }
-        } catch (t: Throwable) {
-            throw t
-        } finally {
-            initTestsSemaphore.release()
+        Logger.setTag("dapp")
+        if (!clientInitialized) {
+            val endpoint = testnetInfo.grpcGatewayEndpoint
+            initializeClient(endpoint, testnetInfo.chainId)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000)
         }
     }
 
     @Test
-    fun test_count_on_initialization() = runTest {
-        val countResponse = queryCount()
-        Logger.i("Count Response: $countResponse")
-        assertEquals(4, countResponse.count)
-    }
-
-    @Test
-    fun test_increment_stress() = runTest {
-        val onStartCounter = queryCount().count
-
-        val stressLoad = 10
-        for (i in 0 until 10) {
-            incrementTx(contractInfo)
-        }
-
-        val afterStressCounter = queryCount().count
-        assertEquals(
-            stressLoad, afterStressCounter - onStartCounter,
-            "After running stress test the counter expected to be ${onStartCounter + 10} instead " +
-                    "of ${afterStressCounter}"
+    fun test_purchase_one_and_migrate() = runTest {
+        val contractInfoV1 = initializeAndUploadContract()
+        val permitV1 = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contractInfoV1.address),
+            listOf(Permission.Owner)
         )
+        val startingNumTokensOfOwner = getNumTokensOfOwner(
+            client.senderAddress,
+            permitV1,
+            contractInfoV1.address
+        ).count
+        val purchaseOneMintResult =
+            purchaseOneMint(client, contractInfoV1, purchasePrices)
+        // verify customer received one nft
+        val numTokensOfOwner = getNumTokensOfOwner(
+            client.senderAddress,
+            permitV1,
+            contractInfoV1.address
+        ).count
+        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+        val migrateFrom = MigrateFrom(
+            contractInfoV1.address,
+            contractInfoV1.codeInfo.codeHash,
+            permitV1
+        )
+        val contractInfoV2 = initializeAndUploadContract(migrateFrom)
+
+        val permit = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contractInfoV1.address, contractInfoV2.address),
+            listOf(Permission.Owner)
+        )
+
+        assertNotEquals(contractInfoV1.address, contractInfoV2.address)
+        assertEquals(getContractInfo(contractInfoV1), getContractInfo(contractInfoV2))
+        assertEquals(getContractConfig(contractInfoV1), getContractConfig(contractInfoV2))
+        assertEquals(getPurchasePrice(contractInfoV1), getPurchasePrice(contractInfoV2))
+        assertEquals(getNumTokens(contractInfoV1), getNumTokens(contractInfoV2))
+        val json = Json { prettyPrint = true }
+        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permit, listOf("0"))
+        val nftDossiersV2 = getBatchNftDossiers(contractInfoV2, permit, listOf("0"))
+        assertEquals(
+            nftDossiersV1,
+            nftDossiersV2,
+            "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
+        )
+    }
+
+
+    @Test
+    fun test_approved_minters_is_migrated() = runTest {
+        TODO()
     }
 
 }

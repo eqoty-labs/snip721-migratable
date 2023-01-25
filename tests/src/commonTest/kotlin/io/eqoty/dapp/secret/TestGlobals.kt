@@ -3,12 +3,10 @@
 package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger
-import io.eqoty.dapp.secret.types.ContractInfo
-import io.eqoty.dapp.secret.utils.TestnetInfo
-import io.eqoty.dapp.secret.utils.getTestnet
+import io.eqoty.dapp.secret.utils.NodeInfo
+import io.eqoty.dapp.secret.utils.getNode
 import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.wallet.DirectSigningWallet
-import kotlinx.coroutines.sync.Semaphore
 
 /***
  * IntegrationTests will be re-instantiated for each test.
@@ -16,16 +14,14 @@ import kotlinx.coroutines.sync.Semaphore
  * be recreated each test.
  */
 object TestGlobals {
-    lateinit var client: SigningCosmWasmClient
-    lateinit var contractInfo: ContractInfo
-    val testnetInfo: TestnetInfo = getTestnet()
+    private var clientBacking: SigningCosmWasmClient? = null
+    val client: SigningCosmWasmClient get() = clientBacking!!
+    val clientInitialized = clientBacking != null
 
-    var needsInit = true
-    val initTestsSemaphore = Semaphore(1)
-
+    val testnetInfo: NodeInfo = getNode("src/commonTest/resources/config/nodes.json")
 
     // Returns a client with which we can interact with secret network
-    suspend fun initializeClient(endpoint: String, chainId: String): SigningCosmWasmClient {
+    suspend fun initializeClient(endpoint: String, chainId: String) {
         val wallet = DirectSigningWallet() // Use default constructor of wallet to generate random mnemonic.
         val accAddress = wallet.accounts[0].address
         val client = SigningCosmWasmClient.init(
@@ -36,7 +32,7 @@ object TestGlobals {
         )
 
         Logger.i("Initialized client with wallet address: $accAddress")
-        return client
+        clientBacking = client
     }
 
 }

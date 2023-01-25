@@ -46,6 +46,8 @@ kotlin {
                 implementation(libs.ktor.client.core)
                 implementation(libs.co.touchlab.kermit)
                 implementation(libs.io.eqoty.secretk.client)
+                implementation(libs.io.eqoty.dapp.secret.contract.msgs)
+                implementation(libs.io.eqoty.dapp.secret.deploy.utils)
             }
         }
         val jvmMain by getting {
@@ -83,8 +85,8 @@ fun createEnvVariables(environment: Map<String, Any>): MutableMap<String, Any> {
     if (localPropertiesFile.exists()) {
         properties.load(localPropertiesFile.reader())
     }
-    if (envMap["TESTNET_TYPE"] == null) {
-        envMap["TESTNET_TYPE"] = properties["TESTNET_TYPE"]!!
+    if (envMap["NODE_TYPE"] == null) {
+        envMap["NODE_TYPE"] = properties["NODE_TYPE"]!!
     }
     properties["GITPOD_ID"]?.let {
         envMap.put("GITPOD_ID", it)
