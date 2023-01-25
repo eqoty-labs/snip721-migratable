@@ -16,7 +16,7 @@ use snip721_reference_impl::royalties::StoredRoyaltyInfo;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
 use snip721_reference_impl::token::Metadata;
 
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrateReplyDataMsg, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::state::{config, config_read, ContractMode, State};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
@@ -196,18 +196,16 @@ pub fn migrate(
     address: String,
     entropy: &str,
 ) -> StdResult<Response> {
-    let admin_addr = &snip721config.admin;
-    let permit_creator = &deps.api.addr_canonicalize(
-        deps.api
-            .addr_validate(&validate(
-                deps.as_ref(),
-                PREFIX_REVOKED_PERMITS,
-                &admin_permit,
-                env.contract.address.to_string(),
-                Some("secret"),
-            )?)?
-            .as_str(),
-    )?;
+    let admin_addr = &deps.api.addr_humanize(&snip721config.admin).unwrap();
+    let permit_creator = &deps.api.addr_validate(
+        &validate(
+            deps.as_ref(),
+            PREFIX_REVOKED_PERMITS,
+            &admin_permit,
+            env.contract.address.to_string(),
+            Some("secret"),
+        )?
+    ).unwrap();
 
     if permit_creator != admin_addr {
         return Err(StdError::generic_err(
@@ -245,22 +243,40 @@ pub fn migrate(
     config(deps.storage).save(&state)?;
 
     Ok(Response::default()
-        .set_data(to_binary(&MigrateReplyDataMsg { secret }).unwrap())
+        .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
+            migrated_instantiate_msg: InstantiateMsg {
+                migrate_from: None,
+                prices: Some(state.prices.clone()),
+                public_metadata: state.public_metadata.clone(),
+                private_metadata: state.private_metadata.clone(),
+                admin: Some(admin_addr.to_string()),
+                entropy: entropy.to_string(),
+                royalty_info: None,
+            },
+            secret,
+        }).unwrap())
     )
 }
 
 #[entry_point]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
-        MIGRATE_REPLY_ID => perform_data_migration(deps, msg),
+        MIGRATE_REPLY_ID => perform_data_migration(deps, env, msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
 
-fn perform_data_migration(deps: DepsMut, msg: Reply) -> StdResult<Response> {
+fn perform_data_migration(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
 
-    let reply_data: MigrateReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
+    let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
+    // admin of the contract being migrated should always be the sender here
+    let info = MessageInfo {
+        sender: deps.api.addr_validate(reply_data.migrated_instantiate_msg.admin.clone().unwrap().as_str()).unwrap(),
+        funds: vec![],
+    };
+    // actually instantiate the contract using the migrated data
+    instantiate(deps, env, info, reply_data.migrated_instantiate_msg).unwrap();
 
     Ok(Response::new())
 }

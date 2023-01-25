@@ -111,7 +111,8 @@ const _: () = {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct MigrateReplyDataMsg {
+pub struct InstantiateByMigrationReplyDataMsg {
+    pub migrated_instantiate_msg: InstantiateMsg,
     pub secret: Binary,
 }
 

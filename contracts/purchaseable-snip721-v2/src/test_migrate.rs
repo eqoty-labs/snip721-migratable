@@ -7,7 +7,7 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, query};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrateReplyDataMsg, MigrateTo, QueryMsg};
+    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, InstantiateByMigrationReplyDataMsg, MigrateTo, QueryMsg};
     use crate::msg::QueryMsgExt::ExportMigrationData;
 
     pub fn instantiate_msg(prices: Vec<Coin>, public_metadata: Option<Metadata>, private_metadata: Option<Metadata>, admin_info: MessageInfo) -> InstantiateMsg {
@@ -283,7 +283,7 @@ mod tests {
         let migrate_0_result = migrate(deps.as_mut(), admin_permit, migrate_to_addr_0, migrate_to_code_hash_0);
         assert_eq!(migrate_0_result.is_ok(), true, "{:?}", migrate_0_result.unwrap_err());
 
-        let migrate_data: MigrateReplyDataMsg = from_binary(&migrate_0_result.unwrap().data.unwrap()).unwrap();
+        let migrate_data: InstantiateByMigrationReplyDataMsg = from_binary(&migrate_0_result.unwrap().data.unwrap()).unwrap();
 
         let secret: Binary = migrate_data.secret;
 
