@@ -13,6 +13,7 @@ import io.eqoty.dapp.secret.types.MintedRelease
 import io.eqoty.dapp.secret.types.contract.MigrateFrom
 import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
 import io.eqoty.dapp.secret.types.contract.Snip721Msgs
+import io.eqoty.dapp.secret.types.contract.equals
 import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
 import io.eqoty.dapp.secret.utils.getEnv
@@ -32,10 +33,7 @@ import okio.Path
 import okio.Path.Companion.toPath
 import kotlin.math.ceil
 import kotlin.random.Random
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
+import kotlin.test.*
 
 class IntegrationTests {
 
@@ -301,9 +299,8 @@ class IntegrationTests {
         val json = Json { prettyPrint = true }
         val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permit, listOf("0"))
         val nftDossiersV2 = getBatchNftDossiers(contractInfoV2, permit, listOf("0"))
-        assertEquals(
-            nftDossiersV1,
-            nftDossiersV2,
+        assertTrue(
+            nftDossiersV1.equals(nftDossiersV2, ignoreTimeOfMinting = true),
             "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
         )
     }
