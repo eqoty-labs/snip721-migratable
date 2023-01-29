@@ -61,6 +61,13 @@ pub enum ExecuteMsgExt {
         admin_permit: Permit,
         migrate_to: MigrateTo,
     },
+    MigrateTokensIn {
+        /// The number of queries to make from the contract being migrated from
+        pages: Option<u32>,
+        /// The number of tokens to request from the contract being migrated from in each query.
+        /// The number returned could be less.
+        page_size: Option<u32>,
+    },
 }
 
 // https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
@@ -121,7 +128,13 @@ pub struct InstantiateByMigrationReplyDataMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteAnswer {}
+pub enum ExecuteAnswer {
+    MigrateTokensIn {
+        complete: bool,
+        next_mint_index: Option<u32>,
+        total: Option<u32>,
+    },
+}
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

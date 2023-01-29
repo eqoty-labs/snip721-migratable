@@ -11,7 +11,7 @@ use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo}
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
 use snip721_reference_impl::token::Metadata;
 
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
 use crate::state::{config, config_read, ContractMode, State};
 
@@ -73,7 +73,10 @@ fn init_snip721(
         public_metadata: msg.public_metadata,
         private_metadata: msg.private_metadata,
         migration_addr: None,
+        migration_code_hash: None,
         migration_secret: None,
+        migrate_in_mint_cnt: None,
+        migrate_in_next_mint_index: None,
         mode: ContractMode::Running,
     };
 
@@ -110,11 +113,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
     let mut deps = deps;
     let mut state = config_read(deps.storage).load()?;
-    if let ContractMode::Migrated = state.mode {
+    if let ContractMode::MigratedOut = state.mode {
         return Err(StdError::generic_err(format!(
             "This contract has been migrated to {:?}. No further state changes are allowed!",
             state.migration_addr.unwrap()
         )));
+    } else if ContractMode::MigrateDataIn == state.mode {
+        return perform_token_migration(deps, &env, info, config, msg);
     }
 
     return match msg {
@@ -126,7 +131,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
             }
             ExecuteMsgExt::Migrate { admin_permit, migrate_to } =>
-                migrate(deps, env, info, &mut config, &mut state, admin_permit, migrate_to.address, migrate_to.entropy.as_str()),
+                migrate(deps, env, info, &mut config, &mut state, admin_permit, migrate_to),
+            ExecuteMsgExt::MigrateTokensIn { .. } => {
+                Err(StdError::generic_err(
+                    "MigrateTokensIn msg is allowed when in ContractMode:MigrateDataIn",
+                ))
+            }
         },
     };
 }
@@ -192,133 +202,92 @@ fn purchase_and_mint(
         .set_data(mint_res.data.unwrap()))
 }
 
-pub fn migrate(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    snip721config: &mut Config,
-    state: &mut State,
-    admin_permit: Permit,
-    address: String,
-    entropy: &str,
-) -> StdResult<Response> {
-    let admin_addr = &deps.api.addr_humanize(&snip721config.admin).unwrap();
-    let permit_creator = &deps.api.addr_validate(
-        &validate(
-            deps.as_ref(),
-            PREFIX_REVOKED_PERMITS,
-            &admin_permit,
-            env.contract.address.to_string(),
-            Some("secret"),
-        )?
-    ).unwrap();
 
-    if permit_creator != admin_addr {
-        return Err(StdError::generic_err(
-            "Only the admin can set the contract to migrate!",
-        ));
+fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_config: Config, msg: ExecuteMsg) -> StdResult<Response> {
+    let mut state = config_read(deps.storage).load()?;
+    let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
+    if admin_addr != info.sender {
+        return Err(StdError::generic_err(format!(
+            "This contract's admin must complete migrating contract data from {:?}",
+            state.migration_addr.unwrap()
+        )));
     }
-    if state.migration_addr.is_some() {
-        return Err(StdError::generic_err(
-            "The contract has already been migrated!",
-        ));
-    }
-    let address = deps.api.addr_validate(&address).unwrap();
 
-    // Generate the secret in some way
-    // 16 here represents the lengths in bytes of the block height and time.
-    let entropy_len = 16 + info.sender.to_string().len() + entropy.len();
-    let mut rng_entropy = Vec::with_capacity(entropy_len);
-    rng_entropy.extend_from_slice(&env.block.height.to_be_bytes());
-    rng_entropy.extend_from_slice(&env.block.time.seconds().to_be_bytes());
-    rng_entropy.extend_from_slice(info.sender.as_bytes());
-    rng_entropy.extend_from_slice(entropy.as_ref());
-    const SEED_KEY: &[u8] = b"::seed";
-    let mut seed_key = Vec::with_capacity(ViewingKey::STORAGE_KEY.len() + SEED_KEY.len());
-    seed_key.extend_from_slice(ViewingKey::STORAGE_KEY);
-    seed_key.extend_from_slice(SEED_KEY);
-    let seed = &deps.storage.get(&seed_key).unwrap_or_default();
-
-    let mut rng = Prng::new(seed, &rng_entropy);
-
-    let secret = Binary::from(rng.rand_bytes());
-
-    state.migration_addr = Some(address.clone());
-    state.mode = ContractMode::Migrated;
-    state.migration_secret = Some(secret.clone());
-    config(deps.storage).save(&state)?;
-
-    Ok(Response::default()
-        .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
-            migrated_instantiate_msg: InstantiateMsg {
-                migrate_from: None,
-                prices: Some(state.prices.clone()),
-                public_metadata: state.public_metadata.clone(),
-                private_metadata: state.private_metadata.clone(),
-                admin: Some(admin_addr.to_string()),
-                entropy: entropy.to_string(),
-                royalty_info: None,
-            },
-            migrate_from: MigrateFrom {
-                address: env.contract.address.to_string(),
-                code_hash: env.contract.code_hash,
-                admin_permit,
-            },
-            mint_count: snip721config.mint_cnt,
-            secret,
-        }).unwrap())
-    )
-}
-
-#[entry_point]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
-    match msg.id {
-        MIGRATE_REPLY_ID => perform_data_migration(deps, &env, msg),
-        id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
-    }
-}
-
-fn perform_data_migration(deps: DepsMut, env: &Env, msg: Reply) -> StdResult<Response> {
-    let mut deps = deps;
-    deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
-
-    let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
-    // admin of the contract being migrated should always be the sender here
-    let admin_info = MessageInfo {
-        sender: deps.api.addr_validate(reply_data.migrated_instantiate_msg.admin.clone().unwrap().as_str()).unwrap(),
-        funds: vec![],
+    let (pages, page_size) = match msg {
+        ExecuteMsg::Ext(ext_msg) => match ext_msg {
+            ExecuteMsgExt::MigrateTokensIn { pages, page_size } => {
+                (pages.unwrap_or(u32::MAX), page_size)
+            }
+            _ => {
+                return Err(StdError::generic_err(
+                    "Only MigrateTokensIn msg is allowed when in ContractMode:MigrateDataIn",
+                ));
+            }
+        },
+        _ => {
+            return Err(StdError::generic_err(format!(
+                "This contract's admin must complete migrating contract data from {:?}",
+                state.migration_addr.unwrap()
+            )));
+        }
     };
-    // actually instantiate the contract using the migrated data
-    init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
+    let mut deps = deps;
+    let mut start_at_idx = state.migrate_in_next_mint_index.unwrap();
+    let mint_count = state.migrate_in_mint_cnt.unwrap();
 
-    let mut start_at_idx = 0;
-    let mint_count = reply_data.mint_count;
-
-    while start_at_idx < mint_count {
+    let mut pages_queried = 0;
+    while pages_queried < pages && start_at_idx < mint_count {
         // deps.api.debug(&*format!("start_at_idx: {} mint_count {}", start_at_idx, mint_count));
         let query_answer: QueryAnswer = deps.querier.query_wasm_smart(
-            reply_data.migrate_from.code_hash.clone(),
-            reply_data.migrate_from.address.clone(),
+            state.migration_code_hash.clone().unwrap(),
+            state.migration_addr.clone().unwrap(),
             &QueryMsgExt::ExportMigrationData {
                 start_index: Some(start_at_idx),
-                max_count: None,
-                secret: reply_data.secret.clone(),
+                max_count: page_size,
+                secret: state.migration_secret.clone().unwrap(),
             },
         ).unwrap();
+        pages_queried += 1;
         start_at_idx = match query_answer {
             MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
                 deps.api.debug(format!("{:?}", nft_dossiers).as_str());
-                save_migration_dossier_list(&mut deps, env, &admin_info.sender, nft_dossiers).unwrap();
+                save_migration_dossier_list(&mut deps, env, &admin_addr, nft_dossiers).unwrap();
                 last_mint_index + 1
             }
             _ => panic!("unexpected ExportMigrationData query answer"),
         };
     }
 
-    Ok(Response::new())
+    let res = if start_at_idx < mint_count {
+        state.migrate_in_next_mint_index = Some(start_at_idx);
+
+        Ok(Response::new()
+            .set_data(to_binary(&ExecuteAnswer::MigrateTokensIn {
+                complete: false,
+                next_mint_index: Some(start_at_idx),
+                total: Some(mint_count),
+            })?))
+    } else {
+        // migration complete
+        state.migrate_in_next_mint_index = None;
+        state.migrate_in_mint_cnt = None;
+        state.migration_secret = None;
+        state.migration_addr = None;
+        state.migration_code_hash = None;
+        state.mode = ContractMode::Running;
+
+        Ok(Response::new()
+            .set_data(to_binary(&ExecuteAnswer::MigrateTokensIn {
+                complete: true,
+                next_mint_index: None,
+                total: None,
+            })?))
+    };
+    config(deps.storage).save(&state)?;
+    return res;
 }
 
-pub fn save_migration_dossier_list(
+fn save_migration_dossier_list(
     deps: &mut DepsMut,
     env: &Env,
     admin_addr: &Addr,
@@ -366,6 +335,120 @@ pub fn save_migration_dossier_list(
     mint_list(deps, env, &mut config, sender_raw, mints)
 }
 
+pub fn migrate(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    snip721config: &mut Config,
+    state: &mut State,
+    admin_permit: Permit,
+    migrate_to: MigrateTo,
+) -> StdResult<Response> {
+    let admin_addr = &deps.api.addr_humanize(&snip721config.admin).unwrap();
+    let permit_creator = &deps.api.addr_validate(
+        &validate(
+            deps.as_ref(),
+            PREFIX_REVOKED_PERMITS,
+            &admin_permit,
+            env.contract.address.to_string(),
+            Some("secret"),
+        )?
+    ).unwrap();
+
+    if permit_creator != admin_addr {
+        return Err(StdError::generic_err(
+            "Only the admins permit is allowed to initiate migration!",
+        ));
+    }
+    let migrate_to_address = deps.api.addr_validate(migrate_to.address.as_str()).unwrap();
+    if info.sender != migrate_to_address {
+        return Err(StdError::generic_err(
+            "Only the contract being migrated to can set the contract to migrate!",
+        ));
+    }
+    if state.migration_addr.is_some() {
+        return Err(StdError::generic_err(
+            "The contract has already been migrated!",
+        ));
+    }
+    let entropy = migrate_to.entropy.as_str();
+
+    // Generate the secret in some way
+    // 16 here represents the lengths in bytes of the block height and time.
+    let entropy_len = 16 + info.sender.to_string().len() + entropy.len();
+    let mut rng_entropy = Vec::with_capacity(entropy_len);
+    rng_entropy.extend_from_slice(&env.block.height.to_be_bytes());
+    rng_entropy.extend_from_slice(&env.block.time.seconds().to_be_bytes());
+    rng_entropy.extend_from_slice(info.sender.as_bytes());
+    rng_entropy.extend_from_slice(entropy.as_ref());
+    const SEED_KEY: &[u8] = b"::seed";
+    let mut seed_key = Vec::with_capacity(ViewingKey::STORAGE_KEY.len() + SEED_KEY.len());
+    seed_key.extend_from_slice(ViewingKey::STORAGE_KEY);
+    seed_key.extend_from_slice(SEED_KEY);
+    let seed = &deps.storage.get(&seed_key).unwrap_or_default();
+
+    let mut rng = Prng::new(seed, &rng_entropy);
+
+    let secret = Binary::from(rng.rand_bytes());
+
+    state.migration_addr = Some(migrate_to_address);
+    state.migration_code_hash = Some(migrate_to.code_hash);
+    state.mode = ContractMode::MigratedOut;
+    state.migration_secret = Some(secret.clone());
+    config(deps.storage).save(&state)?;
+
+    Ok(Response::default()
+        .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
+            migrated_instantiate_msg: InstantiateMsg {
+                migrate_from: None,
+                prices: Some(state.prices.clone()),
+                public_metadata: state.public_metadata.clone(),
+                private_metadata: state.private_metadata.clone(),
+                admin: Some(admin_addr.to_string()),
+                entropy: entropy.to_string(),
+                royalty_info: None,
+            },
+            migrate_from: MigrateFrom {
+                address: env.contract.address.to_string(),
+                code_hash: env.contract.code_hash,
+                admin_permit,
+            },
+            mint_count: snip721config.mint_cnt,
+            secret,
+        }).unwrap())
+    )
+}
+
+#[entry_point]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+    match msg.id {
+        MIGRATE_REPLY_ID => instantiate_with_migrated_config(deps, &env, msg),
+        id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
+    }
+}
+
+fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> StdResult<Response> {
+    let mut deps = deps;
+    deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
+
+    let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
+    // admin of the contract being migrated should always be the sender here
+    let admin_info = MessageInfo {
+        sender: deps.api.addr_validate(reply_data.migrated_instantiate_msg.admin.clone().unwrap().as_str()).unwrap(),
+        funds: vec![],
+    };
+    // actually instantiate the contract using the migrated data
+    init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
+
+    let mut state = config_read(deps.storage).load()?;
+    state.migration_addr = Some(deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap());
+    state.migration_code_hash = Some(reply_data.migrate_from.code_hash);
+    state.mode = ContractMode::MigrateDataIn;
+    state.migration_secret = Some(reply_data.secret);
+    state.migrate_in_next_mint_index = Some(0);
+    state.migrate_in_mint_cnt = Some(reply_data.mint_count);
+    Ok(Response::default())
+}
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
