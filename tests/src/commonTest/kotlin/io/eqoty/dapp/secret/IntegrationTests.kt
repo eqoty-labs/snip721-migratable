@@ -229,17 +229,40 @@ class IntegrationTests {
         return json.decodeFromString<Snip721Msgs.QueryAnswer>(res).batchNftDossier!!
     }
 
+    suspend fun getTxHistory(
+        contractInfo: ContractInfo,
+        permit: Permit,
+    ): Snip721Msgs.QueryAnswer.TransactionHistory {
+        val query = Snip721Msgs.Query(
+            withPermit = Snip721Msgs.Query.WithPermit(
+                permit = permit,
+                query = Snip721Msgs.QueryWithPermit(
+                    transactionHistory = Snip721Msgs.QueryWithPermit.TransactionHistory()
+                )
+            )
+        )
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        val json = Json { ignoreUnknownKeys = true }
+        // workaround deserialize public_ownership_expiration by ignoring it.
+        return json.decodeFromString<Snip721Msgs.QueryAnswer>(res).transactionHistory!!
+    }
+
     @BeforeTest
     fun beforeEach() = runTest {
         Logger.setTag("dapp")
         if (!clientInitialized) {
             val endpoint = testnetInfo.grpcGatewayEndpoint
-            initializeClient(endpoint, testnetInfo.chainId, 2)
+            initializeClient(endpoint, testnetInfo.chainId, 3)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[0].address)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[1].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[2].address)
             val workaroundContract = initializeAndUploadContract()
             intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[0].address)
             intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[1].address)
+            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[2].address)
         }
         client.senderAddress = client.wallet.getAccounts()[0].address
     }
@@ -302,6 +325,70 @@ class IntegrationTests {
         assertTrue(
             nftDossiersV1.equals(nftDossiersV2, ignoreTimeOfMinting = true),
             "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
+        )
+    }
+
+    @Test
+    fun test_purchase_one_and_migrate_tx_history() = runTest {
+        val contractInfoV1 = initializeAndUploadContract()
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val permitsV1 = client.wallet.getAccounts().map { account ->
+            PermitFactory.newPermit(
+                client.wallet,
+                account.address,
+                client.getChainId(),
+                "test",
+                listOf(contractInfoV1.address),
+                listOf(Permission.Owner)
+            )
+        }
+        val startingNumTokensOfOwner = getNumTokensOfOwner(
+            client.senderAddress,
+            permitsV1[1],
+            contractInfoV1.address
+        ).count
+        purchaseOneMint(client, contractInfoV1, purchasePrices)
+        // verify customer received one nft
+        val numTokensOfOwner = getNumTokensOfOwner(
+            client.senderAddress,
+            permitsV1[1],
+            contractInfoV1.address
+        ).count
+        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
+        val migrateFrom = MigrateFrom(
+            contractInfoV1.address,
+            contractInfoV1.codeInfo.codeHash,
+            permitsV1[0]
+        )
+        val contractInfoV2 = initializeAndUploadContract(migrateFrom)
+        migrateTokens(client, contractInfoV2)
+
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val permit = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contractInfoV1.address, contractInfoV2.address),
+            listOf(Permission.Owner)
+        )
+
+        assertNotEquals(contractInfoV1.address, contractInfoV2.address)
+        val json = Json { prettyPrint = true }
+        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permit, listOf("0"))
+        val nftDossiersV2 = getBatchNftDossiers(contractInfoV2, permit, listOf("0"))
+        assertTrue(
+            nftDossiersV1.equals(nftDossiersV2, ignoreTimeOfMinting = true),
+            "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
+        )
+        val txHistoryV1 = getTxHistory(contractInfoV1, permit)
+        val txHistoryV2 = getTxHistory(contractInfoV2, permit)
+
+        assertTrue(
+            txHistoryV2.txs.containsAll(txHistoryV1.txs),
+            "Migrated contract does not return all txs from original contract"
         )
     }
 
