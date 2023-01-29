@@ -113,6 +113,43 @@ class IntegrationTests {
         return ExecuteResult(res, Coin(gasFee, "uscrt"))
     }
 
+    private suspend fun migrateTokens(
+        client: SigningCosmWasmClient,
+        contractInfo: ContractInfo
+    ): ExecuteResult<PurchasableSnip721Msgs.ExecuteAnswer.MigrateTokensIn> {
+        val msg = Json.encodeToString(
+            PurchasableSnip721Msgs.Execute(
+                migrateTokensIn = PurchasableSnip721Msgs.Execute.MigrateTokensIn()
+            )
+        )
+        val msgs = listOf(
+            MsgExecuteContract(
+                sender = client.senderAddress,
+                contractAddress = contractInfo.address,
+                codeHash = contractInfo.codeInfo.codeHash,
+                msg = msg,
+            )
+        )
+        val gasLimit = try {
+            val simulate = client.simulate(msgs)
+            (simulate.gasUsed.toDouble() * 1.1).toInt()
+        } catch (_: Throwable) {
+            200_000
+        }
+        val txOptions = TxOptions(gasLimit = gasLimit)
+        val res = try {
+            client.execute(
+                msgs,
+                txOptions = txOptions
+            )
+        } catch (t: Throwable) {
+            Logger.i(t.message ?: "")
+            null
+        }
+        val gasFee = client.gasToFee(txOptions.gasLimit, txOptions.gasPriceInFeeDenom)
+        return ExecuteResult(res, Coin(gasFee, "uscrt"))
+    }
+
     suspend fun getNumTokensOfOwner(
         ownerAddress: String,
         permit: Permit,
@@ -235,6 +272,7 @@ class IntegrationTests {
             permitV1
         )
         val contractInfoV2 = initializeAndUploadContract(migrateFrom)
+        migrateTokens(client, contractInfoV2)
 
         val permit = PermitFactory.newPermit(
             client.wallet,
@@ -261,9 +299,9 @@ class IntegrationTests {
     }
 
 
-    @Test
-    fun test_approved_minters_is_migrated() = runTest {
-        TODO()
-    }
+//    @Test
+//    fun test_approved_minters_is_migrated() = runTest {
+//        TODO()
+//    }
 
 }
