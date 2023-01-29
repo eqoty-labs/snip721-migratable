@@ -5,11 +5,11 @@ import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.TestGlobals.client
 import io.eqoty.dapp.secret.TestGlobals.clientInitialized
 import io.eqoty.dapp.secret.TestGlobals.initializeClient
+import io.eqoty.dapp.secret.TestGlobals.intializeAccountBeforeExecuteWorkaround
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
 import io.eqoty.dapp.secret.types.ContractInfo
 import io.eqoty.dapp.secret.types.ExecuteResult
 import io.eqoty.dapp.secret.types.MintedRelease
-import io.eqoty.dapp.secret.types.contract.EqotyPurchaseMsgs
 import io.eqoty.dapp.secret.types.contract.MigrateFrom
 import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
 import io.eqoty.dapp.secret.types.contract.Snip721Msgs
@@ -80,8 +80,8 @@ class IntegrationTests {
         sentFunds: List<Coin>
     ): ExecuteResult<MintedRelease> {
         val purchaseMintMsg = Json.encodeToString(
-            EqotyPurchaseMsgs.Execute(
-                purchaseMint = EqotyPurchaseMsgs.Execute.PurchaseMint()
+            PurchasableSnip721Msgs.Execute(
+                purchaseMint = PurchasableSnip721Msgs.Execute.PurchaseMint()
             )
         )
         val msgs = listOf(
@@ -197,7 +197,7 @@ class IntegrationTests {
             contractInfo.address,
             Json.encodeToString(query), contractInfo.codeInfo.codeHash
         )
-        return Json.decodeFromString<EqotyPurchaseMsgs.QueryAnswer>(res).getPrices!!.prices
+        return Json.decodeFromString<PurchasableSnip721Msgs.QueryAnswer>(res).getPrices!!.prices
     }
 
     suspend fun getNumTokens(contractInfo: ContractInfo): Int {
@@ -239,6 +239,9 @@ class IntegrationTests {
             initializeClient(endpoint, testnetInfo.chainId, 2)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[0].address)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[1].address)
+            val workaroundContract = initializeAndUploadContract()
+            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[0].address)
+            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[1].address)
         }
         client.senderAddress = client.wallet.getAccounts()[0].address
     }
@@ -262,8 +265,6 @@ class IntegrationTests {
             permitsV1[1],
             contractInfoV1.address
         ).count
-        // todo: only call once. For some reason the first time executing a tx with a fresh account fails
-        purchaseOneMint(client, contractInfoV1, purchasePrices)
         purchaseOneMint(client, contractInfoV1, purchasePrices)
         // verify customer received one nft
         val numTokensOfOwner = getNumTokensOfOwner(
