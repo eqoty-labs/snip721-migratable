@@ -283,6 +283,7 @@ class IntegrationTests {
         val contractInfoV2 = initializeAndUploadContract(migrateFrom)
         migrateTokens(client, contractInfoV2)
 
+        client.senderAddress = client.wallet.getAccounts()[1].address
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
