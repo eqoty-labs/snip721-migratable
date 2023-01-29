@@ -236,40 +236,48 @@ class IntegrationTests {
         Logger.setTag("dapp")
         if (!clientInitialized) {
             val endpoint = testnetInfo.grpcGatewayEndpoint
-            initializeClient(endpoint, testnetInfo.chainId)
-            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000)
+            initializeClient(endpoint, testnetInfo.chainId, 2)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[0].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[1].address)
         }
+        client.senderAddress = client.wallet.getAccounts()[0].address
     }
 
     @Test
     fun test_purchase_one_and_migrate() = runTest {
         val contractInfoV1 = initializeAndUploadContract()
-        val permitV1 = PermitFactory.newPermit(
-            client.wallet,
-            client.senderAddress,
-            client.getChainId(),
-            "test",
-            listOf(contractInfoV1.address),
-            listOf(Permission.Owner)
-        )
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val permitsV1 = client.wallet.getAccounts().map { account ->
+            PermitFactory.newPermit(
+                client.wallet,
+                account.address,
+                client.getChainId(),
+                "test",
+                listOf(contractInfoV1.address),
+                listOf(Permission.Owner)
+            )
+        }
         val startingNumTokensOfOwner = getNumTokensOfOwner(
             client.senderAddress,
-            permitV1,
+            permitsV1[1],
             contractInfoV1.address
         ).count
-        val purchaseOneMintResult =
-            purchaseOneMint(client, contractInfoV1, purchasePrices)
+        // todo: only call once. For some reason the first time executing a tx with a fresh account fails
+        purchaseOneMint(client, contractInfoV1, purchasePrices)
+        purchaseOneMint(client, contractInfoV1, purchasePrices)
         // verify customer received one nft
         val numTokensOfOwner = getNumTokensOfOwner(
             client.senderAddress,
-            permitV1,
+            permitsV1[1],
             contractInfoV1.address
         ).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
         val migrateFrom = MigrateFrom(
             contractInfoV1.address,
             contractInfoV1.codeInfo.codeHash,
-            permitV1
+            permitsV1[0]
         )
         val contractInfoV2 = initializeAndUploadContract(migrateFrom)
         migrateTokens(client, contractInfoV2)
