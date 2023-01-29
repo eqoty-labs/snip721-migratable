@@ -447,6 +447,7 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
     state.migration_secret = Some(reply_data.secret);
     state.migrate_in_next_mint_index = Some(0);
     state.migrate_in_mint_cnt = Some(reply_data.mint_count);
+    config(deps.storage).save(&state)?;
     Ok(Response::default())
 }
 
