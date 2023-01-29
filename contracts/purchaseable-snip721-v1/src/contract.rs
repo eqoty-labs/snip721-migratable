@@ -251,7 +251,7 @@ fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_
         start_at_idx = match query_answer {
             MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
                 deps.api.debug(format!("{:?}", nft_dossiers).as_str());
-                save_migration_dossier_list(&mut deps, env, &state.migration_addr.unwrap(), &admin_addr, nft_dossiers).unwrap();
+                save_migration_dossier_list(&mut deps, env, &state.migration_addr.clone().unwrap(), &admin_addr, nft_dossiers).unwrap();
                 last_mint_index + 1
             }
             _ => panic!("unexpected ExportMigrationData query answer"),
