@@ -251,7 +251,7 @@ fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_
         start_at_idx = match query_answer {
             MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
                 deps.api.debug(format!("{:?}", nft_dossiers).as_str());
-                save_migration_dossier_list(&mut deps, env, &admin_addr, nft_dossiers).unwrap();
+                save_migration_dossier_list(&mut deps, env, &state.migration_addr.unwrap(), &admin_addr, nft_dossiers).unwrap();
                 last_mint_index + 1
             }
             _ => panic!("unexpected ExportMigrationData query answer"),
@@ -290,7 +290,8 @@ fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_
 fn save_migration_dossier_list(
     deps: &mut DepsMut,
     env: &Env,
-    admin_addr: &Addr,
+    migrated_from: &Addr,
+    admin: &Addr,
     nft_dossiers: Vec<BatchNftDossierElement>,
 ) -> StdResult<Vec<String>> {
     let mints = nft_dossiers.iter().map(|nft| {
@@ -327,11 +328,11 @@ fn save_migration_dossier_list(
             serial_number,
             royalty_info,
             transferable: Some(nft.transferable.clone()),
-            memo: None,
+            memo: Some(format!("Migrated from: {}", migrated_from)),
         }
     }).collect();
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
-    let sender_raw = &deps.api.addr_canonicalize(admin_addr.as_str())?;
+    let sender_raw = &deps.api.addr_canonicalize(admin.as_str())?;
     mint_list(deps, env, &mut config, sender_raw, mints)
 }
 
