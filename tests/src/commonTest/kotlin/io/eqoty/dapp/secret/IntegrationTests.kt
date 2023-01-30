@@ -399,9 +399,4 @@ class IntegrationTests {
     }
 
 
-//    @Test
-//    fun test_approved_minters_is_migrated() = runTest {
-//        TODO()
-//    }
-
 }

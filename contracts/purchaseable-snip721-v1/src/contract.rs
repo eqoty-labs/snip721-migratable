@@ -113,31 +113,35 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
     let mut deps = deps;
     let mut state = config_read(deps.storage).load()?;
-    if let ContractMode::MigratedOut = state.mode {
-        return Err(StdError::generic_err(format!(
-            "This contract has been migrated to {:?}. No further state changes are allowed!",
-            state.migration_addr.unwrap()
-        )));
-    } else if ContractMode::MigrateDataIn == state.mode {
-        return perform_token_migration(deps, &env, info, config, msg);
-    }
-
-    return match msg {
-        ExecuteMsg::Base(base_msg) => {
-            snip721_reference_impl::contract::execute(deps, env, info, base_msg)
+    return match state.mode {
+        ContractMode::MigrateDataIn => {
+            perform_token_migration(deps, &env, info, config, msg)
         }
-        ExecuteMsg::Ext(ext_msg) => match ext_msg {
-            ExecuteMsgExt::PurchaseMint { .. } => {
-                purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
+        ContractMode::Running => {
+            match msg {
+                ExecuteMsg::Base(base_msg) => {
+                    snip721_reference_impl::contract::execute(deps, env, info, base_msg)
+                }
+                ExecuteMsg::Ext(ext_msg) => match ext_msg {
+                    ExecuteMsgExt::PurchaseMint { .. } => {
+                        purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
+                    }
+                    ExecuteMsgExt::Migrate { admin_permit, migrate_to } =>
+                        migrate(deps, env, info, &mut config, &mut state, admin_permit, migrate_to),
+                    ExecuteMsgExt::MigrateTokensIn { .. } => {
+                        Err(StdError::generic_err(
+                            "MigrateTokensIn msg is allowed when in ContractMode:MigrateDataIn",
+                        ))
+                    }
+                },
             }
-            ExecuteMsgExt::Migrate { admin_permit, migrate_to } =>
-                migrate(deps, env, info, &mut config, &mut state, admin_permit, migrate_to),
-            ExecuteMsgExt::MigrateTokensIn { .. } => {
-                Err(StdError::generic_err(
-                    "MigrateTokensIn msg is allowed when in ContractMode:MigrateDataIn",
-                ))
-            }
-        },
+        }
+        ContractMode::MigratedOut => {
+            Err(StdError::generic_err(format!(
+                "This contract has been migrated to {:?}. No further state changes are allowed!",
+                state.migration_addr.unwrap()
+            )))
+        }
     };
 }
 
@@ -455,46 +459,50 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let state = &config_read(deps.storage).load()?;
-    if let ContractMode::MigratedOut = state.mode {
-        let migrated_error = Err(StdError::generic_err(format!(
-            "This contract has been migrated to {:?}. Only Transaction History queries allowed!",
-            state.migration_addr.clone().unwrap()
-        )));
-        return match msg {
-            QueryMsg::Base(base_msg) => {
-                let is_tx_history_query = match &base_msg {
-                    snip721_reference_impl::msg::QueryMsg::TransactionHistory { .. } => true,
-                    snip721_reference_impl::msg::QueryMsg::WithPermit { permit: _, query } => {
-                        match query {
-                            snip721_reference_impl::msg::QueryWithPermit::TransactionHistory { .. } => true,
-                            _ => false
+    return match state.mode {
+        ContractMode::MigratedOut => {
+            let migrated_error = Err(StdError::generic_err(format!(
+                "This contract has been migrated to {:?}. Only Transaction History queries allowed!",
+                state.migration_addr.clone().unwrap()
+            )));
+            match msg {
+                QueryMsg::Base(base_msg) => {
+                    let is_tx_history_query = match &base_msg {
+                        snip721_reference_impl::msg::QueryMsg::TransactionHistory { .. } => true,
+                        snip721_reference_impl::msg::QueryMsg::WithPermit { permit: _, query } => {
+                            match query {
+                                snip721_reference_impl::msg::QueryWithPermit::TransactionHistory { .. } => true,
+                                _ => false
+                            }
                         }
+                        _ => false
+                    };
+                    if is_tx_history_query {
+                        snip721_reference_impl::contract::query(deps, env, base_msg)
+                    } else {
+                        migrated_error
                     }
-                    _ => false
-                };
-                if is_tx_history_query {
-                    snip721_reference_impl::contract::query(deps, env, base_msg)
-                } else {
-                    migrated_error
+                }
+                QueryMsg::Ext(base_msg) => {
+                    match base_msg {
+                        QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
+                            migration_dossier_list(deps, &env.block, state, start_index, max_count, &secret),
+                        _ => migrated_error
+                    }
                 }
             }
-            QueryMsg::Ext(base_msg) => {
-                match base_msg {
-                    QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
-                        migration_dossier_list(deps, &env.block, state, start_index, max_count, &secret),
-                    _ => migrated_error
-                }
+        }
+        _ => {
+            match msg {
+                QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
+                QueryMsg::Ext(ext_msg) => match ext_msg {
+                    QueryMsgExt::GetPrices {} => query_prices(state),
+                    QueryMsgExt::ExportMigrationData { .. } => Err(StdError::generic_err(
+                        "This contract has not been migrated yet",
+                    ))
+                },
             }
-        };
-    }
-    return match msg {
-        QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
-        QueryMsg::Ext(ext_msg) => match ext_msg {
-            QueryMsgExt::GetPrices {} => query_prices(state),
-            QueryMsgExt::ExportMigrationData { .. } => Err(StdError::generic_err(
-                "This contract has not been migrated yet",
-            ))
-        },
+        }
     };
 }
 
