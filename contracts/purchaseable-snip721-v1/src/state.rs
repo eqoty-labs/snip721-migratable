@@ -1,6 +1,5 @@
 use cosmwasm_std::{Addr, Binary, Storage};
 use cosmwasm_storage::{ReadonlySingleton, singleton, Singleton, singleton_read};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::token::Metadata;
 
@@ -12,7 +11,7 @@ pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
 /// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
 pub const PURCHASABLE_METADATA_KEY: &[u8] = b"pur_metadata";
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PurchasableMetadata {
     /// optional public metadata that can be seen by everyone
     pub public_metadata: Option<Metadata>,
@@ -20,7 +19,7 @@ pub struct PurchasableMetadata {
     pub private_metadata: Option<Metadata>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct State {
     /// When in ContractMode.MigrateDataIn, it will hold the address being migrated from
     /// When in ContractMode.Running, it will be None
@@ -41,7 +40,7 @@ pub struct State {
     pub mode: ContractMode,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum ContractMode {
     MigrateDataIn,
     Running,
