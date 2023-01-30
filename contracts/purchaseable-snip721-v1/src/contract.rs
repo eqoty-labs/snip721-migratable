@@ -13,7 +13,7 @@ use snip721_reference_impl::token::Metadata;
 
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::state::{config, config_read, CONTRACT_MODE_KEY, ContractMode, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY, State};
+use crate::state::{CONTRACT_MODE_KEY, ContractMode, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY, State, STATE_KEY};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
 
@@ -82,7 +82,7 @@ fn init_snip721(
              private_metadata: msg.private_metadata,
          })?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
-    config(deps.storage).save(&state)?;
+    save(deps.storage, STATE_KEY, &state)?;
     let instantiate_msg = Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
         symbol: "PUR721".to_string(),
@@ -114,7 +114,7 @@ fn init_snip721(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
     let mut deps = deps;
-    let mut state = config_read(deps.storage).load()?;
+    let mut state = load(deps.storage, STATE_KEY)?;
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match mode {
         ContractMode::MigrateDataIn => {
@@ -211,7 +211,7 @@ fn purchase_and_mint(
 
 
 fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_config: Config, msg: ExecuteMsg) -> StdResult<Response> {
-    let mut state = config_read(deps.storage).load()?;
+    let mut state: State = load(deps.storage, STATE_KEY)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
         return Err(StdError::generic_err(format!(
@@ -290,7 +290,7 @@ fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_
                 total: None,
             })?))
     };
-    config(deps.storage).save(&state)?;
+    save(deps.storage, STATE_KEY, &state)?;
     return res;
 }
 
@@ -402,7 +402,7 @@ pub fn migrate(
     state.migration_addr = Some(migrate_to_address);
     state.migration_code_hash = Some(migrate_to.code_hash);
     state.migration_secret = Some(secret.clone());
-    config(deps.storage).save(&state)?;
+    save(deps.storage, STATE_KEY, &state)?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
 
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
@@ -451,13 +451,13 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
     // actually instantiate the snip721 base contract using the migrated data
     let snip721_response = init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
 
-    let mut state = config_read(deps.storage).load()?;
+    let mut state: State = load(deps.storage, STATE_KEY)?;
     state.migration_addr = Some(deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap());
     state.migration_code_hash = Some(reply_data.migrate_from.code_hash);
     state.migration_secret = Some(reply_data.secret);
     state.migrate_in_next_mint_index = Some(0);
     state.migrate_in_mint_cnt = Some(reply_data.mint_count);
-    config(deps.storage).save(&state)?;
+    save(deps.storage, STATE_KEY, &state)?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
 
 
@@ -469,7 +469,7 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let state = &config_read(deps.storage).load()?;
+    let state: State = load(deps.storage, STATE_KEY)?;
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match mode {
         ContractMode::MigratedOut => {
@@ -498,7 +498,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 QueryMsg::Ext(base_msg) => {
                     match base_msg {
                         QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
-                            migration_dossier_list(deps, &env.block, state, start_index, max_count, &secret),
+                            migration_dossier_list(deps, &env.block, &state, start_index, max_count, &secret),
                         _ => migrated_error
                     }
                 }

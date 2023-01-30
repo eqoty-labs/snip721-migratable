@@ -1,10 +1,9 @@
-use cosmwasm_std::{Addr, Binary, Storage};
-use cosmwasm_storage::{ReadonlySingleton, singleton, Singleton, singleton_read};
+use cosmwasm_std::{Addr, Binary};
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::token::Metadata;
 
 
-pub static CONFIG_KEY: &[u8] = b"config";
+pub static STATE_KEY: &[u8] = b"state";
 /// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
 pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
 /// storage key for the PurchasableMetadata used for every purchased mint
@@ -46,12 +45,4 @@ pub enum ContractMode {
     MigrateDataIn = 1,
     Running = 2,
     MigratedOut = 3,
-}
-
-pub fn config(storage: &mut dyn Storage) -> Singleton<State> {
-    singleton(storage, CONFIG_KEY)
-}
-
-pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<State> {
-    singleton_read(storage, CONFIG_KEY)
 }
