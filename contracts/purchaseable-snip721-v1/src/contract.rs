@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, entry_point, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use cosmwasm_std::{Addr, BankMsg, Binary, BlockInfo, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, entry_point, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
@@ -8,12 +8,12 @@ use snip721_reference_impl::expiration::Expiration;
 use snip721_reference_impl::mint_run::{SerialNumber, StoredMintRunInfo};
 use snip721_reference_impl::msg::{BatchNftDossierElement, ContractStatus, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg, Mint};
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
-use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
 
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::state::{config, config_read, ContractMode, State};
+use crate::state::{config, config_read, ContractMode, PURCHASE_PRICES_KEY, State};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
 
@@ -69,7 +69,6 @@ fn init_snip721(
         )));
     }
     let state = State {
-        prices: prices,
         public_metadata: msg.public_metadata,
         private_metadata: msg.private_metadata,
         migration_addr: None,
@@ -79,7 +78,7 @@ fn init_snip721(
         migrate_in_next_mint_index: None,
         mode: ContractMode::Running,
     };
-
+    save(deps.storage, PURCHASE_PRICES_KEY, &prices)?;
     config(deps.storage).save(&state)?;
     let instantiate_msg = Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
@@ -98,13 +97,13 @@ fn init_snip721(
         }),
         post_init_callback: None,
     };
-    snip721_reference_impl::contract::instantiate(deps, env, info.clone(), instantiate_msg)
+    let snip721_response = snip721_reference_impl::contract::instantiate(deps, env, info.clone(), instantiate_msg)
         .unwrap();
 
-    deps.api
-        .debug(format!("PurchasableSnip721 was initialized by {}", info.sender).as_str());
-
-    return Ok(Response::default());
+    // clear the data (that contains the secret) which would be set when init_snip721 is called
+    // from reply as part of the migration process
+    // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
+    return Ok(snip721_response);
 }
 
 
@@ -159,7 +158,8 @@ fn purchase_and_mint(
         )));
     }
     let msg_fund = &info.funds[0];
-    let selected_coin_price = state.prices.iter().find(|c| c.denom == msg_fund.denom);
+    let prices: Vec<Coin> = load(deps.storage, PURCHASE_PRICES_KEY)?;
+    let selected_coin_price = prices.iter().find(|c| c.denom == msg_fund.denom);
     if let Some(selected_coin_price) = selected_coin_price {
         if msg_fund.amount != selected_coin_price.amount {
             return Err(StdError::generic_err(format!(
@@ -406,7 +406,7 @@ pub fn migrate(
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
             migrated_instantiate_msg: InstantiateMsg {
                 migrate_from: None,
-                prices: Some(state.prices.clone()),
+                prices: Some(load(deps.storage, PURCHASE_PRICES_KEY)?),
                 public_metadata: state.public_metadata.clone(),
                 private_metadata: state.private_metadata.clone(),
                 admin: Some(admin_addr.to_string()),
@@ -442,8 +442,10 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
         sender: deps.api.addr_validate(reply_data.migrated_instantiate_msg.admin.clone().unwrap().as_str()).unwrap(),
         funds: vec![],
     };
-    // actually instantiate the contract using the migrated data
-    init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
+
+
+    // actually instantiate the snip721 base contract using the migrated data
+    let snip721_response = init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
 
     let mut state = config_read(deps.storage).load()?;
     state.migration_addr = Some(deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap());
@@ -453,7 +455,11 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
     state.migrate_in_next_mint_index = Some(0);
     state.migrate_in_mint_cnt = Some(reply_data.mint_count);
     config(deps.storage).save(&state)?;
-    Ok(Response::default())
+
+    // clear the data (that contains the secret) which would be set when init_snip721 is called
+    // from reply as part of the migration process
+    // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
+    return Ok(snip721_response);
 }
 
 #[entry_point]
@@ -496,7 +502,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             match msg {
                 QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
                 QueryMsg::Ext(ext_msg) => match ext_msg {
-                    QueryMsgExt::GetPrices {} => query_prices(state),
+                    QueryMsgExt::GetPrices {} => query_prices(deps),
                     QueryMsgExt::ExportMigrationData { .. } => Err(StdError::generic_err(
                         "This contract has not been migrated yet",
                     ))
@@ -511,9 +517,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// # Arguments
 ///
 /// * `state` - a reference to this contracts persisted state
-pub fn query_prices(state: &State) -> StdResult<Binary> {
+pub fn query_prices(deps: Deps) -> StdResult<Binary> {
     to_binary(&QueryAnswer::GetPrices {
-        prices: state.prices.clone(),
+        prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
     })
 }
 

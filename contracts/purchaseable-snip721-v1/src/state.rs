@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Binary, Coin, Storage};
+use cosmwasm_std::{Addr, Binary, Storage};
 use cosmwasm_storage::{ReadonlySingleton, singleton, Singleton, singleton_read};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,10 +6,11 @@ use snip721_reference_impl::token::Metadata;
 
 pub static CONFIG_KEY: &[u8] = b"config";
 
+/// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
+pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    /// Allowed Coin prices for purchasing a mint
-    pub prices: Vec<Coin>,
     /// optional public metadata that can be seen by everyone
     pub public_metadata: Option<Metadata>,
     /// optional private metadata that can only be seen by the owner and whitelist
