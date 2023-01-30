@@ -1,15 +1,17 @@
 use cosmwasm_std::{Addr, Binary, Storage};
 use cosmwasm_storage::{ReadonlySingleton, singleton, Singleton, singleton_read};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use snip721_reference_impl::token::Metadata;
 
-pub static CONFIG_KEY: &[u8] = b"config";
+use crate::state::ContractMode::{MigrateDataIn, MigratedOut, Running};
 
+pub static CONFIG_KEY: &[u8] = b"config";
 /// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
 pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
-
-/// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
+/// storage key for the PurchasableMetadata used for every purchased mint
 pub const PURCHASABLE_METADATA_KEY: &[u8] = b"pur_metadata";
+/// storage key for current ContractMode
+pub const CONTRACT_MODE_KEY: &[u8] = b"pur_contract_mode";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PurchasableMetadata {
@@ -37,14 +39,14 @@ pub struct State {
     pub migrate_in_mint_cnt: Option<u32>,
     /// the next mint index out of migrate_in_mint_cnt that must be migrated
     pub migrate_in_next_mint_index: Option<u32>,
-    pub mode: ContractMode,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr, PartialEq, Debug)]
+#[repr(u8)]
 pub enum ContractMode {
-    MigrateDataIn,
-    Running,
-    MigratedOut,
+    MigrateDataIn = 1,
+    Running = 2,
+    MigratedOut = 3,
 }
 
 pub fn config(storage: &mut dyn Storage) -> Singleton<State> {
