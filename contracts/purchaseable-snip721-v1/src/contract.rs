@@ -444,8 +444,8 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
         address: deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap(),
         code_hash: reply_data.migrate_from.code_hash,
         migration_secret: reply_data.secret,
-        migrate_in_mint_cnt: 0,
-        migrate_in_next_mint_index: reply_data.mint_count,
+        migrate_in_mint_cnt: reply_data.mint_count,
+        migrate_in_next_mint_index: 0,
     };
     save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
