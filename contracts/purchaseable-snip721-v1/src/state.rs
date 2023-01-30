@@ -9,12 +9,19 @@ pub static CONFIG_KEY: &[u8] = b"config";
 /// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
 pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
 
+/// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
+pub const PURCHASABLE_METADATA_KEY: &[u8] = b"pur_metadata";
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct State {
+pub struct PurchasableMetadata {
     /// optional public metadata that can be seen by everyone
     pub public_metadata: Option<Metadata>,
     /// optional private metadata that can only be seen by the owner and whitelist
     pub private_metadata: Option<Metadata>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct State {
     /// When in ContractMode.MigrateDataIn, it will hold the address being migrated from
     /// When in ContractMode.Running, it will be None
     /// When in ContractMode.MigratedOut, it will hold the address the contract migrated to

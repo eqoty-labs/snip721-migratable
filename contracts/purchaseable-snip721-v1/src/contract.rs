@@ -13,7 +13,7 @@ use snip721_reference_impl::token::Metadata;
 
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::state::{config, config_read, ContractMode, PURCHASE_PRICES_KEY, State};
+use crate::state::{config, config_read, ContractMode, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY, State};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
 
@@ -69,8 +69,6 @@ fn init_snip721(
         )));
     }
     let state = State {
-        public_metadata: msg.public_metadata,
-        private_metadata: msg.private_metadata,
         migration_addr: None,
         migration_code_hash: None,
         migration_secret: None,
@@ -79,6 +77,11 @@ fn init_snip721(
         mode: ContractMode::Running,
     };
     save(deps.storage, PURCHASE_PRICES_KEY, &prices)?;
+    save(deps.storage, PURCHASABLE_METADATA_KEY,
+         &PurchasableMetadata {
+             public_metadata: msg.public_metadata,
+             private_metadata: msg.private_metadata,
+         })?;
     config(deps.storage).save(&state)?;
     let instantiate_msg = Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
@@ -123,7 +126,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 }
                 ExecuteMsg::Ext(ext_msg) => match ext_msg {
                     ExecuteMsgExt::PurchaseMint { .. } => {
-                        purchase_and_mint(&mut deps, env, info, &mut config, &mut state)
+                        purchase_and_mint(&mut deps, env, info, &mut config)
                     }
                     ExecuteMsgExt::Migrate { admin_permit, migrate_to } =>
                         migrate(deps, env, info, &mut config, &mut state, admin_permit, migrate_to),
@@ -149,7 +152,6 @@ fn purchase_and_mint(
     env: Env,
     info: MessageInfo,
     config: &mut Config,
-    state: &mut State,
 ) -> StdResult<Response> {
     if info.funds.len() != 1 {
         return Err(StdError::generic_err(format!(
@@ -180,7 +182,7 @@ fn purchase_and_mint(
         amount: info.funds.clone(),
     })];
     let admin_addr = deps.api.addr_humanize(&config.admin).unwrap();
-
+    let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
     let mint_result = mint(
         deps,
         &env,
@@ -189,8 +191,8 @@ fn purchase_and_mint(
         ContractStatus::Normal.to_u8(),
         None,
         Some(sender.to_string()),
-        state.public_metadata.clone(),
-        state.private_metadata.clone(),
+        purchasable_metadata.public_metadata,
+        purchasable_metadata.private_metadata,
         None,
         None,
         None,
@@ -402,13 +404,14 @@ pub fn migrate(
     state.migration_secret = Some(secret.clone());
     config(deps.storage).save(&state)?;
 
+    let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
     Ok(Response::default()
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
             migrated_instantiate_msg: InstantiateMsg {
                 migrate_from: None,
                 prices: Some(load(deps.storage, PURCHASE_PRICES_KEY)?),
-                public_metadata: state.public_metadata.clone(),
-                private_metadata: state.private_metadata.clone(),
+                public_metadata: purchasable_metadata.public_metadata,
+                private_metadata: purchasable_metadata.private_metadata,
                 admin: Some(admin_addr.to_string()),
                 entropy: entropy.to_string(),
                 royalty_info: None,
