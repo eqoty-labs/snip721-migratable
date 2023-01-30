@@ -454,12 +454,46 @@ fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> Std
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let state = &config_read(deps.storage).load()?;
+    if let ContractMode::MigratedOut = state.mode {
+        let migrated_error = Err(StdError::generic_err(format!(
+            "This contract has been migrated to {:?}. Only Transaction History queries allowed!",
+            state.migration_addr.clone().unwrap()
+        )));
+        return match msg {
+            QueryMsg::Base(base_msg) => {
+                let is_tx_history_query = match &base_msg {
+                    snip721_reference_impl::msg::QueryMsg::TransactionHistory { .. } => true,
+                    snip721_reference_impl::msg::QueryMsg::WithPermit { permit: _, query } => {
+                        match query {
+                            snip721_reference_impl::msg::QueryWithPermit::TransactionHistory { .. } => true,
+                            _ => false
+                        }
+                    }
+                    _ => false
+                };
+                if is_tx_history_query {
+                    snip721_reference_impl::contract::query(deps, env, base_msg)
+                } else {
+                    migrated_error
+                }
+            }
+            QueryMsg::Ext(base_msg) => {
+                match base_msg {
+                    QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
+                        migration_dossier_list(deps, &env.block, state, start_index, max_count, &secret),
+                    _ => migrated_error
+                }
+            }
+        };
+    }
     return match msg {
         QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
         QueryMsg::Ext(ext_msg) => match ext_msg {
-            QueryMsgExt::GetPrices {} => query_prices(deps),
-            QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
-                migration_dossier_list(deps, &env.block, start_index, max_count, secret)
+            QueryMsgExt::GetPrices {} => query_prices(state),
+            QueryMsgExt::ExportMigrationData { .. } => Err(StdError::generic_err(
+                "This contract has not been migrated yet",
+            ))
         },
     };
 }
@@ -468,12 +502,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// # Arguments
 ///
-/// * `deps` - a reference to Extern containing all the contract's external dependencies
-pub fn query_prices(deps: Deps) -> StdResult<Binary> {
-    let state = config_read(deps.storage).load()?;
-
+/// * `state` - a reference to this contracts persisted state
+pub fn query_prices(state: &State) -> StdResult<Binary> {
     to_binary(&QueryAnswer::GetPrices {
-        prices: state.prices,
+        prices: state.prices.clone(),
     })
 }
 
@@ -484,19 +516,20 @@ pub fn query_prices(deps: Deps) -> StdResult<Binary> {
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
 /// * `block` - a reference to the BlockInfo
+/// * `state` - a reference to this contracts persisted state
 /// * `start_index` - optionally only display token starting at this index
 /// * `max_count` - optional max number of tokens to display
 /// * `secret` - the migration secret
 pub fn migration_dossier_list(
     deps: Deps,
     block: &BlockInfo,
+    state: &State,
     start_index: Option<u32>,
     max_count: Option<u32>,
-    secret: Binary,
+    secret: &Binary,
 ) -> StdResult<Binary> {
-    let state = config_read(deps.storage).load()?;
     let migration_secret = state
-        .migration_secret
+        .migration_secret.as_ref()
         .ok_or_else(|| StdError::generic_err("This contract has not been migrated yet"))?;
     if migration_secret != secret {
         return Err(StdError::generic_err(

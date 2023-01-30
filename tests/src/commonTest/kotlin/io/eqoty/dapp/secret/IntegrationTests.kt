@@ -295,6 +295,12 @@ class IntegrationTests {
         ).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
 
+        val contractInfoQueryV1 = getContractInfo(contractInfoV1)
+        val contractConfigV1 = getContractConfig(contractInfoV1)
+        val purchasePriceV1 = getPurchasePrice(contractInfoV1)
+        val numTokensV1 = getNumTokens(contractInfoV1)
+        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permitsV1[1], listOf("0"))
+
         client.senderAddress = client.wallet.getAccounts()[0].address
         val migrateFrom = MigrateFrom(
             contractInfoV1.address,
@@ -315,12 +321,11 @@ class IntegrationTests {
         )
 
         assertNotEquals(contractInfoV1.address, contractInfoV2.address)
-        assertEquals(getContractInfo(contractInfoV1), getContractInfo(contractInfoV2))
-        assertEquals(getContractConfig(contractInfoV1), getContractConfig(contractInfoV2))
-        assertEquals(getPurchasePrice(contractInfoV1), getPurchasePrice(contractInfoV2))
-        assertEquals(getNumTokens(contractInfoV1), getNumTokens(contractInfoV2))
+        assertEquals(contractInfoQueryV1, getContractInfo(contractInfoV2))
+        assertEquals(contractConfigV1, getContractConfig(contractInfoV2))
+        assertEquals(purchasePriceV1, getPurchasePrice(contractInfoV2))
+        assertEquals(numTokensV1, getNumTokens(contractInfoV2))
         val json = Json { prettyPrint = true }
-        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permit, listOf("0"))
         val nftDossiersV2 = getBatchNftDossiers(contractInfoV2, permit, listOf("0"))
         assertTrue(
             nftDossiersV1.equals(nftDossiersV2, ignoreTimeOfMinting = true),
@@ -355,6 +360,8 @@ class IntegrationTests {
             contractInfoV1.address
         ).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+        
+        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permitsV1[1], listOf("0"))
 
         client.senderAddress = client.wallet.getAccounts()[0].address
         val migrateFrom = MigrateFrom(
@@ -377,7 +384,6 @@ class IntegrationTests {
 
         assertNotEquals(contractInfoV1.address, contractInfoV2.address)
         val json = Json { prettyPrint = true }
-        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permit, listOf("0"))
         val nftDossiersV2 = getBatchNftDossiers(contractInfoV2, permit, listOf("0"))
         assertTrue(
             nftDossiersV1.equals(nftDossiersV2, ignoreTimeOfMinting = true),
