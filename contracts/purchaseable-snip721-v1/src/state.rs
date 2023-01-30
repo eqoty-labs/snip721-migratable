@@ -1,9 +1,8 @@
 use cosmwasm_std::{Addr, Binary, Storage};
 use cosmwasm_storage::{ReadonlySingleton, singleton, Singleton, singleton_read};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use snip721_reference_impl::token::Metadata;
 
-use crate::state::ContractMode::{MigrateDataIn, MigratedOut, Running};
 
 pub static CONFIG_KEY: &[u8] = b"config";
 /// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
@@ -41,7 +40,7 @@ pub struct State {
     pub migrate_in_next_mint_index: Option<u32>,
 }
 
-#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr, PartialEq, Debug)]
+#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)]
 #[repr(u8)]
 pub enum ContractMode {
     MigrateDataIn = 1,
