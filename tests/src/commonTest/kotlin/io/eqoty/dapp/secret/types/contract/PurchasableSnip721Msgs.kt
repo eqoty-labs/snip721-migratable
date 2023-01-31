@@ -40,20 +40,34 @@ object PurchasableSnip721Msgs {
     @Serializable
     data class Query(
         @SerialName("get_prices") val getPrices: GetPrices? = null,
+        @SerialName("migrated_from") val migratedFrom: MigratedFrom? = null,
+        @SerialName("migrated_to") val migratedTo: MigratedTo? = null,
     ) {
         @Serializable
         class GetPrices
+
+        @Serializable
+        class MigratedFrom
+
+        @Serializable
+        class MigratedTo
     }
 
     @Serializable
     data class QueryAnswer(
         @SerialName("get_prices") val getPrices: GetPrices? = null,
+        @SerialName("migration_info") val migrationInfo: MigrationInfo? = null,
     ) {
         @Serializable
         data class GetPrices(val prices: List<Coin>)
 
         @Serializable
-        data class MigrateTokensIn(val prices: List<Coin>)
+        data class MigrationInfo(
+            /// the address the contract migrated from/to, otherwise none
+            val address: String?,
+            /// the code hash of the contract that was migrated from/to, otherwise none
+            @SerialName("code_hash") val codeHash: String?,
+        )
     }
 
     @Serializable

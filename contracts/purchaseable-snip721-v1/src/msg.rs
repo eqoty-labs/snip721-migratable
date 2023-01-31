@@ -155,8 +155,8 @@ pub enum QueryMsgExt {
         max_count: Option<u32>,
         secret: Binary,
     },
-    MigratedTo {},
     MigratedFrom {},
+    MigratedTo {},
 }
 
 // todo: remove when resolved
@@ -217,9 +217,9 @@ pub enum QueryAnswer {
         nft_dossiers: Vec<BatchNftDossierElement>,
     },
     MigrationInfo {
-        /// the address the contract migrated to, otherwise none
+        /// the address the contract migrated from/to, otherwise none
         address: Option<Addr>,
-        /// the code hash of the contract that was migrated to, otherwise none
+        /// the code hash of the contract that was migrated from/to, otherwise none
         code_hash: Option<String>,
     },
 }
