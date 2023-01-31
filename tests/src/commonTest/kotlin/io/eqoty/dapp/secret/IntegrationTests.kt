@@ -65,7 +65,7 @@ class IntegrationTests {
                 codeHash = null // will be set later
             )
         )
-        return DeployContractUtils.storeCodeAndInstantiate(
+        return DeployContractUtils.getOrStoreCodeAndInstantiate(
             client,
             contractCodePath,
             instantiateMsgs,
