@@ -81,14 +81,14 @@ mod tests {
     pub fn migrate(
         deps: DepsMut,
         admin_permit: &Permit,
-        migration_target_addr: &str,
+        migration_target_addr: &Addr,
         migration_target_code_hash: &str,
     ) -> StdResult<Response> {
         let set_view_key_msg =
             ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
                 admin_permit: admin_permit.clone(),
                 migrate_to: MigrateTo {
-                    address: migration_target_addr.to_string(),
+                    address: migration_target_addr.clone(),
                     code_hash: migration_target_code_hash.to_string(),
                     entropy: "magnets, how do they work?".to_string(),
                 },
@@ -214,21 +214,21 @@ mod tests {
         let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
         assert_eq!(tokens.len(), 1);
 
-        let migrate_to_addr_0 = "new_address";
+        let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
 
-        let migrate_0_result = migrate(deps.as_mut(), admin_permit, migrate_to_addr_0, migrate_to_code_hash_0);
+        let migrate_0_result = migrate(deps.as_mut(), admin_permit, &migrate_to_addr_0, migrate_to_code_hash_0);
         assert_eq!(true, migrate_0_result.is_ok(), "{:?}", migrate_0_result.unwrap_err());
 
-        let migrate_to_addr_1 = "new_address_1";
+        let migrate_to_addr_1 = Addr::unchecked("new_address_1");
         let migrate_to_code_hash_1 = "code_hash_1";
-        let migrate_1_result = migrate(deps.as_mut(), admin_permit, migrate_to_addr_1, migrate_to_code_hash_1);
+        let migrate_1_result = migrate(deps.as_mut(), admin_permit, &migrate_to_addr_1, migrate_to_code_hash_1);
         assert_eq!(false, migrate_1_result.is_ok());
         assert_eq!(
             migrate_1_result.err().unwrap(),
             StdError::generic_err(format!(
                 "This contract has been migrated to {:?}. No further state changes are allowed!",
-                Addr::unchecked(migrate_to_addr_0),
+                migrate_to_addr_0,
             ), )
         );
     }
@@ -277,10 +277,10 @@ mod tests {
             exec_purchase_msg,
         ).unwrap();
 
-        let migrate_to_addr_0 = "new_address";
+        let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
 
-        let migrate_0_result = migrate(deps.as_mut(), admin_permit, migrate_to_addr_0, migrate_to_code_hash_0);
+        let migrate_0_result = migrate(deps.as_mut(), admin_permit, &migrate_to_addr_0, migrate_to_code_hash_0);
         assert_eq!(migrate_0_result.is_ok(), true, "{:?}", migrate_0_result.unwrap_err());
 
         let migrate_data: InstantiateByMigrationReplyDataMsg = from_binary(&migrate_0_result.unwrap().data.unwrap()).unwrap();

@@ -34,13 +34,13 @@ pub fn instantiate(
         let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
             admin_permit: migrate_from.admin_permit,
             migrate_to: MigrateTo {
-                address: env.contract.address.to_string(),
+                address: env.contract.address.clone(),
                 code_hash: env.contract.code_hash,
                 entropy: msg.entropy,
             },
         });
         let migrate_wasm_msg: WasmMsg = WasmMsg::Execute {
-            contract_addr: migrate_from.address,
+            contract_addr: migrate_from.address.to_string(),
             code_hash: migrate_from.code_hash,
             msg: to_binary(&migrate_msg)?,
             funds: vec![],
@@ -407,7 +407,7 @@ pub fn migrate(
                 royalty_info: None,
             },
             migrate_from: MigrateFrom {
-                address: env.contract.address.to_string(),
+                address: env.contract.address,
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
@@ -464,7 +464,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         ContractMode::MigratedOut => {
             let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
             let migrated_error = Err(StdError::generic_err(format!(
-                "This contract has been migrated to {:?}. Only Transaction History queries allowed!",
+                "This contract has been migrated to {:?}. Only TransactionHistory, MigratedTo, MigratedFrom queries allowed!",
                 migrated_to.address
             )));
             match msg {
@@ -487,6 +487,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 }
                 QueryMsg::Ext(base_msg) => {
                     match base_msg {
+                        QueryMsgExt::MigratedTo {} => query_migrated_info(deps, false),
+                        QueryMsgExt::MigratedFrom {} => query_migrated_info(deps, true),
                         QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
                             migration_dossier_list(deps, &env.block, start_index, max_count, &secret),
                         _ => migrated_error
@@ -499,6 +501,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
                 QueryMsg::Ext(ext_msg) => match ext_msg {
                     QueryMsgExt::GetPrices {} => query_prices(deps),
+                    QueryMsgExt::MigratedTo {} => query_migrated_info(deps, false),
+                    QueryMsgExt::MigratedFrom {} => query_migrated_info(deps, true),
                     QueryMsgExt::ExportMigrationData { .. } => Err(StdError::generic_err(
                         "This contract has not been migrated yet",
                     ))
@@ -508,11 +512,57 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     };
 }
 
+/// Returns StdResult<Binary> displaying the Migrated to/from contract info
+///
+/// # Arguments
+///
+/// * `deps` - a reference to Extern containing all the contract's external dependencies
+/// * `migrated_from` - if migrated_from is true query returns info about the contract it was migrated
+/// from otherwise if returns info about the info the contract was migrated to
+pub fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<Binary> {
+    return match migrated_from {
+        true => {
+            let migrated_from: Option<MigratedFrom> = may_load(deps.storage, MIGRATED_FROM_KEY)?;
+            match migrated_from {
+                None => {
+                    to_binary(&QueryAnswer::MigrationInfo {
+                        address: None,
+                        code_hash: None,
+                    })
+                }
+                Some(some_migrated_from) => {
+                    to_binary(&QueryAnswer::MigrationInfo {
+                        address: Some(some_migrated_from.address),
+                        code_hash: Some(some_migrated_from.code_hash),
+                    })
+                }
+            }
+        }
+        false => {
+            let migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+            match migrated_to {
+                None => {
+                    to_binary(&QueryAnswer::MigrationInfo {
+                        address: None,
+                        code_hash: None,
+                    })
+                }
+                Some(some_migrated_to) => {
+                    to_binary(&QueryAnswer::MigrationInfo {
+                        address: Some(some_migrated_to.address),
+                        code_hash: Some(some_migrated_to.code_hash),
+                    })
+                }
+            }
+        }
+    };
+}
+
 /// Returns StdResult<Binary> displaying prices to mint in all acceptable currency denoms
 ///
 /// # Arguments
 ///
-/// * `state` - a reference to this contracts persisted state
+/// * `deps` - a reference to Extern containing all the contract's external dependencies
 pub fn query_prices(deps: Deps) -> StdResult<Binary> {
     to_binary(&QueryAnswer::GetPrices {
         prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
