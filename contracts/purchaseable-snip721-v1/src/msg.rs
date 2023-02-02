@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin};
+use cosmwasm_std::{Addr, Binary, Coin};
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ pub enum ExecuteMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 pub struct MigrateFrom {
-    pub address: String,
+    pub address: Addr,
     pub code_hash: String,
     /// permit for the  used to verify address executing migration is admin
     pub admin_permit: Permit,
@@ -46,7 +46,7 @@ pub struct MigrateFrom {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 pub struct MigrateTo {
-    pub address: String,
+    pub address: Addr,
     pub code_hash: String,
     pub entropy: String,
 }
@@ -60,6 +60,13 @@ pub enum ExecuteMsgExt {
         /// permit used to verify address executing migration is admin
         admin_permit: Permit,
         migrate_to: MigrateTo,
+    },
+    MigrateTokensIn {
+        /// The number of queries to make from the contract being migrated from
+        pages: Option<u32>,
+        /// The number of tokens to request from the contract being migrated from in each query.
+        /// The number returned could be less.
+        page_size: Option<u32>,
     },
 }
 
@@ -121,7 +128,13 @@ pub struct InstantiateByMigrationReplyDataMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteAnswer {}
+pub enum ExecuteAnswer {
+    MigrateTokensIn {
+        complete: bool,
+        next_mint_index: Option<u32>,
+        total: Option<u32>,
+    },
+}
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -142,6 +155,8 @@ pub enum QueryMsgExt {
         max_count: Option<u32>,
         secret: Binary,
     },
+    MigratedFrom {},
+    MigratedTo {},
 }
 
 // todo: remove when resolved
@@ -200,5 +215,11 @@ pub enum QueryAnswer {
     MigrationBatchNftDossier {
         last_mint_index: u32,
         nft_dossiers: Vec<BatchNftDossierElement>,
+    },
+    MigrationInfo {
+        /// the address the contract migrated from/to, otherwise none
+        address: Option<Addr>,
+        /// the code hash of the contract that was migrated from/to, otherwise none
+        code_hash: Option<String>,
     },
 }

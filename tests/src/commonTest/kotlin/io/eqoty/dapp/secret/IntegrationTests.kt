@@ -5,14 +5,15 @@ import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.TestGlobals.client
 import io.eqoty.dapp.secret.TestGlobals.clientInitialized
 import io.eqoty.dapp.secret.TestGlobals.initializeClient
+import io.eqoty.dapp.secret.TestGlobals.intializeAccountBeforeExecuteWorkaround
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
 import io.eqoty.dapp.secret.types.ContractInfo
 import io.eqoty.dapp.secret.types.ExecuteResult
 import io.eqoty.dapp.secret.types.MintedRelease
-import io.eqoty.dapp.secret.types.contract.EqotyPurchaseMsgs
 import io.eqoty.dapp.secret.types.contract.MigrateFrom
 import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
 import io.eqoty.dapp.secret.types.contract.Snip721Msgs
+import io.eqoty.dapp.secret.types.contract.equals
 import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
 import io.eqoty.dapp.secret.utils.getEnv
@@ -32,10 +33,7 @@ import okio.Path
 import okio.Path.Companion.toPath
 import kotlin.math.ceil
 import kotlin.random.Random
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
+import kotlin.test.*
 
 class IntegrationTests {
 
@@ -67,7 +65,7 @@ class IntegrationTests {
                 codeHash = null // will be set later
             )
         )
-        return DeployContractUtils.storeCodeAndInstantiate(
+        return DeployContractUtils.getOrStoreCodeAndInstantiate(
             client,
             contractCodePath,
             instantiateMsgs,
@@ -80,8 +78,8 @@ class IntegrationTests {
         sentFunds: List<Coin>
     ): ExecuteResult<MintedRelease> {
         val purchaseMintMsg = Json.encodeToString(
-            EqotyPurchaseMsgs.Execute(
-                purchaseMint = EqotyPurchaseMsgs.Execute.PurchaseMint()
+            PurchasableSnip721Msgs.Execute(
+                purchaseMint = PurchasableSnip721Msgs.Execute.PurchaseMint()
             )
         )
         val msgs = listOf(
@@ -91,6 +89,43 @@ class IntegrationTests {
                 codeHash = contractInfo.codeInfo.codeHash,
                 msg = purchaseMintMsg,
                 sentFunds = sentFunds
+            )
+        )
+        val gasLimit = try {
+            val simulate = client.simulate(msgs)
+            (simulate.gasUsed.toDouble() * 1.1).toInt()
+        } catch (_: Throwable) {
+            200_000
+        }
+        val txOptions = TxOptions(gasLimit = gasLimit)
+        val res = try {
+            client.execute(
+                msgs,
+                txOptions = txOptions
+            )
+        } catch (t: Throwable) {
+            Logger.i(t.message ?: "")
+            null
+        }
+        val gasFee = client.gasToFee(txOptions.gasLimit, txOptions.gasPriceInFeeDenom)
+        return ExecuteResult(res, Coin(gasFee, "uscrt"))
+    }
+
+    private suspend fun migrateTokens(
+        client: SigningCosmWasmClient,
+        contractInfo: ContractInfo
+    ): ExecuteResult<PurchasableSnip721Msgs.ExecuteAnswer.MigrateTokensIn> {
+        val msg = Json.encodeToString(
+            PurchasableSnip721Msgs.Execute(
+                migrateTokensIn = PurchasableSnip721Msgs.Execute.MigrateTokensIn()
+            )
+        )
+        val msgs = listOf(
+            MsgExecuteContract(
+                sender = client.senderAddress,
+                contractAddress = contractInfo.address,
+                codeHash = contractInfo.codeInfo.codeHash,
+                msg = msg,
             )
         )
         val gasLimit = try {
@@ -160,7 +195,25 @@ class IntegrationTests {
             contractInfo.address,
             Json.encodeToString(query), contractInfo.codeInfo.codeHash
         )
-        return Json.decodeFromString<EqotyPurchaseMsgs.QueryAnswer>(res).getPrices!!.prices
+        return Json.decodeFromString<PurchasableSnip721Msgs.QueryAnswer>(res).getPrices!!.prices
+    }
+
+    suspend fun getMigratedToContractInfo(contractInfo: ContractInfo): PurchasableSnip721Msgs.QueryAnswer.MigrationInfo {
+        val query = PurchasableSnip721Msgs.Query(migratedTo = PurchasableSnip721Msgs.Query.MigratedTo())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<PurchasableSnip721Msgs.QueryAnswer>(res).migrationInfo!!
+    }
+
+    suspend fun getMigratedFromContractInfo(contractInfo: ContractInfo): PurchasableSnip721Msgs.QueryAnswer.MigrationInfo {
+        val query = PurchasableSnip721Msgs.Query(migratedFrom = PurchasableSnip721Msgs.Query.MigratedFrom())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        return Json.decodeFromString<PurchasableSnip721Msgs.QueryAnswer>(res).migrationInfo!!
     }
 
     suspend fun getNumTokens(contractInfo: ContractInfo): Int {
@@ -194,48 +247,88 @@ class IntegrationTests {
         return json.decodeFromString<Snip721Msgs.QueryAnswer>(res).batchNftDossier!!
     }
 
+    suspend fun getTxHistory(
+        contractInfo: ContractInfo,
+        permit: Permit,
+    ): Snip721Msgs.QueryAnswer.TransactionHistory {
+        val query = Snip721Msgs.Query(
+            withPermit = Snip721Msgs.Query.WithPermit(
+                permit = permit,
+                query = Snip721Msgs.QueryWithPermit(
+                    transactionHistory = Snip721Msgs.QueryWithPermit.TransactionHistory()
+                )
+            )
+        )
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeInfo.codeHash
+        )
+        val json = Json { ignoreUnknownKeys = true }
+        // workaround deserialize public_ownership_expiration by ignoring it.
+        return json.decodeFromString<Snip721Msgs.QueryAnswer>(res).transactionHistory!!
+    }
+
     @BeforeTest
     fun beforeEach() = runTest {
         Logger.setTag("dapp")
         if (!clientInitialized) {
             val endpoint = testnetInfo.grpcGatewayEndpoint
-            initializeClient(endpoint, testnetInfo.chainId)
-            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000)
+            initializeClient(endpoint, testnetInfo.chainId, 3)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[0].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[1].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[2].address)
+            val workaroundContract = initializeAndUploadContract()
+            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[0].address)
+            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[1].address)
+            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[2].address)
         }
+        client.senderAddress = client.wallet.getAccounts()[0].address
     }
 
     @Test
     fun test_purchase_one_and_migrate() = runTest {
         val contractInfoV1 = initializeAndUploadContract()
-        val permitV1 = PermitFactory.newPermit(
-            client.wallet,
-            client.senderAddress,
-            client.getChainId(),
-            "test",
-            listOf(contractInfoV1.address),
-            listOf(Permission.Owner)
-        )
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val permitsV1 = client.wallet.getAccounts().map { account ->
+            PermitFactory.newPermit(
+                client.wallet,
+                account.address,
+                client.getChainId(),
+                "test",
+                listOf(contractInfoV1.address),
+                listOf(Permission.Owner)
+            )
+        }
         val startingNumTokensOfOwner = getNumTokensOfOwner(
             client.senderAddress,
-            permitV1,
+            permitsV1[1],
             contractInfoV1.address
         ).count
-        val purchaseOneMintResult =
-            purchaseOneMint(client, contractInfoV1, purchasePrices)
+        purchaseOneMint(client, contractInfoV1, purchasePrices)
         // verify customer received one nft
         val numTokensOfOwner = getNumTokensOfOwner(
             client.senderAddress,
-            permitV1,
+            permitsV1[1],
             contractInfoV1.address
         ).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+
+        val contractInfoQueryV1 = getContractInfo(contractInfoV1)
+        val contractConfigV1 = getContractConfig(contractInfoV1)
+        val purchasePriceV1 = getPurchasePrice(contractInfoV1)
+        val numTokensV1 = getNumTokens(contractInfoV1)
+        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permitsV1[1], listOf("0"))
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
         val migrateFrom = MigrateFrom(
             contractInfoV1.address,
             contractInfoV1.codeInfo.codeHash,
-            permitV1
+            permitsV1[0]
         )
         val contractInfoV2 = initializeAndUploadContract(migrateFrom)
+        migrateTokens(client, contractInfoV2)
 
+        client.senderAddress = client.wallet.getAccounts()[1].address
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
@@ -246,24 +339,73 @@ class IntegrationTests {
         )
 
         assertNotEquals(contractInfoV1.address, contractInfoV2.address)
-        assertEquals(getContractInfo(contractInfoV1), getContractInfo(contractInfoV2))
-        assertEquals(getContractConfig(contractInfoV1), getContractConfig(contractInfoV2))
-        assertEquals(getPurchasePrice(contractInfoV1), getPurchasePrice(contractInfoV2))
-        assertEquals(getNumTokens(contractInfoV1), getNumTokens(contractInfoV2))
+        assertEquals(contractInfoQueryV1, getContractInfo(contractInfoV2))
+        assertEquals(contractConfigV1, getContractConfig(contractInfoV2))
+        assertEquals(purchasePriceV1, getPurchasePrice(contractInfoV2))
+        assertEquals(numTokensV1, getNumTokens(contractInfoV2))
         val json = Json { prettyPrint = true }
-        val nftDossiersV1 = getBatchNftDossiers(contractInfoV1, permit, listOf("0"))
         val nftDossiersV2 = getBatchNftDossiers(contractInfoV2, permit, listOf("0"))
-        assertEquals(
-            nftDossiersV1,
-            nftDossiersV2,
+        assertTrue(
+            nftDossiersV1.equals(nftDossiersV2, ignoreTimeOfMinting = true),
             "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
         )
     }
 
-
     @Test
-    fun test_approved_minters_is_migrated() = runTest {
-        TODO()
+    fun test_migrated_info() = runTest {
+        val contractInfoV1 = initializeAndUploadContract()
+        val migratedFromInfoV1 = getMigratedFromContractInfo(contractInfoV1)
+        assertEquals(null, migratedFromInfoV1.address)
+        assertEquals(null, migratedFromInfoV1.codeHash)
+        var migratedToInfoV1 = getMigratedToContractInfo(contractInfoV1)
+        assertEquals(null, migratedToInfoV1.address)
+        assertEquals(null, migratedToInfoV1.codeHash)
+        val permitsV1 = client.wallet.getAccounts().map { account ->
+            PermitFactory.newPermit(
+                client.wallet,
+                account.address,
+                client.getChainId(),
+                "test",
+                listOf(contractInfoV1.address),
+                listOf(Permission.Owner)
+            )
+        }
+        val migrateFrom = MigrateFrom(
+            contractInfoV1.address,
+            contractInfoV1.codeInfo.codeHash,
+            permitsV1[0]
+        )
+        val contractInfoV2 = initializeAndUploadContract(migrateFrom)
+
+        migratedToInfoV1 = getMigratedToContractInfo(contractInfoV1)
+        assertEquals(contractInfoV2.address, migratedToInfoV1.address)
+        assertEquals(contractInfoV2.codeInfo.codeHash, migratedToInfoV1.codeHash)
+
+        var migratedFromInfoV2 = getMigratedFromContractInfo(contractInfoV2)
+        assertEquals(contractInfoV1.address, migratedFromInfoV2.address)
+        assertEquals(contractInfoV1.codeInfo.codeHash, migratedFromInfoV2.codeHash)
+
+        var migratedToInfoV2 = getMigratedToContractInfo(contractInfoV2)
+        assertNotEquals(contractInfoV1.address, contractInfoV2.address)
+
+        assertEquals(null, migratedToInfoV2.address)
+        assertEquals(null, migratedToInfoV2.codeHash)
+
+        migrateTokens(client, contractInfoV2)
+
+        // test again to make sure queries are still available after contract changes mode to Running
+        migratedToInfoV1 = getMigratedToContractInfo(contractInfoV1)
+        assertEquals(contractInfoV2.address, migratedToInfoV1.address)
+        assertEquals(contractInfoV2.codeInfo.codeHash, migratedToInfoV1.codeHash)
+
+        migratedFromInfoV2 = getMigratedFromContractInfo(contractInfoV2)
+        assertEquals(contractInfoV1.address, migratedFromInfoV2.address)
+        assertEquals(contractInfoV1.codeInfo.codeHash, migratedFromInfoV2.codeHash)
+
+        migratedToInfoV2 = getMigratedToContractInfo(contractInfoV2)
+        assertEquals(null, migratedToInfoV2.address)
+        assertEquals(null, migratedToInfoV2.codeHash)
     }
+
 
 }
