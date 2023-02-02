@@ -1,4 +1,5 @@
 pub mod contract;
+mod contract_migrate;
 pub mod msg;
 pub mod state;
 
