@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Binary, BlockInfo, CanonicalAddr, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, to_binary};
+use cosmwasm_std::{Addr, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, to_binary};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
@@ -32,8 +32,10 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
     let snip721_response = init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
 
     let migrated_from = MigratedFrom {
-        address: deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap(),
-        code_hash: reply_data.migrate_from.code_hash,
+        contract: ContractInfo {
+            address: deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap(),
+            code_hash: reply_data.migrate_from.code_hash,
+        },
         migration_secret: reply_data.secret,
         migrate_in_mint_cnt: reply_data.mint_count,
         migrate_in_next_mint_index: 0,
@@ -42,9 +44,9 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
 
 
-    // clear the data (that contains the secret) which would be set when init_snip721 is called
-    // from reply as part of the migration process
-    // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
+// clear the data (that contains the secret) which would be set when init_snip721 is called
+// from reply as part of the migration process
+// https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
     return Ok(snip721_response);
 }
 
@@ -55,7 +57,7 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
     if admin_addr != info.sender {
         return Err(StdError::generic_err(format!(
             "This contract's admin must complete migrating contract data from {:?}",
-            migrated_from.address
+            migrated_from.contract.address
         )));
     }
 
@@ -73,7 +75,7 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         _ => {
             return Err(StdError::generic_err(format!(
                 "This contract's admin must complete migrating contract data from {:?}",
-                migrated_from.address
+                migrated_from.contract.address
             )));
         }
     };
@@ -85,8 +87,8 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
     while pages_queried < pages && start_at_idx < mint_count {
         // deps.api.debug(&*format!("start_at_idx: {} mint_count {}", start_at_idx, mint_count));
         let query_answer: QueryAnswer = deps.querier.query_wasm_smart(
-            migrated_from.code_hash.clone(),
-            migrated_from.address.clone(),
+            migrated_from.contract.code_hash.clone(),
+            migrated_from.contract.address.clone(),
             &QueryMsgExt::ExportMigrationData {
                 start_index: Some(start_at_idx),
                 max_count: page_size,
@@ -97,7 +99,7 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         start_at_idx = match query_answer {
             MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
                 deps.api.debug(format!("{:?}", nft_dossiers).as_str());
-                save_migration_dossier_list(&mut deps, env, &migrated_from.address.clone(), &admin_addr, nft_dossiers).unwrap();
+                save_migration_dossier_list(&mut deps, env, &migrated_from.contract.address.clone(), &admin_addr, nft_dossiers).unwrap();
                 last_mint_index + 1
             }
             _ => panic!("unexpected ExportMigrationData query answer"),
@@ -232,8 +234,10 @@ pub(crate) fn migrate(
     let secret = Binary::from(rng.rand_bytes());
 
     migrated_to = Some(MigratedTo {
-        address: migrate_to_address,
-        code_hash: migrate_to.code_hash,
+        contract: ContractInfo {
+            address: migrate_to_address,
+            code_hash: migrate_to.code_hash,
+        },
         migration_secret: secret.clone(),
     });
     save(deps.storage, MIGRATED_TO_KEY, &migrated_to.unwrap())?;
@@ -282,8 +286,8 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
                 }
                 Some(some_migrated_from) => {
                     to_binary(&QueryAnswer::MigrationInfo {
-                        address: Some(some_migrated_from.address),
-                        code_hash: Some(some_migrated_from.code_hash),
+                        address: Some(some_migrated_from.contract.address),
+                        code_hash: Some(some_migrated_from.contract.code_hash),
                     })
                 }
             }
@@ -299,8 +303,8 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
                 }
                 Some(some_migrated_to) => {
                     to_binary(&QueryAnswer::MigrationInfo {
-                        address: Some(some_migrated_to.address),
-                        code_hash: Some(some_migrated_to.code_hash),
+                        address: Some(some_migrated_to.contract.address),
+                        code_hash: Some(some_migrated_to.contract.code_hash),
                     })
                 }
             }

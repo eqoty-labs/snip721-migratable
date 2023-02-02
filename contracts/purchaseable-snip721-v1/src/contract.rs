@@ -126,7 +126,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
             Err(StdError::generic_err(format!(
                 "This contract has been migrated to {:?}. No further state changes are allowed!",
-                migrated_to.address
+                migrated_to.contract.address
             )))
         }
     };
@@ -210,7 +210,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
             let migrated_error = Err(StdError::generic_err(format!(
                 "This contract has been migrated to {:?}. Only TransactionHistory, MigratedTo, MigratedFrom queries allowed!",
-                migrated_to.address
+                migrated_to.contract.address
             )));
             match msg {
                 QueryMsg::Base(base_msg) => {
