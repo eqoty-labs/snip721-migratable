@@ -22,7 +22,7 @@ import kotlinx.serialization.json.Json
 object TestGlobals {
     private var clientBacking: SigningCosmWasmClient? = null
     val client: SigningCosmWasmClient get() = clientBacking!!
-    val clientInitialized = clientBacking != null
+    val clientInitialized get() = clientBacking != null
 
     val testnetInfo: NodeInfo = getNode("src/commonTest/resources/config/nodes.json")
 
