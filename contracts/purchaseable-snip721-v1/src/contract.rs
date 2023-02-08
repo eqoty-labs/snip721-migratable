@@ -87,10 +87,10 @@ pub(crate) fn init_snip721(
     let snip721_response = snip721_reference_impl::contract::instantiate(deps, env, info.clone(), instantiate_msg)
         .unwrap();
 
-    // clear the data (that contains the secret) which would be set when init_snip721 is called
+    // clear the data (that contains the secret) which would be set before init_snip721 is called
     // from reply as part of the migration process
     // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
-    return Ok(snip721_response);
+    return Ok(snip721_response.set_data(b""));
 }
 
 
