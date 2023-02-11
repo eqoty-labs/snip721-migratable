@@ -12,7 +12,7 @@ use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_lo
 use snip721_reference_impl::token::Metadata;
 
 use crate::contract::init_snip721;
-use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsgExt};
+use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateNewMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
 use crate::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
@@ -246,9 +246,8 @@ pub(crate) fn migrate(
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
     Ok(Response::default()
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
-            migrated_instantiate_msg: InstantiateMsg {
-                migrate_from: None,
-                prices: Some(load(deps.storage, PURCHASE_PRICES_KEY)?),
+            migrated_instantiate_msg: InstantiateNewMsg {
+                prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
                 public_metadata: purchasable_metadata.public_metadata,
                 private_metadata: purchasable_metadata.private_metadata,
                 admin: Some(admin_addr.to_string()),

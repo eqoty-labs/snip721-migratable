@@ -4,17 +4,18 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 
     use crate::contract::{execute, instantiate, query};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryMsg};
+    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, InstantiateNewMsg, QueryMsg};
 
     pub fn instantiate_msg(prices: Vec<Coin>, admin_info: MessageInfo) -> InstantiateMsg {
-        InstantiateMsg {
-            migrate_from: None,
-            prices: Some(prices.clone()),
-            public_metadata: None,
-            private_metadata: None,
-            admin: Some(admin_info.sender.to_string()),
-            entropy: "".to_string(),
-            royalty_info: None,
+        InstantiateMsg::New {
+            config: InstantiateNewMsg {
+                prices: prices.clone(),
+                public_metadata: None,
+                private_metadata: None,
+                admin: Some(admin_info.sender.to_string()),
+                entropy: "".to_string(),
+                royalty_info: None,
+            }
         }
     }
 

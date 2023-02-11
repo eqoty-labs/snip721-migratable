@@ -7,12 +7,28 @@ use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {
-    /// optionally initialize using data from another contract. All other params will be ignored,
-    /// (besides entropy which should supplied) since they will be migrated from the old contract
-    pub migrate_from: Option<MigrateFrom>,
+#[serde(rename_all = "snake_case")]
+pub enum InstantiateMsg {
+    /// initialize using data from another contract
+    Migrate {
+        config: InstantiateByMigrationMsg,
+    },
+    /// initialize fresh
+    New {
+        config: InstantiateNewMsg,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InstantiateByMigrationMsg {
+    pub migrate_from: MigrateFrom,
+    pub entropy: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InstantiateNewMsg {
     /// Allowed Coin prices for purchasing a mint
-    pub prices: Option<Vec<Coin>>,
+    pub prices: Vec<Coin>,
     /// optional public metadata that can be seen by everyone
     pub public_metadata: Option<Metadata>,
     /// optional private metadata that can only be seen by the owner and whitelist
@@ -120,7 +136,7 @@ const _: () = {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateByMigrationReplyDataMsg {
-    pub migrated_instantiate_msg: InstantiateMsg,
+    pub migrated_instantiate_msg: InstantiateNewMsg,
     pub migrate_from: MigrateFrom,
     pub mint_count: u32,
     pub secret: Binary,
