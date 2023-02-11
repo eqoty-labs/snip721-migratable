@@ -7,19 +7,20 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, query};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, MigrateTo, QueryAnswer, QueryMsg};
+    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateNewMsg, MigrateTo, QueryAnswer, QueryMsg};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
 
     pub fn instantiate_msg(prices: Vec<Coin>, public_metadata: Option<Metadata>, private_metadata: Option<Metadata>, admin_info: MessageInfo) -> InstantiateMsg {
-        InstantiateMsg {
-            migrate_from: None,
-            prices: Some(prices.clone()),
-            public_metadata,
-            private_metadata,
-            admin: Some(admin_info.sender.to_string()),
-            entropy: "".to_string(),
-            royalty_info: None,
+        InstantiateMsg::New {
+            config: InstantiateNewMsg {
+                prices: prices.clone(),
+                public_metadata,
+                private_metadata,
+                admin: Some(admin_info.sender.to_string()),
+                entropy: "".to_string(),
+                royalty_info: None,
+            }
         }
     }
 

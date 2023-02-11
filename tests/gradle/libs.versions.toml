@@ -7,7 +7,7 @@ org-jetbrains-kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.
 
 [versions]
 
-kotlin = "1.8.0"
+kotlin = "1.8.10"
 
 ktor = "2.2.3"
 
@@ -15,7 +15,6 @@ kotlinx-serialization = "1.5.0-RC"
 kotlinx-coroutines = "1.6.4"
 
 okio = "3.3.0"
-##⬆ = "3.4.0-SNAPSHOT"
 
 kermit = "1.2.2"
 

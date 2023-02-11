@@ -4,7 +4,7 @@ use snip721_reference_impl::msg::{ContractStatus, InstantiateConfig, Instantiate
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
+use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, InstantiateNewMsg, MigrateTo, QueryAnswer, QueryMsg, QueryMsgExt};
 use crate::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedTo, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
@@ -17,50 +17,54 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let mut deps = deps;
-    if msg.migrate_from.is_none() {
-        return init_snip721(&mut deps, &env, info, msg);
-    } else {
-        let migrate_from = msg.migrate_from.unwrap();
-        let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
-            admin_permit: migrate_from.admin_permit,
-            migrate_to: MigrateTo {
-                address: env.contract.address.clone(),
-                code_hash: env.contract.code_hash,
-                entropy: msg.entropy,
-            },
-        });
-        let migrate_wasm_msg: WasmMsg = WasmMsg::Execute {
-            contract_addr: migrate_from.address.to_string(),
-            code_hash: migrate_from.code_hash,
-            msg: to_binary(&migrate_msg)?,
-            funds: vec![],
-        };
+    return match msg {
+        InstantiateMsg::New {
+            config: init,
+        } => init_snip721(&mut deps, &env, info, init),
+        InstantiateMsg::Migrate {
+            config: init,
+        } => {
+            let migrate_from = init.migrate_from;
+            let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
+                admin_permit: migrate_from.admin_permit,
+                migrate_to: MigrateTo {
+                    address: env.contract.address.clone(),
+                    code_hash: env.contract.code_hash,
+                    entropy: init.entropy,
+                },
+            });
+            let migrate_wasm_msg: WasmMsg = WasmMsg::Execute {
+                contract_addr: migrate_from.address.to_string(),
+                code_hash: migrate_from.code_hash,
+                msg: to_binary(&migrate_msg)?,
+                funds: vec![],
+            };
 
-        let migrate_submessage = SubMsg::reply_on_success(
-            migrate_wasm_msg,
-            MIGRATE_REPLY_ID,
-        );
+            let migrate_submessage = SubMsg::reply_on_success(
+                migrate_wasm_msg,
+                MIGRATE_REPLY_ID,
+            );
 
 
-        return Ok(Response::new()
-            .add_submessages([migrate_submessage])
-        );
-    }
+            Ok(Response::new()
+                .add_submessages([migrate_submessage])
+            )
+        }
+    };
 }
 
 pub(crate) fn init_snip721(
     deps: &mut DepsMut,
     env: &Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    msg: InstantiateNewMsg,
 ) -> StdResult<Response> {
-    let prices = msg.prices.unwrap();
-    if prices.len() == 0 {
+    if msg.prices.len() == 0 {
         return Err(StdError::generic_err(format!(
             "No purchase prices were specified"
         )));
     }
-    save(deps.storage, PURCHASE_PRICES_KEY, &prices)?;
+    save(deps.storage, PURCHASE_PRICES_KEY, &msg.prices)?;
     save(deps.storage, PURCHASABLE_METADATA_KEY,
          &PurchasableMetadata {
              public_metadata: msg.public_metadata,
@@ -87,10 +91,10 @@ pub(crate) fn init_snip721(
     let snip721_response = snip721_reference_impl::contract::instantiate(deps, env, info.clone(), instantiate_msg)
         .unwrap();
 
-    // clear the data (that contains the secret) which would be set when init_snip721 is called
+    // clear the data (that contains the secret) which would be set before init_snip721 is called
     // from reply as part of the migration process
     // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
-    return Ok(snip721_response);
+    return Ok(snip721_response.set_data(b""));
 }
 
 

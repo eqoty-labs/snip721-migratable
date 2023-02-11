@@ -8,18 +8,41 @@ import kotlinx.serialization.Serializable
 object PurchasableSnip721Msgs {
     @Serializable
     data class Instantiate(
-        @SerialName("migrate_from")
-        val migrateFrom: MigrateFrom? = null,
-        val prices: List<Coin>? = null,
-        @SerialName("public_metadata")
-        val publicMetadata: Snip721Msgs.Metadata? = null,
-        @SerialName("private_metadata")
-        val privateMetadata: Snip721Msgs.Metadata? = null,
-        val admin: String? = null,
-        val entropy: String,
-        @SerialName("royalty_info")
-        val royaltyInfo: Snip721Msgs.RoyaltyInfo? = null,
-    )
+        val migrate: Migrate? = null,
+        val new: New? = null,
+    ) {
+        @Serializable
+        data class Migrate(
+            val config: Config
+        ) {
+            @Serializable
+            data class Config(
+                @SerialName("migrate_from")
+                val migrateFrom: MigrateFrom? = null,
+                val entropy: String,
+            )
+        }
+
+        @Serializable
+        data class New(
+            val config: Config
+        ) {
+            @Serializable
+            data class Config(
+                @SerialName("migrate_from")
+                val migrateFrom: MigrateFrom? = null,
+                val prices: List<Coin>? = null,
+                @SerialName("public_metadata")
+                val publicMetadata: Snip721Msgs.Metadata? = null,
+                @SerialName("private_metadata")
+                val privateMetadata: Snip721Msgs.Metadata? = null,
+                val admin: String? = null,
+                val entropy: String,
+                @SerialName("royalty_info")
+                val royaltyInfo: Snip721Msgs.RoyaltyInfo? = null,
+            )
+        }
+    }
 
     @Serializable
     data class Execute(

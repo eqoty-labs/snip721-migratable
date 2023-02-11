@@ -44,16 +44,24 @@ class IntegrationTests {
     private suspend fun initializeAndUploadContract(migrateFrom: MigrateFrom? = null): ContractInfo {
         val initMsg = if (migrateFrom == null) {
             PurchasableSnip721Msgs.Instantiate(
-                prices = purchasePrices,
-                publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
-                privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
-                admin = client.senderAddress,
-                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+                new = PurchasableSnip721Msgs.Instantiate.New(
+                    PurchasableSnip721Msgs.Instantiate.New.Config(
+                        prices = purchasePrices,
+                        publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
+                        privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
+                        admin = client.senderAddress,
+                        entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+                    )
+                )
             )
         } else {
             PurchasableSnip721Msgs.Instantiate(
-                migrateFrom = migrateFrom,
-                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+                migrate = PurchasableSnip721Msgs.Instantiate.Migrate(
+                    PurchasableSnip721Msgs.Instantiate.Migrate.Config(
+                        migrateFrom = migrateFrom,
+                        entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
+                    )
+                )
             )
         }
         val instantiateMsgs = listOf(
