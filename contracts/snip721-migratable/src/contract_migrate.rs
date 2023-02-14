@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, to_binary};
+use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, to_binary};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
@@ -6,15 +6,19 @@ use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::contract::{gen_snip721_approvals, get_token, mint_list, OwnerInfo, PermissionTypeInfo};
 use snip721_reference_impl::expiration::Expiration;
 use snip721_reference_impl::mint_run::{SerialNumber, StoredMintRunInfo};
-use snip721_reference_impl::msg::{BatchNftDossierElement, Mint};
+use snip721_reference_impl::msg::{BatchNftDossierElement, InstantiateConfig, Mint};
+use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
-use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
 
+use migration::msg_types::{MigrateFrom, MigrateTo};
+use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo};
+
 use crate::contract::init_snip721;
-use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, InstantiateNewMsg, MigrateFrom, MigrateTo, QueryAnswer, QueryMsgExt};
+use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+use crate::state::{MIGRATE_IN_TOKENS_PROGRESS_KEY, MigrateInTokensProgress};
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> StdResult<Response> {
     let mut deps = deps;
@@ -37,22 +41,26 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
             code_hash: reply_data.migrate_from.code_hash,
         },
         migration_secret: reply_data.secret,
+    };
+    save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
+    let migrate_in_tokens_progress = MigrateInTokensProgress {
         migrate_in_mint_cnt: reply_data.mint_count,
         migrate_in_next_mint_index: 0,
     };
-    save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
+    save(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &migrate_in_tokens_progress)?;
+
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
 
 
-// clear the data (that contains the secret) which would be set when init_snip721 is called
-// from reply as part of the migration process
-// https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
-    return Ok(snip721_response);
+    // clear the data (that contains the secret) which would be set when init_snip721 is called
+    // from reply as part of the migration process
+    // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
+    return Ok(snip721_response.set_data(b""));
 }
 
 
 pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_config: Config, msg: ExecuteMsg) -> StdResult<Response> {
-    let mut migrated_from: MigratedFrom = load(deps.storage, MIGRATED_FROM_KEY)?;
+    let migrated_from: MigratedFrom = load(deps.storage, MIGRATED_FROM_KEY)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
         return Err(StdError::generic_err(format!(
@@ -80,8 +88,9 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         }
     };
     let mut deps = deps;
-    let mut start_at_idx = migrated_from.migrate_in_next_mint_index;
-    let mint_count = migrated_from.migrate_in_mint_cnt;
+    let mut migrate_in_tokens_progress: MigrateInTokensProgress = load(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?;
+    let mut start_at_idx = migrate_in_tokens_progress.migrate_in_next_mint_index;
+    let mint_count = migrate_in_tokens_progress.migrate_in_mint_cnt;
 
     let mut pages_queried = 0;
     while pages_queried < pages && start_at_idx < mint_count {
@@ -105,8 +114,8 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
             _ => panic!("unexpected ExportMigrationData query answer"),
         };
     }
-    migrated_from.migrate_in_next_mint_index = start_at_idx;
-    save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
+    migrate_in_tokens_progress.migrate_in_next_mint_index = start_at_idx;
+    save(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &migrate_in_tokens_progress)?;
 
     return if start_at_idx < mint_count {
         Ok(Response::new()
@@ -126,6 +135,22 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
                 total: None,
             })?))
     };
+}
+
+fn stored_to_msg_royalty_info(stored: StoredRoyaltyInfo, api: &dyn Api) -> RoyaltyInfo {
+    RoyaltyInfo {
+        decimal_places_in_rates: stored.decimal_places_in_rates,
+        royalties: stored
+            .royalties
+            .iter()
+            .map(|r| {
+                Ok(Royalty {
+                    recipient: api.addr_humanize(&r.recipient)?.to_string(),
+                    rate: r.rate,
+                })
+            })
+            .collect::<StdResult<Vec<Royalty>>>().unwrap(),
+    }
 }
 
 fn save_migration_dossier_list(
@@ -243,16 +268,29 @@ pub(crate) fn migrate(
     save(deps.storage, MIGRATED_TO_KEY, &migrated_to.unwrap())?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
 
-    let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
+    let royalty_info: Option<RoyaltyInfo> = match may_load::<StoredRoyaltyInfo>(deps.storage, DEFAULT_ROYALTY_KEY)? {
+        Some(stored_royalty_info) => Some(stored_to_msg_royalty_info(stored_royalty_info, deps.api)),
+        None => None
+    };
+
     Ok(Response::default()
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
-            migrated_instantiate_msg: InstantiateNewMsg {
-                prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
-                public_metadata: purchasable_metadata.public_metadata,
-                private_metadata: purchasable_metadata.private_metadata,
+            migrated_instantiate_msg: Snip721InstantiateMsg {
+                name: snip721config.name.to_string(),
+                symbol: snip721config.symbol.to_string(),
                 admin: Some(admin_addr.to_string()),
                 entropy: entropy.to_string(),
-                royalty_info: None,
+                royalty_info,
+                config: Some(InstantiateConfig {
+                    public_token_supply: Some(snip721config.token_supply_is_public),
+                    public_owner: Some(snip721config.owner_is_public),
+                    enable_sealed_metadata: Some(snip721config.sealed_metadata_is_enabled),
+                    unwrapped_metadata_is_private: Some(snip721config.unwrap_to_private),
+                    minter_may_update_metadata: Some(snip721config.minter_may_update_metadata),
+                    owner_may_update_metadata: Some(snip721config.owner_may_update_metadata),
+                    enable_burn: Some(snip721config.burn_is_enabled),
+                }),
+                post_init_callback: None,
             },
             migrate_from: MigrateFrom {
                 address: env.contract.address,

@@ -6,3 +6,4 @@ pub mod state;
 mod test_execute;
 mod test_instantiate;
 mod test_migrate;
+mod test_utils;

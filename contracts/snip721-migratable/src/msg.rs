@@ -1,22 +1,19 @@
-use cosmwasm_std::{Addr, Binary, Coin};
+use cosmwasm_std::{Addr, Binary};
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
-use snip721_reference_impl::royalties::RoyaltyInfo;
-use snip721_reference_impl::token::Metadata;
+use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
+
+use migration::msg_types::{MigrateFrom, MigrateTo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum InstantiateMsg {
     /// initialize using data from another contract
-    Migrate {
-        config: InstantiateByMigrationMsg,
-    },
+    Migrate(InstantiateByMigrationMsg),
     /// initialize fresh
-    New {
-        config: InstantiateNewMsg,
-    },
+    New(Snip721InstantiateMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,24 +22,6 @@ pub struct InstantiateByMigrationMsg {
     pub entropy: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateNewMsg {
-    /// Allowed Coin prices for purchasing a mint
-    pub prices: Vec<Coin>,
-    /// optional public metadata that can be seen by everyone
-    pub public_metadata: Option<Metadata>,
-    /// optional private metadata that can only be seen by the owner and whitelist
-    pub private_metadata: Option<Metadata>,
-
-    // Selected fields from Snip721InstantiateMsg below
-    /// optional admin address, env.message.sender if missing
-    pub admin: Option<String>,
-    /// entropy used for prng seed
-    pub entropy: String,
-    /// optional royalty information to use as default when RoyaltyInfo is not provided to a
-    /// minting function
-    pub royalty_info: Option<RoyaltyInfo>,
-}
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -52,25 +31,10 @@ pub enum ExecuteMsg {
     Ext(ExecuteMsgExt),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-pub struct MigrateFrom {
-    pub address: Addr,
-    pub code_hash: String,
-    /// permit for the  used to verify address executing migration is admin
-    pub admin_permit: Permit,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-pub struct MigrateTo {
-    pub address: Addr,
-    pub code_hash: String,
-    pub entropy: String,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
-    PurchaseMint {},
     /// Set migration secret (using entropy for randomness), and the address of the new contract
     Migrate {
         /// permit used to verify address executing migration is admin
@@ -136,7 +100,7 @@ const _: () = {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateByMigrationReplyDataMsg {
-    pub migrated_instantiate_msg: InstantiateNewMsg,
+    pub migrated_instantiate_msg: Snip721InstantiateMsg,
     pub migrate_from: MigrateFrom,
     pub mint_count: u32,
     pub secret: Binary,
@@ -163,8 +127,6 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsgExt {
-    /// GetPrices returns the purchase price in acceptable coin types.
-    GetPrices {},
     /// The new contract can query this to extract all the information.
     ExportMigrationData {
         start_index: Option<u32>,
@@ -225,9 +187,6 @@ const _: () = {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryAnswer {
-    // GetPrices returns the purchase price in acceptable coin types.
-    GetPrices { prices: Vec<Coin> },
-
     MigrationBatchNftDossier {
         last_mint_index: u32,
         nft_dossiers: Vec<BatchNftDossierElement>,
