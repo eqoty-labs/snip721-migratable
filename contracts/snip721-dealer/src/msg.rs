@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
-use migration::msg_types::{ContractInfo, MigrateFrom, MigrateTo};
+use migration::msg_types::{MigrateFrom, MigrateTo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -60,8 +60,10 @@ pub struct DealerState {
     pub public_metadata: Option<Metadata>,
     /// optional private metadata that can only be seen by the owner and whitelist
     pub private_metadata: Option<Metadata>,
+    /// The snip721 contract's code info for the contract this dealer contract controls
+    pub child_snip721_code_info: CodeInfo,
     /// The snip721 contract this dealer contract controls
-    pub child_snip721: ContractInfo,
+    pub child_snip721_address: Addr,
 }
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]

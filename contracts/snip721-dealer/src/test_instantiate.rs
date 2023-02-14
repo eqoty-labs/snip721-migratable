@@ -2,14 +2,14 @@
 mod tests {
     use cosmwasm_std::{Api, CanonicalAddr, Coin, CosmosMsg, from_binary, ReplyOn, StdError, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use snip721_reference_impl::state::load;
     use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
+    use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
-    use crate::contract::instantiate;
-    use crate::msg::{InstantiateMsg, InstantiateSelfAnChildSnip721Msg};
-    use crate::state::{ADMIN_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
-    use crate::test_utils::test_utils::admin_msg_info;
+    use crate::contract::{instantiate, reply};
+    use crate::msg::{CodeInfo, InstantiateMsg, InstantiateSelfAnChildSnip721Msg};
+    use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+    use crate::test_utils::test_utils::{admin_msg_info, child_snip721_address, successful_child_snip721_instantiate_reply};
 
     #[test]
     fn instantiate_with_valid_msg_saves_all_to_state() {
@@ -27,6 +27,7 @@ mod tests {
                 extension: None,
             }),
         };
+        let snip721_code_info = CodeInfo { code_id: 10, code_hash: "test_code_hash".to_string() };
 
         let admin_info = admin_msg_info();
 
@@ -34,6 +35,7 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg::New(InstantiateSelfAnChildSnip721Msg {
             admin: Some(admin_info.sender.to_string()),
+            snip721_code_info: snip721_code_info.clone(),
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
@@ -54,6 +56,15 @@ mod tests {
         assert_eq!(purchasable_metadata, saved_purchasable_metadata);
         let saved_admin: CanonicalAddr = load(deps.as_ref().storage, ADMIN_KEY).unwrap();
         assert_eq!(deps.api.addr_canonicalize(admin_info.sender.as_str()).unwrap(), saved_admin);
+        let saved_child_snip721_code_info: CodeInfo = load(deps.as_ref().storage, CHILD_SNIP721_CODE_INFO_KEY).unwrap();
+        assert_eq!(snip721_code_info, saved_child_snip721_code_info);
+
+        // fake a reply after successful instantiate of child snip721
+        let child_snip721_address = child_snip721_address();
+        reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
+        let saved_child_snip721_address: CanonicalAddr = load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
+
+        assert_eq!(child_snip721_address, deps.api.addr_humanize(&saved_child_snip721_address).unwrap());
     }
 
     #[test]

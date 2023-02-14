@@ -3,8 +3,10 @@ use snip721_reference_impl::token::Metadata;
 
 /// storage key this contract's admin address: CanonicalAddr
 pub const ADMIN_KEY: &[u8] = b"admin";
-/// storage key for the address of this contract's child snip721 contract: ContractInfo
-pub const CHILD_SNIP721_KEY: &[u8] = b"childsnip721";
+/// storage key for the address of this contract's child snip721 contract: CodeInfo
+pub const CHILD_SNIP721_CODE_INFO_KEY: &[u8] = b"childsnip721code";
+/// storage key for the address of this contract's child snip721 contract: CanonicalAddr
+pub const CHILD_SNIP721_ADDRESS_KEY: &[u8] = b"childsnip721addr";
 /// storage key for allowed Coin prices for purchasing a mint: Vec<Coin>
 pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
 /// storage key for the PurchasableMetadata used for every purchased mint

@@ -1,12 +1,26 @@
 #[cfg(test)]
 pub mod test_utils {
-    use cosmwasm_std::MessageInfo;
+    use cosmwasm_std::{Event, MessageInfo, Reply, SubMsgResponse, SubMsgResult};
     use cosmwasm_std::testing::mock_info;
 
     use crate::msg::{CodeInfo, InstantiateSelfAnChildSnip721Msg};
 
     pub fn admin_msg_info() -> MessageInfo {
         mock_info("admin", &[])
+    }
+
+    pub fn child_snip721_address() -> String {
+        "child_snip721_addr".to_string()
+    }
+
+    pub fn successful_child_snip721_instantiate_reply(child_snip721_address: &str) -> Reply {
+        Reply {
+            id: 1u64,
+            result: SubMsgResult::Ok(SubMsgResponse {
+                data: None,
+                events: vec![Event::new("instantiate").add_attribute("contract_address", child_snip721_address)],
+            }),
+        }
     }
 
     impl Default for InstantiateSelfAnChildSnip721Msg {

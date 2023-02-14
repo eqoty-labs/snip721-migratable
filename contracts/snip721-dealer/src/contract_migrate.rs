@@ -4,14 +4,13 @@ use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::{load, may_load, PREFIX_REVOKED_PERMITS, save};
 
-use migration::msg_types::{ContractInfo as ContractInfoMsg, MigrateFrom, MigrateTo};
+use migration::msg_types::{MigrateFrom, MigrateTo};
 use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo};
 
-use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg, QueryAnswer};
-use crate::state::{ADMIN_KEY, CHILD_SNIP721_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+use crate::msg::{CodeInfo, DealerState, InstantiateByMigrationReplyDataMsg, QueryAnswer};
+use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
-pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Reply) -> StdResult<Response> {
-    let mut deps = deps;
+pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
     deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
 
     let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
@@ -24,7 +23,8 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
         migration_secret: reply_data.secret,
     };
     save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(&reply_data.dealer_state.admin.as_str())?)?;
-    save(deps.storage, CHILD_SNIP721_KEY, &reply_data.dealer_state.child_snip721)?;
+    save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &reply_data.dealer_state.child_snip721_code_info)?;
+    save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &reply_data.dealer_state.child_snip721_address)?;
     save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
     save(deps.storage, PURCHASABLE_METADATA_KEY, &PurchasableMetadata {
         public_metadata: reply_data.dealer_state.public_metadata,
@@ -105,7 +105,8 @@ pub(crate) fn migrate(
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
 
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
-    let child_snip721: ContractInfo = load(deps.storage, CHILD_SNIP721_KEY)?;
+    let child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
     Ok(Response::default()
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
             dealer_state: DealerState {
@@ -113,10 +114,8 @@ pub(crate) fn migrate(
                 public_metadata: purchasable_metadata.public_metadata,
                 private_metadata: purchasable_metadata.private_metadata,
                 admin: admin_addr.clone(),
-                child_snip721: ContractInfoMsg {
-                    address: child_snip721.address,
-                    code_hash: child_snip721.code_hash,
-                },
+                child_snip721_code_info,
+                child_snip721_address: deps.api.addr_humanize(&child_snip721_address)?,
             },
             migrate_from: MigrateFrom {
                 address: env.contract.address,
