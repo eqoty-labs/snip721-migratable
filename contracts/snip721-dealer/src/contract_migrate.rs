@@ -11,8 +11,6 @@ use crate::msg::{CodeInfo, DealerState, InstantiateByMigrationReplyDataMsg, Quer
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
-    deps.api.debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
-
     let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
 
     let migrated_from = MigratedFrom {
@@ -23,8 +21,9 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
         migration_secret: reply_data.secret,
     };
     save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(&reply_data.dealer_state.admin.as_str())?)?;
+    save(deps.storage, PURCHASE_PRICES_KEY, &reply_data.dealer_state.prices)?;
     save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &reply_data.dealer_state.child_snip721_code_info)?;
-    save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &reply_data.dealer_state.child_snip721_address)?;
+    save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(reply_data.dealer_state.child_snip721_address.as_str())?)?;
     save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
     save(deps.storage, PURCHASABLE_METADATA_KEY, &PurchasableMetadata {
         public_metadata: reply_data.dealer_state.public_metadata,
