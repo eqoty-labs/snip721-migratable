@@ -10,7 +10,7 @@ mod tests {
     use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom};
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAnChildSnip721Msg};
+    use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{child_snip721_address, successful_child_snip721_instantiate_reply};
 
@@ -276,10 +276,10 @@ mod tests {
         let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
-        let instantiate_msg = InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
@@ -330,13 +330,13 @@ mod tests {
         };
         let snip721_code_info = CodeInfo { code_id: 10, code_hash: "test_code_hash".to_string() };
 
-        let instantiate_msg = InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
             snip721_code_info: snip721_code_info.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         };
         let env = custom_mock_env_0();
         instantiate(
@@ -382,10 +382,10 @@ mod tests {
         let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
-        let instantiate_msg = InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         };
         let _res = instantiate(
             deps.as_mut(),

@@ -7,7 +7,7 @@ use migration::msg_types::MigrateTo;
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
-use crate::msg::{CodeInfo, ExecuteMsg, InstantiateMsg, InstantiateSelfAnChildSnip721Msg, QueryAnswer, QueryMsg};
+use crate::msg::{CodeInfo, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
@@ -55,7 +55,7 @@ pub fn instantiate(
 fn init_snip721(
     deps: &mut DepsMut,
     info: MessageInfo,
-    msg: InstantiateSelfAnChildSnip721Msg,
+    msg: InstantiateSelfAndChildSnip721Msg,
 ) -> StdResult<Response> {
     if msg.prices.len() == 0 {
         return Err(StdError::generic_err(format!(

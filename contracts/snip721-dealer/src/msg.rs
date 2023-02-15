@@ -13,7 +13,7 @@ pub enum InstantiateMsg {
     /// initialize using data from another contract
     Migrate(InstantiateByMigrationMsg),
     /// initialize fresh
-    New(InstantiateSelfAnChildSnip721Msg),
+    New(InstantiateSelfAndChildSnip721Msg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,7 +23,7 @@ pub struct InstantiateByMigrationMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateSelfAnChildSnip721Msg {
+pub struct InstantiateSelfAndChildSnip721Msg {
     /// the code info used to instantiate this contracts child snip721 contract
     pub snip721_code_info: CodeInfo,
     /// the label used to instantiate this contracts child snip721 contract

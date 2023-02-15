@@ -7,7 +7,7 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{instantiate, reply};
-    use crate::msg::{CodeInfo, InstantiateMsg, InstantiateSelfAnChildSnip721Msg};
+    use crate::msg::{CodeInfo, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{admin_msg_info, child_snip721_address, successful_child_snip721_instantiate_reply};
 
@@ -33,13 +33,13 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
             admin: Some(admin_info.sender.to_string()),
             snip721_code_info: snip721_code_info.clone(),
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         });
 
         let res = instantiate(
@@ -87,12 +87,12 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
             admin: None,
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         });
 
         let admin_info = admin_msg_info();
@@ -116,10 +116,10 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
             admin: Some(admin_info.sender.to_string()),
             prices,
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         });
         let res = instantiate(
             deps.as_mut(),
@@ -144,9 +144,9 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAnChildSnip721Msg {
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
             prices: prices.clone(),
-            ..InstantiateSelfAnChildSnip721Msg::default()
+            ..InstantiateSelfAndChildSnip721Msg::default()
         };
 
         let admin_info = admin_msg_info();
