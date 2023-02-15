@@ -79,7 +79,7 @@ pub enum ExecuteMsg {
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateByMigrationReplyDataMsg {
     pub dealer_state: DealerState,

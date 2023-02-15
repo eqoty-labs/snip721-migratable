@@ -9,7 +9,7 @@ pub static MIGRATED_TO_KEY: &[u8] = b"migrated_to";
 pub const CONTRACT_MODE_KEY: &[u8] = b"contract_mode";
 
 
-#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr, Debug)]
+#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr, Debug, PartialEq)]
 #[repr(u8)]
 pub enum ContractMode {
     MigrateDataIn = 1,
