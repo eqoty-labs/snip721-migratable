@@ -3,6 +3,12 @@ use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InstantiateByMigrationMsg {
+    pub migrate_from: MigrateFrom,
+    pub entropy: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 pub struct MigrateFrom {
     pub address: Addr,

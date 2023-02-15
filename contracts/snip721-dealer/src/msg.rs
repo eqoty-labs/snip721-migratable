@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
-use migration::msg_types::{MigrateFrom, MigrateTo};
+use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -14,12 +14,6 @@ pub enum InstantiateMsg {
     Migrate(InstantiateByMigrationMsg),
     /// initialize fresh
     New(InstantiateSelfAndChildSnip721Msg),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateByMigrationMsg {
-    pub migrate_from: MigrateFrom,
-    pub entropy: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

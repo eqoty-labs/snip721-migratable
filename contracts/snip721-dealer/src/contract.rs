@@ -8,6 +8,7 @@ use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
 use crate::msg::{CodeInfo, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
+use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
@@ -75,7 +76,7 @@ fn init_snip721(
              private_metadata: msg.private_metadata,
          })?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
-    let instantiate_msg = Snip721InstantiateMsg {
+    let instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
         symbol: "PUR721".to_string(),
         admin: Some(admin.to_string()),
@@ -91,7 +92,7 @@ fn init_snip721(
             enable_burn: Some(false),
         }),
         post_init_callback: None,
-    };
+    });
     let instantiate_wasm_msg = WasmMsg::Instantiate {
         code_id: msg.snip721_code_info.code_id,
         code_hash: msg.snip721_code_info.code_hash,

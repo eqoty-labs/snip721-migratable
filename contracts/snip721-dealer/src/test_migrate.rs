@@ -6,11 +6,11 @@ mod tests {
     use snip721_reference_impl::state::{load, may_load};
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg_types::{MigrateFrom, MigrateTo};
+    use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
     use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom};
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{child_snip721_address, successful_child_snip721_instantiate_reply};
 

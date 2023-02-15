@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-use migration::msg_types::{MigrateFrom, MigrateTo};
+use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -15,13 +15,6 @@ pub enum InstantiateMsg {
     /// initialize fresh
     New(Snip721InstantiateMsg),
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateByMigrationMsg {
-    pub migrate_from: MigrateFrom,
-    pub entropy: String,
-}
-
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

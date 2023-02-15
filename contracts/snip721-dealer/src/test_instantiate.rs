@@ -8,6 +8,7 @@ mod tests {
 
     use crate::contract::{instantiate, reply};
     use crate::msg::{CodeInfo, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::msg_external::MigratableSnip721InstantiateMsg;
     use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{admin_msg_info, child_snip721_address, successful_child_snip721_instantiate_reply};
 
@@ -174,8 +175,8 @@ mod tests {
                     assert_eq!(&instantiate_msg.snip721_code_info.code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     assert_eq!(&instantiate_msg.snip721_label, label);
-                    let snip721_instantiate_msg: Snip721InstantiateMsg = from_binary(msg).unwrap();
-                    let expected_snip721_instantiate_msg = Snip721InstantiateMsg {
+                    let snip721_instantiate_msg: MigratableSnip721InstantiateMsg = from_binary(msg).unwrap();
+                    let expected_snip721_instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
                         name: "PurchasableSnip721".to_string(),
                         symbol: "PUR721".to_string(),
                         admin: Some(admin_info.sender.to_string()),
@@ -191,7 +192,7 @@ mod tests {
                             enable_burn: Some(false),
                         }),
                         post_init_callback: None,
-                    };
+                    });
                     assert_eq!(expected_snip721_instantiate_msg, snip721_instantiate_msg);
                 }
                 _ => panic!("unexpected"),
