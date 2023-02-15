@@ -66,7 +66,7 @@ pub struct DealerState {
     pub child_snip721_address: Addr,
 }
 
-#[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     PurchaseMint {},
