@@ -91,7 +91,7 @@ pub struct InstantiateByMigrationReplyDataMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteAnswer {}
 
-#[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// GetPrices returns the purchase price in acceptable coin types.
