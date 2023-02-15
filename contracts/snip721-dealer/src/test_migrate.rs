@@ -203,6 +203,8 @@ mod tests {
         if let Some(some_saved_child_snip721_address) = saved_child_snip721_address {
             assert_eq!(None, Some(deps.api.addr_humanize(&some_saved_child_snip721_address).unwrap()));
         }
+        let saved_contract_mode: Option<ContractMode> = may_load(deps.as_ref().storage, CONTRACT_MODE_KEY).unwrap();
+        assert_eq!(None, saved_contract_mode);
 
         let migrated_prices = vec![Coin {
             amount: Uint128::new(100),
@@ -263,6 +265,8 @@ mod tests {
         };
         let migrated_from: MigratedFrom = load(deps.as_ref().storage, MIGRATED_FROM_KEY).unwrap();
         assert_eq!(expected_migrated_from, migrated_from);
+        let saved_contract_mode: Option<ContractMode> = may_load(deps.as_ref().storage, CONTRACT_MODE_KEY).unwrap();
+        assert_eq!(Some(ContractMode::Running), saved_contract_mode);
     }
 
     #[test]

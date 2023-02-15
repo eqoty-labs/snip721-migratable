@@ -29,6 +29,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
         public_metadata: reply_data.dealer_state.public_metadata,
         private_metadata: reply_data.dealer_state.private_metadata,
     })?;
+    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
 
 
     // clear the data (that contains the secret) which would be set when init_snip721 is called
