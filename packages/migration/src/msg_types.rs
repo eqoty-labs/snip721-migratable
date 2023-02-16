@@ -30,3 +30,21 @@ pub struct ContractInfo {
     #[serde(default)]
     pub code_hash: String,
 }
+
+impl Into<cosmwasm_std::ContractInfo> for ContractInfo {
+    fn into(self) -> cosmwasm_std::ContractInfo {
+        cosmwasm_std::ContractInfo {
+            address: self.address,
+            code_hash: self.code_hash,
+        }
+    }
+}
+
+impl Into<ContractInfo> for cosmwasm_std::ContractInfo {
+    fn into(self) -> ContractInfo {
+        ContractInfo {
+            address: self.address,
+            code_hash: self.code_hash,
+        }
+    }
+}

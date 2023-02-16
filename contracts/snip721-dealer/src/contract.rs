@@ -3,7 +3,7 @@ use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721In
 use snip721_reference_impl::msg::ExecuteMsg::MintNft;
 use snip721_reference_impl::state::{load, save};
 
-use migration::msg_types::MigrateTo;
+use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
@@ -241,11 +241,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         _ => {
             match msg {
                 QueryMsg::GetPrices {} => query_prices(deps),
+                QueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
                 QueryMsg::MigratedTo {} => query_migrated_info(deps, false),
                 QueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
             }
         }
     };
+}
+
+fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
+    to_binary(&QueryAnswer::ContractInfo(
+        ContractInfo{
+            address: deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?,
+            code_hash: load::<CodeInfo>(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?.code_hash,
+        }
+    ))
 }
 
 

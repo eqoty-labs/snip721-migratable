@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
-use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
+use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -90,6 +90,7 @@ pub enum ExecuteAnswer {}
 pub enum QueryMsg {
     /// GetPrices returns the purchase price in acceptable coin types.
     GetPrices {},
+    GetChildSnip721 {},
     MigratedFrom {},
     MigratedTo {},
 }
@@ -99,10 +100,6 @@ pub enum QueryMsg {
 pub enum QueryAnswer {
     // GetPrices returns the purchase price in acceptable coin types.
     GetPrices { prices: Vec<Coin> },
-    MigrationInfo {
-        /// the address the contract migrated from/to, otherwise none
-        address: Option<Addr>,
-        /// the code hash of the contract that was migrated from/to, otherwise none
-        code_hash: Option<String>,
-    },
+    ContractInfo(ContractInfo),
+    MigrationInfo(Option<ContractInfo>),
 }

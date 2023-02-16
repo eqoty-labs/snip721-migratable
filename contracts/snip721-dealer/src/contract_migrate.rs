@@ -140,16 +140,12 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             let migrated_from: Option<MigratedFrom> = may_load(deps.storage, MIGRATED_FROM_KEY)?;
             match migrated_from {
                 None => {
-                    to_binary(&QueryAnswer::MigrationInfo {
-                        address: None,
-                        code_hash: None,
-                    })
+                    to_binary(&QueryAnswer::MigrationInfo(None))
                 }
                 Some(some_migrated_from) => {
-                    to_binary(&QueryAnswer::MigrationInfo {
-                        address: Some(some_migrated_from.contract.address),
-                        code_hash: Some(some_migrated_from.contract.code_hash),
-                    })
+                    to_binary(&QueryAnswer::MigrationInfo(
+                        Some(some_migrated_from.contract.into()))
+                    )
                 }
             }
         }
@@ -157,16 +153,12 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             let migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
             match migrated_to {
                 None => {
-                    to_binary(&QueryAnswer::MigrationInfo {
-                        address: None,
-                        code_hash: None,
-                    })
+                    to_binary(&QueryAnswer::MigrationInfo(None))
                 }
                 Some(some_migrated_to) => {
-                    to_binary(&QueryAnswer::MigrationInfo {
-                        address: Some(some_migrated_to.contract.address),
-                        code_hash: Some(some_migrated_to.contract.code_hash),
-                    })
+                    to_binary(&QueryAnswer::MigrationInfo(
+                        Some(some_migrated_to.contract.into()))
+                    )
                 }
             }
         }
