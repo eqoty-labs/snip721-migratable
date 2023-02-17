@@ -4,7 +4,7 @@ package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger
 import io.eqoty.dapp.secret.types.ContractInfo
-import io.eqoty.dapp.secret.types.contract.PurchasableSnip721Msgs
+import io.eqoty.dapp.secret.types.contract.Snip721DealerMsgs
 import io.eqoty.dapp.secret.utils.NodeInfo
 import io.eqoty.dapp.secret.utils.getNode
 import io.eqoty.secretk.client.SigningCosmWasmClient
@@ -49,8 +49,8 @@ object TestGlobals {
         // simulate can be called successfully on a brand-new account:
         // https://discord.com/channels/360051864110235648/603225118545674241/1030724640315805716
         val msg = Json.encodeToString(
-            PurchasableSnip721Msgs.Execute(
-                purchaseMint = PurchasableSnip721Msgs.Execute.PurchaseMint()
+            Snip721DealerMsgs.Execute(
+                purchaseMint = Snip721DealerMsgs.Execute.PurchaseMint()
             )
         )
         val msgs = listOf(
