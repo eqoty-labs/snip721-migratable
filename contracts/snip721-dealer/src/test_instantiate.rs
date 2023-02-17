@@ -209,11 +209,11 @@ mod tests {
             prices: prices.clone(),
             ..InstantiateSelfAndChildSnip721Msg::default()
         };
-
+        let env = mock_env();
         let admin_info = admin_msg_info();
         let res = instantiate(
             deps.as_mut(),
-            mock_env(),
+            env.clone(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg.clone()),
         ).unwrap();
@@ -236,10 +236,15 @@ mod tests {
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     assert_eq!(&instantiate_msg.snip721_label, label);
                     let snip721_instantiate_msg: MigratableSnip721InstantiateMsg = from_binary(msg).unwrap();
+                    // Note:
+                    // We instantiate the child snip721 w/ the dealer as admin to add dealer to its list of minters.
+                    // Then a second tx msg in Reply is sent to change the admin to the dealer's admin
+                    // So we should make sure the contract address != admins address
+                    assert_ne!(env.contract.address, admin_info.sender);
                     let expected_snip721_instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
                         name: "PurchasableSnip721".to_string(),
                         symbol: "PUR721".to_string(),
-                        admin: Some(admin_info.sender.to_string()),
+                        admin: Some(env.contract.address.to_string()),
                         entropy: instantiate_msg.entropy,
                         royalty_info: instantiate_msg.royalty_info,
                         config: Some(InstantiateConfig {
