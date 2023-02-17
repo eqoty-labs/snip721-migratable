@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Api, CanonicalAddr, Coin, CosmosMsg, from_binary, ReplyOn, StdError, Uint128, WasmMsg};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
+    use cosmwasm_std::{Api, CanonicalAddr, Coin, CosmosMsg, Env, from_binary, OwnedDeps, ReplyOn, StdError, StdResult, Uint128, WasmMsg};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+    use snip721_reference_impl::msg::{ExecuteMsg, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
@@ -11,6 +11,31 @@ mod tests {
     use crate::msg_external::MigratableSnip721InstantiateMsg;
     use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{admin_msg_info, child_snip721_address, successful_child_snip721_instantiate_reply};
+
+    fn instantiate_successfully() -> StdResult<(OwnedDeps<MockStorage, MockApi, MockQuerier>, Env, InstantiateSelfAndChildSnip721Msg)> {
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let admin_info = admin_msg_info();
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let instantiate_new_msg = InstantiateSelfAndChildSnip721Msg {
+            admin: Some(admin_info.sender.to_string()),
+            prices: prices.clone(),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
+        let instantiate_msg = InstantiateMsg::New(instantiate_new_msg.clone());
+
+        instantiate(
+            deps.as_mut(),
+            env.clone(),
+            admin_info.clone(),
+            instantiate_msg,
+        )?;
+        Ok((deps, env, instantiate_new_msg))
+    }
+
 
     #[test]
     fn instantiate_with_valid_msg_saves_all_to_state() {
@@ -59,13 +84,48 @@ mod tests {
         assert_eq!(deps.api.addr_canonicalize(admin_info.sender.as_str()).unwrap(), saved_admin);
         let saved_child_snip721_code_info: CodeInfo = load(deps.as_ref().storage, CHILD_SNIP721_CODE_INFO_KEY).unwrap();
         assert_eq!(snip721_code_info, saved_child_snip721_code_info);
+    }
 
-        // fake a reply after successful instantiate of child snip721
+    #[test]
+    fn on_instantiate_snip721_reply_child_snip721_address_is_set() {
+        let (mut deps, _, _) = instantiate_successfully().unwrap();
         let child_snip721_address = child_snip721_address();
         reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
         let saved_child_snip721_address: CanonicalAddr = load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
 
         assert_eq!(child_snip721_address, deps.api.addr_humanize(&saved_child_snip721_address).unwrap());
+    }
+
+    #[test]
+    fn on_instantiate_snip721_reply_child_snip721_change_admin_submessage_added() {
+        let (mut deps, _, instantiate_new_msg) = instantiate_successfully().unwrap();
+        let child_snip721_address = child_snip721_address();
+        let res = reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
+
+        assert_eq!(1, res.messages.len());
+        assert_eq!(0, res.messages[0].id);
+        assert_eq!(ReplyOn::Never, res.messages[0].reply_on);
+        assert!(matches!(
+            res.messages[0].msg,
+            CosmosMsg::Wasm(WasmMsg::Execute { .. })
+        ));
+
+        match &res.messages[0].msg {
+            CosmosMsg::Wasm(msg) => match msg {
+                WasmMsg::Execute {
+                    contract_addr, code_hash, msg, funds
+                } => {
+                    assert_eq!(&child_snip721_address, contract_addr);
+                    assert_eq!(&instantiate_new_msg.snip721_code_info.code_hash, code_hash);
+                    assert_eq!(&Vec::<Coin>::new(), funds);
+                    let execute_msg: ExecuteMsg = from_binary(msg).unwrap();
+                    let expected_execute_msg = ExecuteMsg::ChangeAdmin { address: instantiate_new_msg.admin.unwrap(), padding: None };
+                    assert_eq!(expected_execute_msg, execute_msg);
+                }
+                _ => panic!("unexpected"),
+            },
+            _ => panic!("unexpected"),
+        }
     }
 
     #[test]

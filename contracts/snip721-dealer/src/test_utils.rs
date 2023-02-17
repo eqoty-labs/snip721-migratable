@@ -13,6 +13,10 @@ pub mod test_utils {
         "child_snip721_addr".to_string()
     }
 
+    pub fn child_snip721_code_info() -> CodeInfo {
+        CodeInfo { code_id: 10, code_hash: "child_snip721_code_hash".to_string() }
+    }
+
     pub fn successful_child_snip721_instantiate_reply(child_snip721_address: &str) -> Reply {
         Reply {
             id: 1u64,
@@ -26,7 +30,7 @@ pub mod test_utils {
     impl Default for InstantiateSelfAndChildSnip721Msg {
         fn default() -> Self {
             InstantiateSelfAndChildSnip721Msg {
-                snip721_code_info: CodeInfo { code_id: 0, code_hash: "".to_string() },
+                snip721_code_info: child_snip721_code_info(),
                 snip721_label: "test_snip721_label".to_string(),
                 prices: vec![],
                 public_metadata: None,

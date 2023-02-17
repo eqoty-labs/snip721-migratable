@@ -1,6 +1,6 @@
-use cosmwasm_std::{BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use cosmwasm_std::{Addr, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
-use snip721_reference_impl::msg::ExecuteMsg::MintNft;
+use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
 use migration::msg_types::{ContractInfo, MigrateTo};
@@ -23,7 +23,7 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let mut deps = deps;
     return match msg {
-        InstantiateMsg::New(init) => init_snip721(&mut deps, info, init),
+        InstantiateMsg::New(init) => init_snip721(&mut deps, env, info, init),
         InstantiateMsg::Migrate(init) => {
             let migrate_from = init.migrate_from;
             let migrate_msg = ExecuteMsg::Migrate {
@@ -55,6 +55,7 @@ pub fn instantiate(
 
 fn init_snip721(
     deps: &mut DepsMut,
+    env: Env,
     info: MessageInfo,
     msg: InstantiateSelfAndChildSnip721Msg,
 ) -> StdResult<Response> {
@@ -63,11 +64,14 @@ fn init_snip721(
             "No purchase prices were specified"
         )));
     }
-    let admin = match msg.admin {
+    // instantiate the child snip721 w/ this contract as admin to add this contract to its list of
+    // minters. Then set a second msg in Reply to change the admin to true_admin
+    let temp_snip721_admin = env.contract.address;
+    let true_admin = match msg.admin {
         Some(admin) => deps.api.addr_validate(admin.as_str())?,
         None => info.sender
     };
-    save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(admin.as_str())?)?;
+    save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(true_admin.as_str())?)?;
     save(deps.storage, PURCHASE_PRICES_KEY, &msg.prices)?;
     save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &msg.snip721_code_info)?;
     save(deps.storage, PURCHASABLE_METADATA_KEY,
@@ -79,7 +83,7 @@ fn init_snip721(
     let instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
         symbol: "PUR721".to_string(),
-        admin: Some(admin.to_string()),
+        admin: Some(temp_snip721_admin.to_string()),
         entropy: msg.entropy,
         royalty_info: msg.royalty_info,
         config: Some(InstantiateConfig {
@@ -204,22 +208,34 @@ fn purchase_and_mint(
 #[entry_point]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
-        INSTANTIATE_SNIP721_REPLY_ID => save_child_contract(deps, msg),
+        INSTANTIATE_SNIP721_REPLY_ID => on_instantiated_snip721_reply(deps, msg),
         MIGRATE_REPLY_ID => instantiate_with_migrated_config(deps, msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
 
-fn save_child_contract(deps: DepsMut, reply: Reply) -> StdResult<Response> {
+fn on_instantiated_snip721_reply(deps: DepsMut, reply: Reply) -> StdResult<Response> {
     let result = reply.result.unwrap();
     let contract_address = &result.events.iter()
         .find(|e| e.ty == "instantiate").unwrap()
         .attributes.iter()
         .find(|a| a.key == "contract_address").unwrap()
         .value;
-    let validated_contract_address = deps.api.addr_validate(contract_address.as_str())?;
-    save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(validated_contract_address.as_str())?)?;
-    Ok(Response::new())
+    let child_snip721_address = deps.api.addr_validate(contract_address.as_str())?;
+    save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(child_snip721_address.as_str())?)?;
+    let child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let admin: Addr = deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+
+    let change_admin_to_true_admin_wasm_msg = WasmMsg::Execute {
+        contract_addr: child_snip721_address.to_string(),
+        code_hash: child_snip721_code_info.code_hash,
+        msg: to_binary(&ChangeAdmin { address: admin.to_string(), padding: None }).unwrap(),
+        funds: vec![],
+    };
+
+    Ok(Response::new()
+        .add_submessages([SubMsg::new(change_admin_to_true_admin_wasm_msg)])
+    )
 }
 
 #[entry_point]
@@ -251,7 +267,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
     to_binary(&QueryAnswer::ContractInfo(
-        ContractInfo{
+        ContractInfo {
             address: deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?,
             code_hash: load::<CodeInfo>(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?.code_hash,
         }
