@@ -82,7 +82,20 @@ class IntegrationTests {
         )
     }
 
-    private suspend fun migrateSnip721Contract(migrateFrom: MigrationMsg.MigrateFrom): ContractInfo {
+    private suspend fun migrateSnip721Contract(contract: CosmWasmStd.ContractInfo): ContractInfo {
+        val permit = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contract.address),
+            listOf(Permission.Owner)
+        )
+        val migrateFrom = MigrationMsg.MigrateFrom(
+            contract.address,
+            contract.codeHash,
+            permit
+        )
         val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, snip721MigratableContractCodePath)
         val instantiateByMigration = Snip721MigratableMsg.Instantiate(
             migrate = MigrationMsg.InstantiateByMigration(
@@ -185,9 +198,16 @@ class IntegrationTests {
 
     suspend fun getNumTokensOfOwner(
         ownerAddress: String,
-        permit: Permit,
         contractAddr: String
     ): Snip721Msgs.QueryAnswer.NumTokens {
+        val permit = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contractAddr),
+            listOf(Permission.Owner)
+        )
         val numTokensQuery = Json.encodeToString(
             Snip721Msgs.Query(
                 withPermit = Snip721Msgs.Query.WithPermit(
@@ -271,9 +291,16 @@ class IntegrationTests {
 
     suspend fun getBatchNftDossiers(
         contractInfo: CosmWasmStd.ContractInfo,
-        permit: Permit,
         tokenIds: List<String>
     ): Snip721Msgs.QueryAnswer.BatchNftDossier {
+        val permit = PermitFactory.newPermit(
+            client.wallet,
+            client.senderAddress,
+            client.getChainId(),
+            "test",
+            listOf(contractInfo.address),
+            listOf(Permission.Owner)
+        )
         val query = Snip721Msgs.Query(
             withPermit = Snip721Msgs.Query.WithPermit(
                 permit = permit,
@@ -336,50 +363,29 @@ class IntegrationTests {
         }
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        val permitsV1 = client.wallet.getAccounts().map { account ->
-            PermitFactory.newPermit(
-                client.wallet,
-                account.address,
-                client.getChainId(),
-                "test",
-                listOf(snip721ContractV1.address),
-                listOf(Permission.Owner)
-            )
-        }
+
         val startingNumTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, permitsV1[1], snip721ContractV1.address).count
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
         purchaseOneMint(client, dealerContractInfo, purchasePrices)
         // verify customer received one nft
         val numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, permitsV1[1], snip721ContractV1.address).count
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
 
         val snip721ContractInfoQueryV1 = getContractInfo(snip721ContractV1)
         val contractConfigV1 = getContractConfig(snip721ContractV1)
         val numTokensV1 = getNumTokens(snip721ContractV1)
-        val nftDossiersV1 = getBatchNftDossiers(snip721ContractV1, permitsV1[1], listOf("0"))
+        val nftDossiersV1 = getBatchNftDossiers(snip721ContractV1, listOf("0"))
 
         client.senderAddress = client.wallet.getAccounts()[0].address
-        val migrateFrom = MigrationMsg.MigrateFrom(
-            snip721ContractV1.address,
-            snip721ContractV1.codeHash,
-            permitsV1[0]
-        )
-        val snip721ContractInfoV2 = with(migrateSnip721Contract(migrateFrom)) {
+
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
 
         migrateTokens(client, snip721ContractInfoV2)
 
         client.senderAddress = client.wallet.getAccounts()[1].address
-        val permit = PermitFactory.newPermit(
-            client.wallet,
-            client.senderAddress,
-            client.getChainId(),
-            "test",
-            listOf(snip721ContractInfoV2.address),
-            listOf(Permission.Owner)
-        )
 
         assertNotEquals(snip721ContractV1.address, snip721ContractInfoV2.address)
         assertEquals(
@@ -389,7 +395,7 @@ class IntegrationTests {
         assertEquals(contractConfigV1, getContractConfig(snip721ContractInfoV2))
         assertEquals(numTokensV1, getNumTokens(snip721ContractInfoV2))
         val json = Json { prettyPrint = true }
-        val nftDossiersV2 = getBatchNftDossiers(snip721ContractInfoV2, permit, listOf("0"))
+        val nftDossiersV2 = getBatchNftDossiers(snip721ContractInfoV2, listOf("0"))
         assertTrue(
             nftDossiersV1.equals(
                 nftDossiersV2,
@@ -411,22 +417,7 @@ class IntegrationTests {
         assertEquals(null, migratedFromInfoV1)
         var migratedToInfoV1 = getMigratedToContractInfo(dealerContractInfo)
         assertEquals(null, migratedToInfoV1)
-        val permitsV1 = client.wallet.getAccounts().map { account ->
-            PermitFactory.newPermit(
-                client.wallet,
-                account.address,
-                client.getChainId(),
-                "test",
-                listOf(dealerQueriedSnip721V1.address),
-                listOf(Permission.Owner)
-            )
-        }
-        val migrateFrom = MigrationMsg.MigrateFrom(
-            dealerQueriedSnip721V1.address,
-            dealerQueriedSnip721V1.codeHash,
-            permitsV1[0]
-        )
-        val snip721ContractInfoV2 = with(migrateSnip721Contract(migrateFrom)) {
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(dealerQueriedSnip721V1)) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
         assertNotEquals(dealerQueriedSnip721V1, snip721ContractInfoV2)
@@ -446,13 +437,15 @@ class IntegrationTests {
         // test again to make sure queries are still available after contract changes mode to Running
         migratedToInfoV1 = getMigratedToContractInfo(dealerQueriedSnip721V1)
         assertEquals(snip721ContractInfoV2, migratedToInfoV1)
-        
+
         migratedFromInfoV2 = getMigratedFromContractInfo(snip721ContractInfoV2)
         assertEquals(dealerQueriedSnip721V1, migratedFromInfoV2)
 
         migratedToInfoV2 = getMigratedToContractInfo(snip721ContractInfoV2)
         assertEquals(null, migratedToInfoV2)
     }
+
+   
 
 
 }
