@@ -1,11 +1,11 @@
-use cosmwasm_std::{Addr, Binary};
+use cosmwasm_std::Binary;
 use schemars::JsonSchema;
 use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
+use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -184,10 +184,5 @@ pub enum QueryAnswer {
         last_mint_index: u32,
         nft_dossiers: Vec<BatchNftDossierElement>,
     },
-    MigrationInfo {
-        /// the address the contract migrated from/to, otherwise none
-        address: Option<Addr>,
-        /// the code hash of the contract that was migrated from/to, otherwise none
-        code_hash: Option<String>,
-    },
+    MigrationInfo(Option<ContractInfo>),
 }
