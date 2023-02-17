@@ -1,8 +1,8 @@
 use cosmwasm_std::{Binary, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
-use migration::msg_types::MigrateTo;
 
+use migration::msg_types::MigrateTo;
 use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedTo};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
@@ -109,15 +109,16 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
-    return match mode {
-        ContractMode::MigratedOut => {
-            let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
-            let migrated_error = Err(StdError::generic_err(format!(
-                "This contract has been migrated to {:?}. Only TransactionHistory, MigratedTo, MigratedFrom queries allowed!",
-                migrated_to.contract.address
-            )));
-            match msg {
-                QueryMsg::Base(base_msg) => {
+    return match msg {
+        QueryMsg::Base(base_msg) => {
+            match mode {
+                ContractMode::MigratedOut => {
+                    let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
+                    let migrated_error = Err(StdError::generic_err(format!(
+                        "This contract has been migrated to {:?}. Only TransactionHistory, MigratedTo, MigratedFrom queries allowed!",
+                        migrated_to.contract.address
+                    )));
+
                     let is_tx_history_query = match &base_msg {
                         snip721_reference_impl::msg::QueryMsg::TransactionHistory { .. } => true,
                         snip721_reference_impl::msg::QueryMsg::WithPermit { permit: _, query } => {
@@ -134,26 +135,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                         migrated_error
                     }
                 }
-                QueryMsg::Ext(base_msg) => {
-                    match base_msg {
-                        QueryMsgExt::MigratedTo {} => query_migrated_info(deps, false),
-                        QueryMsgExt::MigratedFrom {} => query_migrated_info(deps, true),
-                        QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
-                            migration_dossier_list(deps, &env.block, start_index, max_count, &secret),
-                    }
-                }
+                _ => snip721_reference_impl::contract::query(deps, env, base_msg)
             }
         }
-        _ => {
-            match msg {
-                QueryMsg::Base(base_msg) => snip721_reference_impl::contract::query(deps, env, base_msg),
-                QueryMsg::Ext(ext_msg) => match ext_msg {
-                    QueryMsgExt::MigratedTo {} => query_migrated_info(deps, false),
-                    QueryMsgExt::MigratedFrom {} => query_migrated_info(deps, true),
-                    QueryMsgExt::ExportMigrationData { .. } => Err(StdError::generic_err(
-                        "This contract has not been migrated yet",
-                    ))
-                },
+        QueryMsg::Ext(base_msg) => {
+            match base_msg {
+                QueryMsgExt::MigratedTo {} => query_migrated_info(deps, false),
+                QueryMsgExt::MigratedFrom {} => query_migrated_info(deps, true),
+                QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
+                    migration_dossier_list(deps, &env.block, start_index, max_count, &secret),
             }
         }
     };
