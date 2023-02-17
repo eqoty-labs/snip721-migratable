@@ -346,18 +346,12 @@ class IntegrationTests {
                 listOf(Permission.Owner)
             )
         }
-        val startingNumTokensOfOwner = getNumTokensOfOwner(
-            client.senderAddress,
-            permitsV1[1],
-            snip721ContractV1.address
-        ).count
+        val startingNumTokensOfOwner =
+            getNumTokensOfOwner(client.senderAddress, permitsV1[1], snip721ContractV1.address).count
         purchaseOneMint(client, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        val numTokensOfOwner = getNumTokensOfOwner(
-            client.senderAddress,
-            permitsV1[1],
-            snip721ContractV1.address
-        ).count
+        val numTokensOfOwner =
+            getNumTokensOfOwner(client.senderAddress, permitsV1[1], snip721ContractV1.address).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
 
         val snip721ContractInfoQueryV1 = getContractInfo(snip721ContractV1)
@@ -383,7 +377,7 @@ class IntegrationTests {
             client.senderAddress,
             client.getChainId(),
             "test",
-            listOf(snip721ContractInfoV2.address, snip721ContractInfoV2.address),
+            listOf(snip721ContractInfoV2.address),
             listOf(Permission.Owner)
         )
 
