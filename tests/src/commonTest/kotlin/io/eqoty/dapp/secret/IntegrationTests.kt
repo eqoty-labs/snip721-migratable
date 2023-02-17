@@ -412,8 +412,8 @@ class IntegrationTests {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
-        val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        val migratedFromInfoV1 = getMigratedFromContractInfo(snip721ContractV1)
+        val dealerQueriedSnip721V1 = getChildSnip721ContractInfo(dealerContractInfo)
+        val migratedFromInfoV1 = getMigratedFromContractInfo(dealerQueriedSnip721V1)
         assertEquals(null, migratedFromInfoV1)
         var migratedToInfoV1 = getMigratedToContractInfo(dealerContractInfo)
         assertEquals(null, migratedToInfoV1)
@@ -423,47 +423,41 @@ class IntegrationTests {
                 account.address,
                 client.getChainId(),
                 "test",
-                listOf(snip721ContractV1.address),
+                listOf(dealerQueriedSnip721V1.address),
                 listOf(Permission.Owner)
             )
         }
         val migrateFrom = MigrationMsg.MigrateFrom(
-            snip721ContractV1.address,
-            snip721ContractV1.codeHash,
+            dealerQueriedSnip721V1.address,
+            dealerQueriedSnip721V1.codeHash,
             permitsV1[0]
         )
         val snip721ContractInfoV2 = with(migrateSnip721Contract(migrateFrom)) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
-        assertNotEquals(snip721ContractV1.address, snip721ContractInfoV2.address)
+        assertNotEquals(dealerQueriedSnip721V1, snip721ContractInfoV2)
 
-        migratedToInfoV1 = getMigratedToContractInfo(snip721ContractV1)
-        assertEquals(snip721ContractInfoV2.address, migratedToInfoV1?.address)
-        assertEquals(snip721ContractInfoV2.codeHash, migratedToInfoV1?.codeHash)
+        migratedToInfoV1 = getMigratedToContractInfo(dealerQueriedSnip721V1)
+        assertEquals(snip721ContractInfoV2, migratedToInfoV1)
 
         var migratedFromInfoV2 = getMigratedFromContractInfo(snip721ContractInfoV2)
-        assertEquals(snip721ContractV1.address, migratedFromInfoV2?.address)
-        assertEquals(snip721ContractV1.codeHash, migratedFromInfoV2?.codeHash)
+        assertEquals(dealerQueriedSnip721V1, migratedFromInfoV2)
 
         var migratedToInfoV2 = getMigratedToContractInfo(snip721ContractInfoV2)
 
-        assertEquals(null, migratedToInfoV2?.address)
-        assertEquals(null, migratedToInfoV2?.codeHash)
+        assertEquals(null, migratedToInfoV2)
 
         migrateTokens(client, snip721ContractInfoV2)
 
         // test again to make sure queries are still available after contract changes mode to Running
-        migratedToInfoV1 = getMigratedToContractInfo(snip721ContractV1)
-        assertEquals(snip721ContractInfoV2.address, migratedToInfoV1?.address)
-        assertEquals(snip721ContractInfoV2.codeHash, migratedToInfoV1?.codeHash)
-
+        migratedToInfoV1 = getMigratedToContractInfo(dealerQueriedSnip721V1)
+        assertEquals(snip721ContractInfoV2, migratedToInfoV1)
+        
         migratedFromInfoV2 = getMigratedFromContractInfo(snip721ContractInfoV2)
-        assertEquals(snip721ContractV1.address, migratedFromInfoV2?.address)
-        assertEquals(snip721ContractV1.codeHash, migratedFromInfoV2?.codeHash)
+        assertEquals(dealerQueriedSnip721V1, migratedFromInfoV2)
 
         migratedToInfoV2 = getMigratedToContractInfo(snip721ContractInfoV2)
-        assertEquals(null, migratedToInfoV2?.address)
-        assertEquals(null, migratedToInfoV2?.codeHash)
+        assertEquals(null, migratedToInfoV2)
     }
 
 
