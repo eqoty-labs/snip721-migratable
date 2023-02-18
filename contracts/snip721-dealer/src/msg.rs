@@ -39,6 +39,7 @@ pub struct InstantiateSelfAndChildSnip721Msg {
     pub royalty_info: Option<RoyaltyInfo>,
 }
 
+// todo: remove this. Code id isn't needed
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 pub struct CodeInfo {
     pub code_id: u64,
@@ -76,6 +77,9 @@ pub enum ExecuteMsg {
         address: String,
         code_hash: String,
     },
+
+    // todo: rename
+    OnMigrationComplete{}
 }
 
 

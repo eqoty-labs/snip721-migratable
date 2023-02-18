@@ -1,25 +1,58 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Binary, BlockInfo, Coin, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Response, StdError, StdResult, Timestamp, TransactionInfo, Uint128};
+    use cosmwasm_std::{Addr, Binary, BlockInfo, Coin, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128};
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
     use schemars::_serde_json::to_string;
     use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
+    use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg_types::MigrateTo;
+    use migration::msg_types::{MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
-    use migration::state::ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER;
+    use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
-    use crate::contract::{execute, instantiate, query};
+    use crate::contract::{execute, instantiate, query, reply};
     use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
+    use crate::state::{MIGRATE_IN_TOKENS_PROGRESS_KEY, MigrateInTokensProgress};
     use crate::test_utils::test_utils::instantiate_msg;
 
-    const CONTRACT_ADDRESS: &str = "secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq";
+    const CONTRACT_ADDRESS_0: &str = "secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq";
+    const CONTRACT_ADDRESS_1: &str = "secret18eezxhys9jwku67cm4w84xhnzt4xjj772twz9k";
+
+    fn custom_mock_env_0() -> Env {
+        Env {
+            block: BlockInfo {
+                height: 12_345,
+                time: Timestamp::from_nanos(1_571_797_419_879_305_533),
+                chain_id: "cosmos-testnet-14002".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 3 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(CONTRACT_ADDRESS_0),
+                code_hash: "code_hash_0".to_string(),
+            },
+        }
+    }
+
+    fn custom_mock_env_1() -> Env {
+        Env {
+            block: BlockInfo {
+                height: 12_345,
+                time: Timestamp::from_nanos(1_571_797_419_879_305_533),
+                chain_id: "cosmos-testnet-14002".to_string(),
+            },
+            transaction: Some(TransactionInfo { index: 3 }),
+            contract: ContractInfo {
+                address: Addr::unchecked(CONTRACT_ADDRESS_1),
+                code_hash: "code_hash_1".to_string(),
+            },
+        }
+    }
 
     pub fn build_mint_msg(recipient: String, public_metadata: Option<Metadata>, private_metadata: Option<Metadata>) -> ExecuteMsg {
         ExecuteMsg::Base(Snip721ExecuteMsg::MintNft {
@@ -35,35 +68,20 @@ mod tests {
         })
     }
 
-    fn custom_mock_env() -> Env {
-        Env {
-            block: BlockInfo {
-                height: 12_345,
-                time: Timestamp::from_nanos(1_571_797_419_879_305_533),
-                chain_id: "cosmos-testnet-14002".to_string(),
-            },
-            transaction: Some(TransactionInfo { index: 3 }),
-            contract: ContractInfo {
-                address: Addr::unchecked(CONTRACT_ADDRESS),
-                code_hash: "".to_string(),
-            },
-        }
-    }
-
     pub fn set_viewing_key(deps: DepsMut, viewing_key: String, message_info: MessageInfo) {
         let set_view_key_msg =
             ExecuteMsg::Base(snip721_reference_impl::msg::ExecuteMsg::SetViewingKey {
                 key: viewing_key.clone(),
                 padding: None,
             });
-        let res = execute(deps, custom_mock_env(), message_info.clone(), set_view_key_msg);
+        let res = execute(deps, custom_mock_env_0(), message_info.clone(), set_view_key_msg);
         assert!(res.is_ok(), "execute failed: {}", res.err().unwrap());
     }
 
     fn get_admin_permit() -> Permit {
         Permit {
             params: PermitParams {
-                allowed_tokens: vec![CONTRACT_ADDRESS.to_string()],
+                allowed_tokens: vec![CONTRACT_ADDRESS_0.to_string()],
                 permit_name: "memo_secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq".to_string(),
                 chain_id: "pulsar-2".to_string(),
                 permissions: vec![TokenPermissions::History],
@@ -83,7 +101,7 @@ mod tests {
             deps,
             "test",
             permit,
-            CONTRACT_ADDRESS.to_string(),
+            CONTRACT_ADDRESS_0.to_string(),
             Some("secret"),
         )
     }
@@ -105,7 +123,7 @@ mod tests {
             });
         let res = execute(
             deps,
-            custom_mock_env(),
+            custom_mock_env_0(),
             MessageInfo {
                 sender: Addr::unchecked(migration_target_addr),
                 funds: vec![],
@@ -123,7 +141,7 @@ mod tests {
             start_after: None,
             limit: None,
         });
-        let query_res = query(deps, custom_mock_env(), query_msg);
+        let query_res = query(deps, custom_mock_env_0(), query_msg);
 
         assert!(
             query_res.is_ok(),
@@ -148,7 +166,7 @@ mod tests {
             max_count,
             secret,
         });
-        let query_res = query(deps, custom_mock_env(), query_msg);
+        let query_res = query(deps, custom_mock_env_0(), query_msg);
 
         assert!(
             query_res.is_ok(),
@@ -167,6 +185,110 @@ mod tests {
     }
 
     #[test]
+    fn instantiate_with_migrated_config_saves_config() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_permit = &get_admin_permit();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let env_0 = custom_mock_env_0();
+        let env_1 = custom_mock_env_1();
+        let snip721_dealer_to_notify = ContractInfo {
+            address: Addr::unchecked("dealer_addr"),
+            code_hash: "dealer_code_hash".to_string(),
+        };
+        let expected_mint_count = 3;
+        let expected_secret = Binary::from(b"secret_to_migrate_data_in");
+        let instantiate_by_migration_reply_msg_data = to_binary(
+            &InstantiateByMigrationReplyDataMsg {
+                migrated_instantiate_msg: Snip721InstantiateMsg {
+                    name: "migratable_snip721".to_string(),
+                    admin: Some(admin_addr),
+                    entropy: "".to_string(),
+                    royalty_info: None,
+                    config: None,
+                    symbol: "".to_string(),
+                    post_init_callback: None,
+                },
+                migrate_from: MigrateFrom {
+                    address: env_0.contract.address.clone(),
+                    code_hash: env_0.contract.code_hash.clone(),
+                    admin_permit: admin_permit.clone(),
+                },
+                on_migration_complete_notify_receiver: Some(snip721_dealer_to_notify.clone().into()),
+                mint_count: expected_mint_count,
+                secret: expected_secret.clone(),
+            }).unwrap();
+        let reply_msg = Reply {
+            id: 1u64,
+            result: SubMsgResult::Ok(SubMsgResponse {
+                data: Some(instantiate_by_migration_reply_msg_data),
+                events: Vec::new(),
+            }),
+        };
+        reply(deps.as_mut(), env_1, reply_msg)?;
+
+        let expected_migrated_from = MigratedFrom {
+            contract: env_0.contract,
+            migration_secret: expected_secret,
+        };
+        assert_eq!(expected_migrated_from, load::<MigratedFrom>(deps.as_ref().storage, MIGRATED_FROM_KEY)?);
+
+        let expected_migrate_in_tokens_progress = MigrateInTokensProgress {
+            migrate_in_mint_cnt: expected_mint_count,
+            migrate_in_next_mint_index: 0,
+        };
+        assert_eq!(expected_migrate_in_tokens_progress, load::<MigrateInTokensProgress>(deps.as_ref().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?);
+        assert_eq!(ContractMode::MigrateDataIn, load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY)?);
+        assert_eq!(snip721_dealer_to_notify, load::<ContractInfo>(deps.as_ref().storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn instantiate_with_migrated_config_clears_response_data() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_permit = &get_admin_permit();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let env_0 = custom_mock_env_0();
+        let env_1 = custom_mock_env_1();
+        let snip721_dealer_to_notify = ContractInfo {
+            address: Addr::unchecked("dealer_addr"),
+            code_hash: "dealer_code_hash".to_string(),
+        };
+        let expected_mint_count = 3;
+        let expected_secret = Binary::from(b"secret_to_migrate_data_in");
+        let instantiate_by_migration_reply_msg_data = to_binary(
+            &InstantiateByMigrationReplyDataMsg {
+                migrated_instantiate_msg: Snip721InstantiateMsg {
+                    name: "migratable_snip721".to_string(),
+                    admin: Some(admin_addr),
+                    entropy: "".to_string(),
+                    royalty_info: None,
+                    config: None,
+                    symbol: "".to_string(),
+                    post_init_callback: None,
+                },
+                migrate_from: MigrateFrom {
+                    address: env_0.contract.address.clone(),
+                    code_hash: env_0.contract.code_hash.clone(),
+                    admin_permit: admin_permit.clone(),
+                },
+                on_migration_complete_notify_receiver: Some(snip721_dealer_to_notify.clone().into()),
+                mint_count: expected_mint_count,
+                secret: expected_secret.clone(),
+            }).unwrap();
+        let reply_msg = Reply {
+            id: 1u64,
+            result: SubMsgResult::Ok(SubMsgResponse {
+                data: Some(instantiate_by_migration_reply_msg_data),
+                events: Vec::new(),
+            }),
+        };
+        let res = reply(deps.as_mut(), env_1, reply_msg)?;
+        assert_eq!(res.data, Some(Binary::from(b"")));
+        Ok(())
+    }
+
+    #[test]
     fn migrate_twice_fails() {
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
@@ -177,14 +299,14 @@ mod tests {
         let instantiate_msg = instantiate_msg(admin_info.clone());
         let _res = instantiate(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
         ).unwrap();
 
         execute(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             build_mint_msg(mint_recipient_info.sender.to_string(), None, None).clone(),
         ).unwrap();
@@ -237,7 +359,7 @@ mod tests {
         let instantiate_msg = instantiate_msg(admin_info.clone());
         let _res = instantiate(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
         ).unwrap();
@@ -245,19 +367,19 @@ mod tests {
 
         execute(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             build_mint_msg(mint_recipient_0_info.sender.to_string(), public_metadata.clone(), private_metadata.clone()).clone(),
         ).unwrap();
         execute(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             build_mint_msg(mint_recipient_1_info.sender.to_string(), public_metadata.clone(), private_metadata.clone()).clone(),
         ).unwrap();
         execute(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             build_mint_msg(mint_recipient_2_info.sender.to_string(), public_metadata.clone(), private_metadata.clone()).clone(),
         ).unwrap();
@@ -309,7 +431,7 @@ mod tests {
         let instantiate_msg = instantiate_msg(admin_info.clone());
         let _res = instantiate(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
         ).unwrap();
@@ -320,7 +442,7 @@ mod tests {
         };
         execute(
             deps.as_mut(),
-            custom_mock_env(),
+            custom_mock_env_0(),
             admin_info.clone(),
             ExecuteMsg::Ext(ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
                 address: receiver.address.to_string(),
@@ -329,7 +451,7 @@ mod tests {
         ).unwrap();
 
         let saved_contract: ContractInfo =
-            load(deps.as_ref().storage, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER).unwrap();
+            load(deps.as_ref().storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY).unwrap();
         assert_eq!(receiver, saved_contract);
     }
 }

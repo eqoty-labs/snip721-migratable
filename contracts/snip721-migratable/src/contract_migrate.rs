@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, to_binary};
+use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
@@ -12,8 +12,8 @@ use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo}
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
 
-use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo};
+use migration::msg_types::{MigrateFrom, MigrateTo, MigrationExecuteMsg};
+use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
 use crate::contract::init_snip721;
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
@@ -50,7 +50,9 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
     save(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &migrate_in_tokens_progress)?;
 
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
-
+    if let Some(on_migration_complete_notify_receiver) = reply_data.on_migration_complete_notify_receiver {
+        save(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY, &on_migration_complete_notify_receiver)?;
+    }
 
     // clear the data (that contains the secret) which would be set when init_snip721 is called
     // from reply as part of the migration process
@@ -94,7 +96,6 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
 
     let mut pages_queried = 0;
     while pages_queried < pages && start_at_idx < mint_count {
-        // deps.api.debug(&*format!("start_at_idx: {} mint_count {}", start_at_idx, mint_count));
         let query_answer: QueryAnswer = deps.querier.query_wasm_smart(
             migrated_from.contract.code_hash.clone(),
             migrated_from.contract.address.clone(),
@@ -107,7 +108,6 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         pages_queried += 1;
         start_at_idx = match query_answer {
             MigrationBatchNftDossier { last_mint_index, nft_dossiers } => {
-                deps.api.debug(format!("{:?}", nft_dossiers).as_str());
                 save_migration_dossier_list(&mut deps, env, &migrated_from.contract.address.clone(), &admin_addr, nft_dossiers).unwrap();
                 last_mint_index + 1
             }
@@ -128,7 +128,24 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         // migration complete
         save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
 
+        let sub_msgs: Vec<SubMsg> =
+            if let Some(contract) = may_load::<ContractInfo>(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)? {
+                let execute = WasmMsg::Execute {
+                    msg: to_binary(&MigrationExecuteMsg::OnMigrationComplete {
+                        address: env.contract.address.to_string(),
+                        code_hash: env.contract.code_hash.clone(),
+                    })?,
+                    contract_addr: contract.address.to_string(),
+                    code_hash: contract.code_hash,
+                    funds: vec![],
+                };
+                vec![SubMsg::new(execute)]
+            } else {
+                Vec::new()
+            };
+
         Ok(Response::new()
+            .add_submessages(sub_msgs)
             .set_data(to_binary(&ExecuteAnswer::MigrateTokensIn {
                 complete: true,
                 next_mint_index: None,
@@ -297,6 +314,7 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
+            on_migration_complete_notify_receiver: may_load(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)?,
             mint_count: snip721config.mint_cnt,
             secret,
         }).unwrap())

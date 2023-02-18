@@ -100,6 +100,7 @@ const _: () = {
 pub struct InstantiateByMigrationReplyDataMsg {
     pub migrated_instantiate_msg: Snip721InstantiateMsg,
     pub migrate_from: MigrateFrom,
+    pub on_migration_complete_notify_receiver: Option<ContractInfo>,
     pub mint_count: u32,
     pub secret: Binary,
 }

@@ -139,6 +139,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     let admin = load(deps.storage, ADMIN_KEY)?;
                     register_on_migration_complete_notify_receiver(deps, info, admin, address, code_hash)
                 }
+                ExecuteMsg::OnMigrationComplete {} =>
+                    update_child_snip721(deps, info)
             }
         }
         ContractMode::MigratedOut => {
@@ -151,6 +153,33 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             ))
         }
     };
+}
+
+fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
+    let current_child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
+    let current_child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let child_snip721_migrated_to: QueryAnswer = deps.querier.query_wasm_smart(
+        current_child_snip721_code_info.code_hash.clone(),
+        deps.api.addr_humanize(&current_child_snip721_address)?,
+        &QueryMsg::MigratedTo {},
+    ).unwrap();
+    if let QueryAnswer::MigrationInfo(Some(migrated_to)) = child_snip721_migrated_to {
+        if info.sender != migrated_to.address {
+            // The newly migrated contract only calls this after all contracts have been migrated.
+            // This prevents someone from updating the child contract before all tokens have been migrated
+            return Err(StdError::generic_err(
+                "Only the migrated child snip721 is allowed to trigger an update",
+            ));
+        }
+        save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(migrated_to.address.as_str())?)?;
+        save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &CodeInfo {
+            code_id: 0,
+            code_hash: migrated_to.code_hash,
+        })?;
+        Ok(Response::new())
+    } else {
+        Err(StdError::generic_err("Child snip721 has not been migrated"))
+    }
 }
 
 fn purchase_and_mint(

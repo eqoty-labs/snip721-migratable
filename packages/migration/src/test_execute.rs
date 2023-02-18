@@ -5,7 +5,7 @@ mod tests {
     use secret_toolkit::serialization::{Bincode2, Serde};
 
     use crate::execute::register_on_migration_complete_notify_receiver;
-    use crate::state::ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER;
+    use crate::state::NOTIFY_OF_MIGRATION_RECEIVER_KEY;
 
     #[test]
     fn register_on_migration_complete_notify_receiver_fails_with_for_non_admin() {
@@ -45,7 +45,7 @@ mod tests {
             receiver.code_hash.to_string(),
         )?;
         let saved_contract: ContractInfo = Bincode2::deserialize(
-            &deps.storage.get(ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER).unwrap()
+            &deps.storage.get(NOTIFY_OF_MIGRATION_RECEIVER_KEY).unwrap()
         )?;
         assert_eq!(receiver, saved_contract);
         Ok(())

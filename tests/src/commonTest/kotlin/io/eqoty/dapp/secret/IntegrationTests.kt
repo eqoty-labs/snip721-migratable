@@ -173,12 +173,10 @@ class IntegrationTests {
                 msg = msg,
             )
         )
-        val gasLimit = try {
-            val simulate = client.simulate(msgs)
-            (simulate.gasUsed.toDouble() * 1.1).toInt()
-        } catch (_: Throwable) {
-            200_000
-        }
+
+        val simulate = client.simulate(msgs)
+        val gasLimit = (simulate.gasUsed.toDouble() * 1.1).toInt()
+
         val txOptions = TxOptions(gasLimit = gasLimit)
         val res = try {
             client.execute(
@@ -440,6 +438,31 @@ class IntegrationTests {
 
         migratedToInfoV2 = getMigratedToContractInfo(snip721ContractInfoV2)
         assertEquals(null, migratedToInfoV2)
+    }
+
+    @Test
+    fun test_dealer_is_notified_of_migrated_child_snip721_address() = runTest {
+        val dealerContractInfo = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
+        val startingNumTokensOfOwner =
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        // verify customer received one nft
+        val numTokensOfOwner =
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+
+        migrateTokens(client, snip721ContractInfoV2)
+
+        assertEquals(snip721ContractInfoV2, getChildSnip721ContractInfo(dealerContractInfo))
     }
 
     @Test

@@ -9,7 +9,7 @@ mod tests {
 
     use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
-    use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER};
+    use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
     use crate::contract::{execute, instantiate, reply};
     use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
@@ -465,7 +465,7 @@ mod tests {
         ).unwrap();
 
         let saved_contract: ContractInfo =
-            load(deps.as_ref().storage, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER).unwrap();
+            load(deps.as_ref().storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY).unwrap();
         assert_eq!(receiver, saved_contract);
     }
 }

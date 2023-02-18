@@ -3,7 +3,7 @@ use secret_toolkit::{
     serialization::{Bincode2, Serde},
 };
 
-use crate::state::ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER;
+use crate::state::NOTIFY_OF_MIGRATION_RECEIVER_KEY;
 
 pub fn register_on_migration_complete_notify_receiver(
     deps: DepsMut,
@@ -22,6 +22,6 @@ pub fn register_on_migration_complete_notify_receiver(
         address: deps.api.addr_validate(address.as_str())?,
         code_hash,
     };
-    deps.storage.set(ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER, &Bincode2::serialize(&contract_info)?);
+    deps.storage.set(NOTIFY_OF_MIGRATION_RECEIVER_KEY, &Bincode2::serialize(&contract_info)?);
     Ok(Response::new())
 }
