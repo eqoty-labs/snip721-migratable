@@ -2,11 +2,13 @@ use cosmwasm_std::{Binary, ContractInfo};
 use serde::{Deserialize, Serialize};
 
 /// key for MigratedFrom singleton
-pub static MIGRATED_FROM_KEY: &[u8] = b"migrated_from";
+pub static MIGRATED_FROM_KEY: &[u8] = b"migratedFrom";
 /// key for MigratedTo singleton
-pub static MIGRATED_TO_KEY: &[u8] = b"migrated_to";
+pub static MIGRATED_TO_KEY: &[u8] = b"migratedTo";
+/// key for the ContractInfo of a contract to notify when this contract has been migrated 
+pub static ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER: &[u8; 16] = b"notifyOnMigrated";
 /// key for current ContractMode
-pub const CONTRACT_MODE_KEY: &[u8] = b"contract_mode";
+pub const CONTRACT_MODE_KEY: &[u8] = b"contractMode";
 
 
 #[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr, Debug, PartialEq)]

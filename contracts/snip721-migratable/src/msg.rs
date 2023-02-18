@@ -41,6 +41,11 @@ pub enum ExecuteMsgExt {
         /// The number returned could be less.
         page_size: Option<u32>,
     },
+    /// Sets a contract that should be notified when this contract completes the migraton process
+    RegisterOnMigrationCompleteNotifyReceiver {
+        address: String,
+        code_hash: String,
+    },
 }
 
 // https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
@@ -186,3 +191,4 @@ pub enum QueryAnswer {
     },
     MigrationInfo(Option<ContractInfo>),
 }
+

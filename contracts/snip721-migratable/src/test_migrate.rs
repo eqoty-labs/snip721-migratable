@@ -5,9 +5,11 @@ mod tests {
     use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
+    use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
     use migration::msg_types::MigrateTo;
+    use migration::state::ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER;
 
     use crate::contract::{execute, instantiate, query};
     use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
@@ -287,5 +289,40 @@ mod tests {
         assert_eq!(public_metadata.unwrap(), third_token.public_metadata.unwrap());
         assert_eq!(private_metadata.unwrap(), third_token.private_metadata.unwrap());
         assert_eq!(mint_recipient_2_info.sender, third_token.owner.unwrap());
+    }
+
+
+    #[test]
+    fn register_on_migration_complete_notify_receiver_saves_contract() {
+        let mut deps = mock_dependencies();
+        let admin_permit = &get_admin_permit();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_info = mock_info(admin_addr.as_str(), &[]);
+
+        let instantiate_msg = instantiate_msg(admin_info.clone());
+        let _res = instantiate(
+            deps.as_mut(),
+            custom_mock_env(),
+            admin_info.clone(),
+            instantiate_msg,
+        ).unwrap();
+
+        let receiver = ContractInfo {
+            address: Addr::unchecked("addr"),
+            code_hash: "code_hash".to_string(),
+        };
+        execute(
+            deps.as_mut(),
+            custom_mock_env(),
+            admin_info.clone(),
+            ExecuteMsg::Ext(ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
+                address: receiver.address.to_string(),
+                code_hash: receiver.code_hash.to_string(),
+            }),
+        ).unwrap();
+
+        let saved_contract: ContractInfo =
+            load(deps.as_ref().storage, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER).unwrap();
+        assert_eq!(receiver, saved_contract);
     }
 }

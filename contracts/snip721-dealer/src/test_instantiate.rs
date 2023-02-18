@@ -6,6 +6,8 @@ mod tests {
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
+    use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
+
     use crate::contract::{instantiate, reply};
     use crate::msg::{CodeInfo, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::msg_external::MigratableSnip721InstantiateMsg;
@@ -97,12 +99,11 @@ mod tests {
     }
 
     #[test]
-    fn on_instantiate_snip721_reply_child_snip721_change_admin_submessage_added() {
-        let (mut deps, _, instantiate_new_msg) = instantiate_successfully().unwrap();
+    fn on_instantiate_snip721_reply_reg_on_migration_complete_notify_receiver_sub_msg_added() {
+        let (mut deps, env, instantiate_new_msg) = instantiate_successfully().unwrap();
         let child_snip721_address = child_snip721_address();
         let res = reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
 
-        assert_eq!(1, res.messages.len());
         assert_eq!(0, res.messages[0].id);
         assert_eq!(ReplyOn::Never, res.messages[0].reply_on);
         assert!(matches!(
@@ -111,6 +112,42 @@ mod tests {
         ));
 
         match &res.messages[0].msg {
+            CosmosMsg::Wasm(msg) => match msg {
+                WasmMsg::Execute {
+                    contract_addr, code_hash, msg, funds
+                } => {
+                    assert_eq!(&child_snip721_address, contract_addr);
+                    assert_eq!(&instantiate_new_msg.snip721_code_info.code_hash, code_hash);
+                    assert_eq!(&Vec::<Coin>::new(), funds);
+                    let execute_msg: Snip721MigratableExecuteMsg = from_binary(msg).unwrap();
+                    let expected_execute_msg =
+                        Snip721MigratableExecuteMsg::Ext(
+                            ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
+                                address: env.contract.address.to_string(),
+                                code_hash: env.contract.code_hash,
+                            });
+                    assert_eq!(expected_execute_msg, execute_msg);
+                }
+                _ => panic!("unexpected"),
+            },
+            _ => panic!("unexpected"),
+        }
+    }
+
+    #[test]
+    fn on_instantiate_snip721_reply_child_snip721_change_admin_sub_msg_added() {
+        let (mut deps, _, instantiate_new_msg) = instantiate_successfully().unwrap();
+        let child_snip721_address = child_snip721_address();
+        let res = reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
+
+        assert_eq!(0, res.messages[1].id);
+        assert_eq!(ReplyOn::Never, res.messages[1].reply_on);
+        assert!(matches!(
+            res.messages[1].msg,
+            CosmosMsg::Wasm(WasmMsg::Execute { .. })
+        ));
+
+        match &res.messages[1].msg {
             CosmosMsg::Wasm(msg) => match msg {
                 WasmMsg::Execute {
                     contract_addr, code_hash, msg, funds

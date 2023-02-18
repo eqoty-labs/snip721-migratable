@@ -5,6 +5,7 @@ use snip721_reference_impl::state::{load, save};
 
 use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
+use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
 use crate::msg::{CodeInfo, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
@@ -206,15 +207,15 @@ fn purchase_and_mint(
 
 
 #[entry_point]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
-        INSTANTIATE_SNIP721_REPLY_ID => on_instantiated_snip721_reply(deps, msg),
+        INSTANTIATE_SNIP721_REPLY_ID => on_instantiated_snip721_reply(deps, env, msg),
         MIGRATE_REPLY_ID => instantiate_with_migrated_config(deps, msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
 
-fn on_instantiated_snip721_reply(deps: DepsMut, reply: Reply) -> StdResult<Response> {
+fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdResult<Response> {
     let result = reply.result.unwrap();
     let contract_address = &result.events.iter()
         .find(|e| e.ty == "instantiate").unwrap()
@@ -226,6 +227,19 @@ fn on_instantiated_snip721_reply(deps: DepsMut, reply: Reply) -> StdResult<Respo
     let child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
     let admin: Addr = deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
 
+    let reg_on_migration_complete_notify_receiver_wasm_msg = WasmMsg::Execute {
+        contract_addr: child_snip721_address.to_string(),
+        code_hash: child_snip721_code_info.code_hash.clone(),
+        msg: to_binary(
+            &Snip721MigratableExecuteMsg::Ext(
+                ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
+                    address: env.contract.address.to_string(),
+                    code_hash: env.contract.code_hash,
+                }
+            ))?,
+        funds: vec![],
+    };
+
     let change_admin_to_true_admin_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
         code_hash: child_snip721_code_info.code_hash,
@@ -234,7 +248,10 @@ fn on_instantiated_snip721_reply(deps: DepsMut, reply: Reply) -> StdResult<Respo
     };
 
     Ok(Response::new()
-        .add_submessages([SubMsg::new(change_admin_to_true_admin_wasm_msg)])
+        .add_submessages([
+            SubMsg::new(reg_on_migration_complete_notify_receiver_wasm_msg),
+            SubMsg::new(change_admin_to_true_admin_wasm_msg),
+        ])
     )
 }
 

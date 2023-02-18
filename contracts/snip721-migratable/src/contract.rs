@@ -1,8 +1,11 @@
 use cosmwasm_std::{Binary, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
 
+use migration::execute::register_on_migration_complete_notify_receiver;
 use migration::msg_types::MigrateTo;
+use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedTo};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
@@ -85,6 +88,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                             "MigrateTokensIn msg is allowed only in ContractMode:MigrateDataIn",
                         ))
                     }
+                    ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver { address, code_hash } =>
+                        register_on_migration_complete_notify_receiver(deps, info, config.admin, address, code_hash),
                 },
             }
         }

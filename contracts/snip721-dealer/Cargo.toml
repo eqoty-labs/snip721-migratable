@@ -23,6 +23,7 @@ default = []
 schema = ["cosmwasm-schema"]
 
 [dependencies]
+snip721-migratable = { path = "../../contracts/snip721-migratable", default-features = false }
 migration = { path = "../../packages/migration", default-features = false }
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", branch = "as-library" }
 serde = { version = "1.0.152", default-features = false, features = ["derive"] }
