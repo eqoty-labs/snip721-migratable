@@ -2,11 +2,13 @@
 mod tests {
     use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use schemars::_serde_json::to_string;
     use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
     use snip721_reference_impl::state::{load, may_load};
     use snip721_reference_impl::token::Metadata;
 
     use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
+    use migration::msg_types::ReplyError::StateChangesNotAllowed;
     use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER};
 
     use crate::contract::{execute, instantiate, reply};
@@ -414,10 +416,15 @@ mod tests {
         assert_eq!(false, migrate_1_result.is_ok());
         assert_eq!(
             migrate_1_result.err().unwrap(),
-            StdError::generic_err(format!(
-                "This contract has been migrated to {:?}. No further state changes are allowed!",
-                migrate_to_addr_0,
-            ), )
+            StdError::generic_err(
+                to_string(&StateChangesNotAllowed {
+                    message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+                    migrated_to: ContractInfo {
+                        address: migrate_to_addr_0,
+                        code_hash: migrate_to_code_hash_0.to_string(),
+                    }.into(),
+                }).unwrap()
+            )
         );
     }
 

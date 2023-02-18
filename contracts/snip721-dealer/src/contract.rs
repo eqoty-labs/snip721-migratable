@@ -1,10 +1,12 @@
 use cosmwasm_std::{Addr, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
 use migration::execute::register_on_migration_complete_notify_receiver;
 use migration::msg_types::{ContractInfo, MigrateTo};
+use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
 
@@ -141,10 +143,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         }
         ContractMode::MigratedOut => {
             let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
-            Err(StdError::generic_err(format!(
-                "This contract has been migrated to {:?}. No further state changes are allowed!",
-                migrated_to.contract.address
-            )))
+            Err(StdError::generic_err(
+                to_string(&StateChangesNotAllowed {
+                    message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+                    migrated_to: migrated_to.contract.into(),
+                }).unwrap()
+            ))
         }
     };
 }
