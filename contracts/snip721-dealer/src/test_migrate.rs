@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128, WasmMsg};
-    use cosmwasm_std::testing::{mock_dependencies, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
     use snip721_reference_impl::state::{load, may_load};
     use snip721_reference_impl::token::Metadata;
 
     use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
-    use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom};
+    use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER};
 
     use crate::contract::{execute, instantiate, reply};
     use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
@@ -419,5 +419,46 @@ mod tests {
                 migrate_to_addr_0,
             ), )
         );
+    }
+
+    #[test]
+    fn register_on_migration_complete_notify_receiver_saves_contract() {
+        let prices = vec![Coin {
+            amount: Uint128::new(100),
+            denom: "`uscrt`".to_string(),
+        }];
+        let mut deps = mock_dependencies();
+        let admin_permit = &get_admin_permit();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_info = mock_info(admin_addr.as_str(), &[]);
+
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
+        let _res = instantiate(
+            deps.as_mut(),
+            custom_mock_env_0(),
+            admin_info.clone(),
+            InstantiateMsg::New(instantiate_msg),
+        ).unwrap();
+
+        let receiver = ContractInfo {
+            address: Addr::unchecked("addr"),
+            code_hash: "code_hash".to_string(),
+        };
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            admin_info.clone(), ExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
+                address: receiver.address.to_string(),
+                code_hash: receiver.code_hash.to_string(),
+            },
+        ).unwrap();
+
+        let saved_contract: ContractInfo =
+            load(deps.as_ref().storage, ON_MIGRATION_COMPLETE_NOTIFY_RECEIVER).unwrap();
+        assert_eq!(receiver, saved_contract);
     }
 }

@@ -3,6 +3,7 @@ use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721In
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
+use migration::execute::register_on_migration_complete_notify_receiver;
 use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
@@ -132,6 +133,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 }
                 ExecuteMsg::Migrate { admin_permit, migrate_to } =>
                     migrate(deps, env, info, admin_permit, migrate_to),
+                ExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver { address, code_hash } => {
+                    let admin = load(deps.storage, ADMIN_KEY)?;
+                    register_on_migration_complete_notify_receiver(deps, info, admin, address, code_hash)
+                }
             }
         }
         ContractMode::MigratedOut => {
