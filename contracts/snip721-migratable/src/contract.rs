@@ -82,7 +82,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                         migrate(deps, env, info, &mut config, admin_permit, migrate_to),
                     ExecuteMsgExt::MigrateTokensIn { .. } => {
                         Err(StdError::generic_err(
-                            "MigrateTokensIn msg is allowed when in ContractMode:MigrateDataIn",
+                            "MigrateTokensIn msg is allowed only in ContractMode:MigrateDataIn",
                         ))
                     }
                 },
@@ -90,10 +90,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         }
         ContractMode::MigratedOut => {
             let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
-            Err(StdError::generic_err(format!(
-                "This contract has been migrated to {:?}. No further state changes are allowed!",
-                migrated_to.contract.address
-            )))
+            Err(StdError::generic_err(
+                to_string(&StateChangesNotAllowed {
+                    message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+                    migrated_to: migrated_to.contract.into(),
+                }).unwrap()
+            ))
         }
     };
 }

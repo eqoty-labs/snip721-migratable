@@ -4,6 +4,15 @@ use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplyError {
+    StateChangesNotAllowed {
+        message: String,
+        migrated_to: ContractInfo,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateByMigrationMsg {
     pub migrate_from: MigrateFrom,
     pub entropy: String,
@@ -24,7 +33,7 @@ pub struct MigrateTo {
     pub entropy: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Eq, Debug, PartialEq, JsonSchema)]
 pub struct ContractInfo {
     pub address: Addr,
     #[serde(default)]
