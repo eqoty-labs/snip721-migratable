@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Binary, BlockInfo, Coin, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128};
+    use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128};
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
     use schemars::_serde_json::to_string;
     use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-    use snip721_reference_impl::state::load;
+    use snip721_reference_impl::state::{load, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
 
     use migration::msg_types::{MigrateFrom, MigrateTo};
@@ -197,6 +197,7 @@ mod tests {
         };
         let expected_mint_count = 3;
         let expected_secret = Binary::from(b"secret_to_migrate_data_in");
+        let expected_minters = vec![deps.api.addr_canonicalize(snip721_dealer_to_notify.address.as_str())?];
         let instantiate_by_migration_reply_msg_data = to_binary(
             &InstantiateByMigrationReplyDataMsg {
                 migrated_instantiate_msg: Snip721InstantiateMsg {
@@ -214,6 +215,7 @@ mod tests {
                     admin_permit: admin_permit.clone(),
                 },
                 on_migration_complete_notify_receiver: Some(snip721_dealer_to_notify.clone().into()),
+                minters: expected_minters.clone(),
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
             }).unwrap();
@@ -239,6 +241,7 @@ mod tests {
         assert_eq!(expected_migrate_in_tokens_progress, load::<MigrateInTokensProgress>(deps.as_ref().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?);
         assert_eq!(ContractMode::MigrateDataIn, load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY)?);
         assert_eq!(snip721_dealer_to_notify, load::<ContractInfo>(deps.as_ref().storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)?);
+        assert_eq!(expected_minters, load::<Vec<CanonicalAddr>>(deps.as_ref().storage, MINTERS_KEY)?);
 
         Ok(())
     }
@@ -273,6 +276,7 @@ mod tests {
                     admin_permit: admin_permit.clone(),
                 },
                 on_migration_complete_notify_receiver: Some(snip721_dealer_to_notify.clone().into()),
+                minters: vec![],
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
             }).unwrap();

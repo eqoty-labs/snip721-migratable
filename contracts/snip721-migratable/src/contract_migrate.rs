@@ -9,7 +9,7 @@ use snip721_reference_impl::mint_run::{SerialNumber, StoredMintRunInfo};
 use snip721_reference_impl::msg::{BatchNftDossierElement, InstantiateConfig, Mint};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
-use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
 
 use migration::msg_types::{MigrateFrom, MigrateTo, MigrationExecuteMsg};
@@ -48,6 +48,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
         migrate_in_next_mint_index: 0,
     };
     save(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &migrate_in_tokens_progress)?;
+    save(deps.storage, MINTERS_KEY, &reply_data.minters)?;
 
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
     if let Some(on_migration_complete_notify_receiver) = reply_data.on_migration_complete_notify_receiver {
@@ -315,6 +316,7 @@ pub(crate) fn migrate(
                 admin_permit,
             },
             on_migration_complete_notify_receiver: may_load(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)?,
+            minters: load(deps.storage, MINTERS_KEY)?,
             mint_count: snip721config.mint_cnt,
             secret,
         }).unwrap())

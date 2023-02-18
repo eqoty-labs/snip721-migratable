@@ -275,6 +275,15 @@ class IntegrationTests {
         return Json.decodeFromString<Snip721DealerMsgs.QueryAnswer>(res).contractInfo!!
     }
 
+    suspend fun getMinters(contractInfo: CosmWasmStd.ContractInfo): Snip721Msgs.QueryAnswer.Minters {
+        val query = Snip721Msgs.Query(minters = Snip721Msgs.Query.Minters())
+        val res = client.queryContractSmart(
+            contractInfo.address,
+            Json.encodeToString(query), contractInfo.codeHash
+        )
+        return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).minters!!
+    }
+
     suspend fun getNumTokens(contractInfo: CosmWasmStd.ContractInfo): Int {
         val query = Snip721Msgs.Query(numTokens = Snip721Msgs.Query.NumTokens())
         val res = client.queryContractSmart(
@@ -466,19 +475,32 @@ class IntegrationTests {
     }
 
     @Test
+    fun test_minters_are_migrated() = runTest {
+        val dealerContractInfo = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
+        val mintersV1 = getMinters(snip721ContractV1)
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        migrateTokens(client, snip721ContractInfoV2)
+        val mintersV2 = getMinters(snip721ContractInfoV2)
+        assertEquals(mintersV1, mintersV2)
+    }
+
+    @Test
     fun test_dealer_can_mint_after_snip721_migrates() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        var startingNumTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
         purchaseOneMint(client, dealerContractInfo, purchasePrices)
         // verify customer received one nft
         var numTokensOfOwner =
             getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
-        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+        assertEquals(1, numTokensOfOwner)
 
         client.senderAddress = client.wallet.getAccounts()[0].address
         val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
@@ -488,13 +510,12 @@ class IntegrationTests {
         migrateTokens(client, snip721ContractInfoV2)
 
         client.senderAddress = client.wallet.getAccounts()[1].address
-        startingNumTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractInfoV2.address).count
+
         purchaseOneMint(client, dealerContractInfo, purchasePrices)
         // verify customer received one nft
         numTokensOfOwner =
             getNumTokensOfOwner(client.senderAddress, snip721ContractInfoV2.address).count
-        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+        assertEquals(2, numTokensOfOwner)
     }
 
 
