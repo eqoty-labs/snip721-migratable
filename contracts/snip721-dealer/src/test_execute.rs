@@ -7,8 +7,8 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{CodeInfo, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
-    use crate::state::{CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, PurchasableMetadata};
+    use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::state::{CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, PurchasableMetadata};
     use crate::test_utils::test_utils::{child_snip721_address, successful_child_snip721_instantiate_reply};
 
     #[test]
@@ -89,10 +89,10 @@ mod tests {
                 WasmMsg::Execute {
                     contract_addr, code_hash, msg, funds
                 } => {
-                    let child_snip721_code_info: CodeInfo = load(deps.as_ref().storage, CHILD_SNIP721_CODE_INFO_KEY).unwrap();
+                    let child_snip721_code_hash: String = load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
                     let child_snip721_address: CanonicalAddr = load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
                     assert_eq!(&deps.api.addr_humanize(&child_snip721_address).unwrap().to_string(), contract_addr);
-                    assert_eq!(&child_snip721_code_info.code_hash.to_string(), code_hash);
+                    assert_eq!(&child_snip721_code_hash.to_string(), code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     match from_binary(msg).unwrap() {
                         Snip721ExecuteMsg::MintNft { token_id, owner, public_metadata, private_metadata, serial_number, royalty_info, transferable, memo, padding } => {

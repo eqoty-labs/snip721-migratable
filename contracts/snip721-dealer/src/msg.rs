@@ -18,9 +18,11 @@ pub enum InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateSelfAndChildSnip721Msg {
-    /// the code info used to instantiate this contracts child snip721 contract
-    pub snip721_code_info: CodeInfo,
-    /// the label used to instantiate this contracts child snip721 contract
+    /// the code hash used to instantiate this contract's child snip721 contract
+    pub snip721_code_hash: String,
+    /// the code hash used to instantiate this contract's child snip721 contract
+    pub snip721_code_id: u64,
+    /// the label used to instantiate this contract's child snip721 contract
     pub snip721_label: String,
     /// Allowed Coin prices for purchasing a mint
     pub prices: Vec<Coin>,
@@ -39,12 +41,6 @@ pub struct InstantiateSelfAndChildSnip721Msg {
     pub royalty_info: Option<RoyaltyInfo>,
 }
 
-// todo: remove this. Code id isn't needed
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-pub struct CodeInfo {
-    pub code_id: u64,
-    pub code_hash: String,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DealerState {
@@ -56,7 +52,7 @@ pub struct DealerState {
     /// optional private metadata that can only be seen by the owner and whitelist
     pub private_metadata: Option<Metadata>,
     /// The snip721 contract's code info for the contract this dealer contract controls
-    pub child_snip721_code_info: CodeInfo,
+    pub child_snip721_code_hash: String,
     /// The snip721 contract this dealer contract controls
     pub child_snip721_address: Addr,
 }

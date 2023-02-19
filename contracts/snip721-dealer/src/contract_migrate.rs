@@ -7,8 +7,8 @@ use snip721_reference_impl::state::{load, may_load, PREFIX_REVOKED_PERMITS, save
 use migration::msg_types::{MigrateFrom, MigrateTo};
 use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo};
 
-use crate::msg::{CodeInfo, DealerState, InstantiateByMigrationReplyDataMsg, QueryAnswer};
-use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg, QueryAnswer};
+use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
     let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
@@ -22,7 +22,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
     };
     save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(&reply_data.dealer_state.admin.as_str())?)?;
     save(deps.storage, PURCHASE_PRICES_KEY, &reply_data.dealer_state.prices)?;
-    save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &reply_data.dealer_state.child_snip721_code_info)?;
+    save(deps.storage, CHILD_SNIP721_CODE_HASH_KEY, &reply_data.dealer_state.child_snip721_code_hash)?;
     save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(reply_data.dealer_state.child_snip721_address.as_str())?)?;
     save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
     save(deps.storage, PURCHASABLE_METADATA_KEY, &PurchasableMetadata {
@@ -105,7 +105,7 @@ pub(crate) fn migrate(
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
 
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
-    let child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
     Ok(Response::default()
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
@@ -114,7 +114,7 @@ pub(crate) fn migrate(
                 public_metadata: purchasable_metadata.public_metadata,
                 private_metadata: purchasable_metadata.private_metadata,
                 admin: admin_addr.clone(),
-                child_snip721_code_info,
+                child_snip721_code_hash,
                 child_snip721_address: deps.api.addr_humanize(&child_snip721_address)?,
             },
             migrate_from: MigrateFrom {

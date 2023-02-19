@@ -9,9 +9,9 @@ mod tests {
     use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
 
     use crate::contract::{instantiate, reply};
-    use crate::msg::{CodeInfo, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::msg::{InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::msg_external::MigratableSnip721InstantiateMsg;
-    use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+    use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{admin_msg_info, child_snip721_address, successful_child_snip721_instantiate_reply};
 
     fn instantiate_successfully() -> StdResult<(OwnedDeps<MockStorage, MockApi, MockQuerier>, Env, InstantiateSelfAndChildSnip721Msg)> {
@@ -55,7 +55,7 @@ mod tests {
                 extension: None,
             }),
         };
-        let snip721_code_info = CodeInfo { code_id: 10, code_hash: "test_code_hash".to_string() };
+        let snip721_code_hash = "test_code_hash".to_string();
 
         let admin_info = admin_msg_info();
 
@@ -63,7 +63,7 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
             admin: Some(admin_info.sender.to_string()),
-            snip721_code_info: snip721_code_info.clone(),
+            snip721_code_hash: snip721_code_hash.clone(),
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
@@ -84,8 +84,8 @@ mod tests {
         assert_eq!(purchasable_metadata, saved_purchasable_metadata);
         let saved_admin: CanonicalAddr = load(deps.as_ref().storage, ADMIN_KEY).unwrap();
         assert_eq!(deps.api.addr_canonicalize(admin_info.sender.as_str()).unwrap(), saved_admin);
-        let saved_child_snip721_code_info: CodeInfo = load(deps.as_ref().storage, CHILD_SNIP721_CODE_INFO_KEY).unwrap();
-        assert_eq!(snip721_code_info, saved_child_snip721_code_info);
+        let saved_child_snip721_code_hash: String = load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+        assert_eq!(snip721_code_hash, saved_child_snip721_code_hash);
     }
 
     #[test]
@@ -117,7 +117,7 @@ mod tests {
                     contract_addr, code_hash, msg, funds
                 } => {
                     assert_eq!(&child_snip721_address, contract_addr);
-                    assert_eq!(&instantiate_new_msg.snip721_code_info.code_hash, code_hash);
+                    assert_eq!(&instantiate_new_msg.snip721_code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     let execute_msg: Snip721MigratableExecuteMsg = from_binary(msg).unwrap();
                     let expected_execute_msg =
@@ -153,7 +153,7 @@ mod tests {
                     contract_addr, code_hash, msg, funds
                 } => {
                     assert_eq!(&child_snip721_address, contract_addr);
-                    assert_eq!(&instantiate_new_msg.snip721_code_info.code_hash, code_hash);
+                    assert_eq!(&instantiate_new_msg.snip721_code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     let execute_msg: ExecuteMsg = from_binary(msg).unwrap();
                     let expected_execute_msg = ExecuteMsg::ChangeAdmin { address: instantiate_new_msg.admin.unwrap(), padding: None };
@@ -268,8 +268,8 @@ mod tests {
                 WasmMsg::Instantiate {
                     code_id, code_hash, msg, funds, label
                 } => {
-                    assert_eq!(&instantiate_msg.snip721_code_info.code_id, code_id);
-                    assert_eq!(&instantiate_msg.snip721_code_info.code_hash, code_hash);
+                    assert_eq!(&instantiate_msg.snip721_code_id, code_id);
+                    assert_eq!(&instantiate_msg.snip721_code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     assert_eq!(&instantiate_msg.snip721_label, label);
                     let snip721_instantiate_msg: MigratableSnip721InstantiateMsg = from_binary(msg).unwrap();

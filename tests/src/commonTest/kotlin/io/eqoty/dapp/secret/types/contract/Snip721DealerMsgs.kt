@@ -13,8 +13,10 @@ object Snip721DealerMsgs {
 
         @Serializable
         data class InstantiateSelfAnChildSnip721Msg(
-            @SerialName("snip721_code_info")
-            val snip721CodeInfo: CosmWasmStd.CodeInfo,
+            @SerialName("snip721_code_id")
+            val snip721CodeId: ULong,
+            @SerialName("snip721_code_hash")
+            val snip721CodeHash: String,
             @SerialName("snip721_label")
             val snip721Label: String,
             val prices: List<Coin>? = null,

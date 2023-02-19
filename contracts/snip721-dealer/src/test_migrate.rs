@@ -12,8 +12,8 @@ mod tests {
     use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{CodeInfo, DealerState, ExecuteMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
-    use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+    use crate::msg::{DealerState, ExecuteMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
     use crate::test_utils::test_utils::{child_snip721_address, successful_child_snip721_instantiate_reply};
 
     const CONTRACT_ADDRESS_0: &str = "secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq";
@@ -83,7 +83,7 @@ mod tests {
         purchasable_metadata: &PurchasableMetadata,
         admin: &Addr,
         admin_permit: &Permit,
-        child_snip721_code_info: &CodeInfo,
+        child_snip721_code_hash: &String,
         child_snip721_address: &Addr,
         secret: &Binary,
     ) -> InstantiateByMigrationReplyDataMsg {
@@ -93,7 +93,7 @@ mod tests {
                 public_metadata: purchasable_metadata.public_metadata.clone(),
                 private_metadata: purchasable_metadata.private_metadata.clone(),
                 admin: admin.clone(),
-                child_snip721_code_info: child_snip721_code_info.clone(),
+                child_snip721_code_hash: child_snip721_code_hash.clone(),
                 child_snip721_address: child_snip721_address.clone(),
             },
             migrate_from: MigrateFrom {
@@ -199,8 +199,8 @@ mod tests {
         assert_eq!(None, saved_purchasable_metadata);
         let saved_admin: Option<CanonicalAddr> = may_load(deps.as_ref().storage, ADMIN_KEY).unwrap();
         assert_eq!(None, saved_admin);
-        let saved_child_snip721_code_info: Option<CodeInfo> = may_load(deps.as_ref().storage, CHILD_SNIP721_CODE_INFO_KEY).unwrap();
-        assert_eq!(None, saved_child_snip721_code_info);
+        let saved_child_snip721_code_hash: Option<String> = may_load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+        assert_eq!(None, saved_child_snip721_code_hash);
         let saved_child_snip721_address: Option<CanonicalAddr> = may_load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
         if let Some(some_saved_child_snip721_address) = saved_child_snip721_address {
             assert_eq!(None, Some(deps.api.addr_humanize(&some_saved_child_snip721_address).unwrap()));
@@ -222,7 +222,7 @@ mod tests {
                 extension: None,
             }),
         };
-        let migrated_snip721_code_info = CodeInfo { code_id: 10, code_hash: "test_code_hash".to_string() };
+        let migrated_snip721_code_hash = "test_code_hash".to_string();
         let migrated_child_snip721_address = child_snip721_address();
         let migrate_from_secret = &Binary::from(b"some_secret");
         let exec_migrate_reply_msg_data = to_binary(&valid_execute_migrate_reply(
@@ -231,7 +231,7 @@ mod tests {
             &migrated_purchasable_metadata,
             &admin_info.sender,
             &admin_permit.clone(),
-            &migrated_snip721_code_info,
+            &migrated_snip721_code_hash,
             &Addr::unchecked(migrated_child_snip721_address.clone()),
             migrate_from_secret,
         )).unwrap();
@@ -254,8 +254,8 @@ mod tests {
         assert_eq!(migrated_purchasable_metadata, saved_purchasable_metadata);
         let saved_admin: CanonicalAddr = load(deps.as_ref().storage, ADMIN_KEY).unwrap();
         assert_eq!(deps.api.addr_canonicalize(admin_info.sender.as_str()).unwrap(), saved_admin);
-        let saved_child_snip721_code_info: CodeInfo = load(deps.as_ref().storage, CHILD_SNIP721_CODE_INFO_KEY).unwrap();
-        assert_eq!(migrated_snip721_code_info, saved_child_snip721_code_info);
+        let saved_child_snip721_code_hash: String = load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+        assert_eq!(migrated_snip721_code_hash, saved_child_snip721_code_hash);
         let saved_child_snip721_address: CanonicalAddr = load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
         assert_eq!(migrated_child_snip721_address, deps.api.addr_humanize(&saved_child_snip721_address).unwrap());
         let expected_migrated_from = MigratedFrom {
@@ -334,12 +334,12 @@ mod tests {
                 extension: None,
             }),
         };
-        let snip721_code_info = CodeInfo { code_id: 10, code_hash: "test_code_hash".to_string() };
+        let snip721_code_hash = "test_code_hash".to_string();
 
         let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            snip721_code_info: snip721_code_info.clone(),
+            snip721_code_hash: snip721_code_hash.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
             ..InstantiateSelfAndChildSnip721Msg::default()
@@ -370,7 +370,7 @@ mod tests {
             &purchasable_metadata,
             &admin_info.sender,
             &admin_permit.clone(),
-            &snip721_code_info,
+            &snip721_code_hash,
             &Addr::unchecked(child_snip721_address.clone()),
             &load::<MigratedFrom>(deps.as_ref().storage, MIGRATED_TO_KEY).unwrap().migration_secret,
         );

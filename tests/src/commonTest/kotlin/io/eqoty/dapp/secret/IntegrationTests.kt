@@ -46,10 +46,8 @@ class IntegrationTests {
         val initMsg = if (migrateFrom == null) {
             Snip721DealerMsgs.Instantiate(
                 new = Snip721DealerMsgs.Instantiate.InstantiateSelfAnChildSnip721Msg(
-                    snip721CodeInfo = CosmWasmStd.CodeInfo(
-                        snip721MigratableCodeInfo.codeId.toULong(),
-                        snip721MigratableCodeInfo.codeHash
-                    ),
+                    snip721CodeId = snip721MigratableCodeInfo.codeId.toULong(),
+                    snip721CodeHash = snip721MigratableCodeInfo.codeHash,
                     snip721Label = "MigratableSnip721" + ceil(Random.nextDouble() * 10000),
                     prices = purchasePrices,
                     publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),

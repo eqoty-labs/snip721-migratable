@@ -11,9 +11,9 @@ use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
-use crate::msg::{CodeInfo, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
 use crate::msg_external::MigratableSnip721InstantiateMsg;
-use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_INFO_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
 const MIGRATE_REPLY_ID: u64 = 2u64;
@@ -77,7 +77,7 @@ fn init_snip721(
     };
     save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(true_admin.as_str())?)?;
     save(deps.storage, PURCHASE_PRICES_KEY, &msg.prices)?;
-    save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &msg.snip721_code_info)?;
+    save(deps.storage, CHILD_SNIP721_CODE_HASH_KEY, &msg.snip721_code_hash)?;
     save(deps.storage, PURCHASABLE_METADATA_KEY,
          &PurchasableMetadata {
              public_metadata: msg.public_metadata,
@@ -102,8 +102,8 @@ fn init_snip721(
         post_init_callback: None,
     });
     let instantiate_wasm_msg = WasmMsg::Instantiate {
-        code_id: msg.snip721_code_info.code_id,
-        code_hash: msg.snip721_code_info.code_hash,
+        code_id: msg.snip721_code_id,
+        code_hash: msg.snip721_code_hash,
         msg: to_binary(&instantiate_msg).unwrap(),
         funds: vec![],
         label: msg.snip721_label,
@@ -157,9 +157,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
 fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
     let current_child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
-    let current_child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let current_child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let child_snip721_migrated_to: QueryAnswer = deps.querier.query_wasm_smart(
-        current_child_snip721_code_info.code_hash.clone(),
+        current_child_snip721_code_hash.clone(),
         deps.api.addr_humanize(&current_child_snip721_address)?,
         &QueryMsg::MigratedTo {},
     ).unwrap();
@@ -172,10 +172,7 @@ fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response>
             ));
         }
         save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(migrated_to.address.as_str())?)?;
-        save(deps.storage, CHILD_SNIP721_CODE_INFO_KEY, &CodeInfo {
-            code_id: 0,
-            code_hash: migrated_to.code_hash,
-        })?;
+        save(deps.storage, CHILD_SNIP721_CODE_HASH_KEY, &migrated_to.code_hash)?;
         Ok(Response::new())
     } else {
         Err(StdError::generic_err("Child snip721 has not been migrated"))
@@ -226,11 +223,11 @@ fn purchase_and_mint(
         memo: None,
         padding: None,
     };
-    let child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
     let mint_wasm_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(&child_snip721_address)?.to_string(),
-        code_hash: child_snip721_code_info.code_hash,
+        code_hash: child_snip721_code_hash,
         msg: to_binary(&mint_nft_msg)?,
         funds: vec![],
     });
@@ -262,12 +259,12 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
         .value;
     let child_snip721_address = deps.api.addr_validate(contract_address.as_str())?;
     save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(child_snip721_address.as_str())?)?;
-    let child_snip721_code_info: CodeInfo = load(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?;
+    let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let admin: Addr = deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
 
     let reg_on_migration_complete_notify_receiver_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
-        code_hash: child_snip721_code_info.code_hash.clone(),
+        code_hash: child_snip721_code_hash.clone(),
         msg: to_binary(
             &Snip721MigratableExecuteMsg::Ext(
                 ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
@@ -280,7 +277,7 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
 
     let change_admin_to_true_admin_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
-        code_hash: child_snip721_code_info.code_hash,
+        code_hash: child_snip721_code_hash,
         msg: to_binary(&ChangeAdmin { address: admin.to_string(), padding: None }).unwrap(),
         funds: vec![],
     };
@@ -324,7 +321,7 @@ fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
     to_binary(&QueryAnswer::ContractInfo(
         ContractInfo {
             address: deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?,
-            code_hash: load::<CodeInfo>(deps.storage, CHILD_SNIP721_CODE_INFO_KEY)?.code_hash,
+            code_hash: load::<String>(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?,
         }
     ))
 }
