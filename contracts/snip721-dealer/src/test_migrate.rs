@@ -7,6 +7,7 @@ mod tests {
     use snip721_reference_impl::state::{load, may_load};
     use snip721_reference_impl::token::Metadata;
 
+    use migration::msg::MigratableExecuteMsg;
     use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
     use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
@@ -112,14 +113,14 @@ mod tests {
         migration_target_code_hash: &str,
     ) -> StdResult<Response> {
         let set_view_key_msg =
-            ExecuteMsg::Migrate {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
                 admin_permit: admin_permit.clone(),
                 migrate_to: MigrateTo {
                     address: migration_target_addr.clone(),
                     code_hash: migration_target_code_hash.to_string(),
                     entropy: "magnets, how do they work?".to_string(),
                 },
-            };
+            });
         let res = execute(
             deps,
             custom_mock_env_0(),
@@ -176,14 +177,14 @@ mod tests {
                     assert_eq!(&migrate_from.code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     let execute_msg: ExecuteMsg = from_binary(msg).unwrap();
-                    let expected_execute_msg = ExecuteMsg::Migrate {
+                    let expected_execute_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
                         admin_permit: admin_permit.clone(),
                         migrate_to: MigrateTo {
                             address: migrate_to_env.contract.address.clone(),
                             code_hash: migrate_to_env.contract.code_hash.clone(),
                             entropy: instantiate_msg.entropy,
                         },
-                    };
+                    });
                     assert_eq!(expected_execute_msg, execute_msg);
                 }
                 _ => panic!("unexpected"),
@@ -458,10 +459,10 @@ mod tests {
         execute(
             deps.as_mut(),
             mock_env(),
-            admin_info.clone(), ExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
+            admin_info.clone(), ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
                 address: receiver.address.to_string(),
                 code_hash: receiver.code_hash.to_string(),
-            },
+            }),
         ).unwrap();
 
         let saved_contract: ContractInfo =

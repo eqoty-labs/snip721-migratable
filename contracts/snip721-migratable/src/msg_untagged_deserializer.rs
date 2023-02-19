@@ -1,7 +1,8 @@
-use migration::msg::MigrationExecuteMsg;
+use migration::msg::MigratableExecuteMsg;
 
 use crate::msg::{ExecuteMsg, ExecuteMsgExt, QueryMsg, QueryMsgExt};
 
+// todo: remove when resolved
 // https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
 #[doc(hidden)]
 #[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
@@ -32,7 +33,7 @@ const _: () = {
                 return _serde::__private::Ok(__ok);
             }
             if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
-                <MigrationExecuteMsg as _serde::Deserialize>::deserialize(
+                <MigratableExecuteMsg as _serde::Deserialize>::deserialize(
                     serde_cw_value::ValueDeserializer::<
                         // [2] Error is also where the problem lies
                         serde_cw_value::DeserializerError,
@@ -54,7 +55,7 @@ const _: () = {
                 return _serde::__private::Ok(__ok);
             }
             _serde::__private::Err(_serde::de::Error::custom(
-                "data did not match any variant of untagged enum ExecuteMsg",
+                format!("{:?} did not match any variant of untagged enum ExecuteMsg", __content)
             ))
         }
     }
@@ -102,7 +103,7 @@ const _: () = {
                 return _serde::__private::Ok(__ok);
             }
             _serde::__private::Err(_serde::de::Error::custom(
-                "data did not match any variant of untagged enum QueryMsg",
+                format!("{:?} did not match any variant of untagged enum QueryMsg", __content)
             ))
         }
     }

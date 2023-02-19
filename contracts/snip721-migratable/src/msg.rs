@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-use migration::msg::MigrationExecuteMsg;
+use migration::msg::MigratableExecuteMsg;
 use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -21,7 +21,7 @@ pub enum InstantiateMsg {
 #[serde(untagged)]
 pub enum ExecuteMsg {
     Base(snip721_reference_impl::msg::ExecuteMsg),
-    Migrate(MigrationExecuteMsg),
+    Migrate(MigratableExecuteMsg),
     Ext(ExecuteMsgExt),
 }
 

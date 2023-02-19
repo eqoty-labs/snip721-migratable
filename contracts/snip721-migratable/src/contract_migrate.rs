@@ -12,7 +12,8 @@ use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo}
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
 
-use migration::msg_types::{MigrateFrom, MigrateTo, MigrationExecuteMsg};
+use migration::msg::MigrationListenerExecuteMsg;
+use migration::msg_types::{MigrateFrom, MigrateTo};
 use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
 use crate::contract::init_snip721;
@@ -123,14 +124,11 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
     } else {
         // migration complete
         save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
-
+        // todo add test for setting message
         let sub_msgs: Vec<SubMsg> =
             if let Some(contract) = may_load::<ContractInfo>(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)? {
                 let execute = WasmMsg::Execute {
-                    msg: to_binary(&MigrationExecuteMsg::OnMigrationComplete {
-                        address: env.contract.address.to_string(),
-                        code_hash: env.contract.code_hash.clone(),
-                    })?,
+                    msg: to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification {})?,
                     contract_addr: contract.address.to_string(),
                     code_hash: contract.code_hash,
                     funds: vec![],

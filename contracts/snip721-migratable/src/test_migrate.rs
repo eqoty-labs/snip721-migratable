@@ -10,7 +10,7 @@ mod tests {
     use snip721_reference_impl::state::{load, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg::MigrationExecuteMsg;
+    use migration::msg::MigratableExecuteMsg;
     use migration::msg_types::{MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
     use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
@@ -114,7 +114,7 @@ mod tests {
         migration_target_code_hash: &str,
     ) -> StdResult<Response> {
         let set_view_key_msg =
-            ExecuteMsg::Migrate(MigrationExecuteMsg::Migrate {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
                 admin_permit: admin_permit.clone(),
                 migrate_to: MigrateTo {
                     address: migration_target_addr.clone(),
@@ -449,7 +449,7 @@ mod tests {
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            ExecuteMsg::Migrate(MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
                 address: receiver.address.to_string(),
                 code_hash: receiver.code_hash.to_string(),
             }),

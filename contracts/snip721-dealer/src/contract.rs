@@ -5,14 +5,15 @@ use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
 use migration::execute::register_on_migration_complete_notify_receiver;
-use migration::msg::MigrationExecuteMsg;
+use migration::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
+use migration::msg::MigratableExecuteMsg::Migrate;
 use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
 use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
-use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
+use crate::msg::{DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
 use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
@@ -31,7 +32,7 @@ pub fn instantiate(
         InstantiateMsg::New(init) => init_snip721(&mut deps, env, info, init),
         InstantiateMsg::Migrate(init) => {
             let migrate_from = init.migrate_from;
-            let migrate_msg = ExecuteMsg::Migrate {
+            let migrate_msg = Migrate {
                 admin_permit: migrate_from.admin_permit,
                 migrate_to: MigrateTo {
                     address: env.contract.address.clone(),
@@ -131,17 +132,29 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         }
         ContractMode::Running => {
             match msg {
-                ExecuteMsg::PurchaseMint { .. } => {
-                    purchase_and_mint(&mut deps, info)
+                ExecuteMsg::Dealer(dealer_msg) => {
+                    match dealer_msg {
+                        DealerExecuteMsg::PurchaseMint { .. } => {
+                            purchase_and_mint(&mut deps, info)
+                        }
+                    }
                 }
-                ExecuteMsg::Migrate { admin_permit, migrate_to } =>
-                    migrate(deps, env, info, admin_permit, migrate_to),
-                ExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver { address, code_hash } => {
-                    let admin = load(deps.storage, ADMIN_KEY)?;
-                    register_on_migration_complete_notify_receiver(deps, info, admin, address, code_hash)
+                ExecuteMsg::Migrate(migrate_msg) => {
+                    match migrate_msg {
+                        MigratableExecuteMsg::Migrate { admin_permit, migrate_to } =>
+                            migrate(deps, env, info, admin_permit, migrate_to),
+                        MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
+                            let admin = load(deps.storage, ADMIN_KEY)?;
+                            register_on_migration_complete_notify_receiver(deps, info, admin, address, code_hash)
+                        }
+                    }
                 }
-                ExecuteMsg::OnMigrationComplete {} =>
-                    update_child_snip721(deps, info)
+                ExecuteMsg::MigrateListener(migrate_listener_msg) => {
+                    match migrate_listener_msg {
+                        MigrationListenerExecuteMsg::MigrationCompleteNotification {} =>
+                            update_child_snip721(deps, info)
+                    }
+                }
             }
         }
         ContractMode::MigratedOut => {
@@ -268,7 +281,7 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
         code_hash: child_snip721_code_hash.clone(),
         msg: to_binary(
             &Snip721MigratableExecuteMsg::Migrate(
-                MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
+                MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
                     address: env.contract.address.to_string(),
                     code_hash: env.contract.code_hash,
                 }

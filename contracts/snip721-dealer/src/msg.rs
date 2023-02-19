@@ -1,11 +1,11 @@
 use cosmwasm_std::{Addr, Binary, Coin};
 use schemars::JsonSchema;
-use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
+use migration::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 
-use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
+use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -57,25 +57,21 @@ pub struct DealerState {
     pub child_snip721_address: Addr,
 }
 
+#[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[serde(untagged)]
+pub enum ExecuteMsg {
+    Dealer(DealerExecuteMsg),
+    Migrate(MigratableExecuteMsg),
+    MigrateListener(MigrationListenerExecuteMsg),
+}
+
+
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteMsg {
+pub enum DealerExecuteMsg {
     // Purchase a nft mint
     PurchaseMint {},
-    /// Set migration secret (using entropy for randomness), and the address of the new contract
-    Migrate {
-        /// permit used to verify address executing migration is admin
-        admin_permit: Permit,
-        migrate_to: MigrateTo,
-    },
-    /// Sets a contract that should be notified when this contract completes the migration process
-    RegisterOnMigrationCompleteNotifyReceiver {
-        address: String,
-        code_hash: String,
-    },
-
-    // todo: rename
-    OnMigrationComplete{}
 }
 
 

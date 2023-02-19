@@ -7,7 +7,7 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::msg::{DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::state::{CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, PurchasableMetadata};
     use crate::test_utils::test_utils::{child_snip721_address, successful_child_snip721_instantiate_reply};
 
@@ -49,7 +49,7 @@ mod tests {
         let child_snip721_address = child_snip721_address();
         reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -140,7 +140,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -190,7 +190,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -241,7 +241,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -291,7 +291,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -341,7 +341,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -392,7 +392,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -441,7 +441,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -497,7 +497,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -553,7 +553,7 @@ mod tests {
             InstantiateMsg::New(instantiate_msg),
         ).unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::PurchaseMint {};
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),

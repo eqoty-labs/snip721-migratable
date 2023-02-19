@@ -6,7 +6,7 @@ mod tests {
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg::MigrationExecuteMsg;
+    use migration::msg::MigratableExecuteMsg;
     use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
     use crate::contract::{instantiate, reply};
@@ -123,7 +123,7 @@ mod tests {
                     let execute_msg: Snip721MigratableExecuteMsg = from_binary(msg).unwrap();
                     let expected_execute_msg =
                         Snip721MigratableExecuteMsg::Migrate(
-                            MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
+                            MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
                                 address: env.contract.address.to_string(),
                                 code_hash: env.contract.code_hash,
                             });
