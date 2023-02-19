@@ -10,12 +10,13 @@ mod tests {
     use snip721_reference_impl::state::{load, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
 
+    use migration::msg::MigrationExecuteMsg;
     use migration::msg_types::{MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
     use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
     use crate::contract::{execute, instantiate, query, reply};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
+    use crate::msg::{ExecuteMsg, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
     use crate::state::{MIGRATE_IN_TOKENS_PROGRESS_KEY, MigrateInTokensProgress};
@@ -113,7 +114,7 @@ mod tests {
         migration_target_code_hash: &str,
     ) -> StdResult<Response> {
         let set_view_key_msg =
-            ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
+            ExecuteMsg::Migrate(MigrationExecuteMsg::Migrate {
                 admin_permit: admin_permit.clone(),
                 migrate_to: MigrateTo {
                     address: migration_target_addr.clone(),
@@ -448,7 +449,7 @@ mod tests {
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            ExecuteMsg::Ext(ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
+            ExecuteMsg::Migrate(MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
                 address: receiver.address.to_string(),
                 code_hash: receiver.code_hash.to_string(),
             }),

@@ -4,6 +4,7 @@ use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
 
 use migration::execute::register_on_migration_complete_notify_receiver;
+use migration::msg::MigrationExecuteMsg;
 use migration::msg_types::MigrateTo;
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedTo};
@@ -25,7 +26,7 @@ pub fn instantiate(
         InstantiateMsg::New(init) => init_snip721(&mut deps, &env, info, init),
         InstantiateMsg::Migrate(init) => {
             let migrate_from = init.migrate_from;
-            let migrate_msg = ExecuteMsg::Ext(ExecuteMsgExt::Migrate {
+            let migrate_msg = ExecuteMsg::Migrate(MigrationExecuteMsg::Migrate {
                 admin_permit: migrate_from.admin_permit,
                 migrate_to: MigrateTo {
                     address: env.contract.address.clone(),
@@ -81,14 +82,16 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     snip721_reference_impl::contract::execute(deps, env, info, base_msg)
                 }
                 ExecuteMsg::Ext(ext_msg) => match ext_msg {
-                    ExecuteMsgExt::Migrate { admin_permit, migrate_to } =>
-                        migrate(deps, env, info, &mut config, admin_permit, migrate_to),
                     ExecuteMsgExt::MigrateTokensIn { .. } => {
                         Err(StdError::generic_err(
                             "MigrateTokensIn msg is allowed only in ContractMode:MigrateDataIn",
                         ))
                     }
-                    ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver { address, code_hash } =>
+                },
+                ExecuteMsg::Migrate(ext_msg) => match ext_msg {
+                    MigrationExecuteMsg::Migrate { admin_permit, migrate_to } =>
+                        migrate(deps, env, info, &mut config, admin_permit, migrate_to),
+                    MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver { address, code_hash } =>
                         register_on_migration_complete_notify_receiver(deps, info, config.admin, address, code_hash),
                 },
             }

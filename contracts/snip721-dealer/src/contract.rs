@@ -5,10 +5,11 @@ use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
 use migration::execute::register_on_migration_complete_notify_receiver;
+use migration::msg::MigrationExecuteMsg;
 use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
-use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
+use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
 use crate::msg::{ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
@@ -266,8 +267,8 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
         contract_addr: child_snip721_address.to_string(),
         code_hash: child_snip721_code_hash.clone(),
         msg: to_binary(
-            &Snip721MigratableExecuteMsg::Ext(
-                ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
+            &Snip721MigratableExecuteMsg::Migrate(
+                MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
                     address: env.contract.address.to_string(),
                     code_hash: env.contract.code_hash,
                 }

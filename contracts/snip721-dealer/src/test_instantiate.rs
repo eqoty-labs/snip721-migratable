@@ -6,7 +6,8 @@ mod tests {
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
-    use snip721_migratable::msg::{ExecuteMsg as Snip721MigratableExecuteMsg, ExecuteMsgExt};
+    use migration::msg::MigrationExecuteMsg;
+    use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
     use crate::contract::{instantiate, reply};
     use crate::msg::{InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
@@ -121,8 +122,8 @@ mod tests {
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     let execute_msg: Snip721MigratableExecuteMsg = from_binary(msg).unwrap();
                     let expected_execute_msg =
-                        Snip721MigratableExecuteMsg::Ext(
-                            ExecuteMsgExt::RegisterOnMigrationCompleteNotifyReceiver {
+                        Snip721MigratableExecuteMsg::Migrate(
+                            MigrationExecuteMsg::RegisterOnMigrationCompleteNotifyReceiver {
                                 address: env.contract.address.to_string(),
                                 code_hash: env.contract.code_hash,
                             });

@@ -1,11 +1,11 @@
 use cosmwasm_std::{Binary, CanonicalAddr};
 use schemars::JsonSchema;
-use secret_toolkit::permit::Permit;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
+use migration::msg::MigrationExecuteMsg;
+use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -21,6 +21,7 @@ pub enum InstantiateMsg {
 #[serde(untagged)]
 pub enum ExecuteMsg {
     Base(snip721_reference_impl::msg::ExecuteMsg),
+    Migrate(MigrationExecuteMsg),
     Ext(ExecuteMsgExt),
 }
 
@@ -28,12 +29,6 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
-    /// Set migration secret (using entropy for randomness), and the address of the new contract
-    Migrate {
-        /// permit used to verify address executing migration is admin
-        admin_permit: Permit,
-        migrate_to: MigrateTo,
-    },
     MigrateTokensIn {
         /// The number of queries to make from the contract being migrated from
         pages: Option<u32>,
@@ -41,59 +36,7 @@ pub enum ExecuteMsgExt {
         /// The number returned could be less.
         page_size: Option<u32>,
     },
-    /// Sets a contract that should be notified when this contract completes the migration process
-    RegisterOnMigrationCompleteNotifyReceiver {
-        address: String,
-        code_hash: String,
-    },
 }
-
-// https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
-#[doc(hidden)]
-#[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
-const _: () = {
-    #[allow(unused_extern_crates, clippy::useless_attribute)]
-    extern crate serde as _serde;
-    #[automatically_derived]
-    impl<'de> _serde::Deserialize<'de> for ExecuteMsg {
-        fn deserialize<__D>(__deserializer: __D) -> _serde::__private::Result<Self, __D::Error>
-            where
-                __D: _serde::Deserializer<'de>,
-        {
-            // [1] `_serde::__private::de::Content` is where the problem lies
-            let __content = match <serde_cw_value::Value>::deserialize(__deserializer) {
-                _serde::__private::Ok(__val) => __val,
-                _serde::__private::Err(__err) => {
-                    return _serde::__private::Err(__err);
-                }
-            };
-            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
-                <snip721_reference_impl::msg::ExecuteMsg as _serde::Deserialize>::deserialize(
-                    serde_cw_value::ValueDeserializer::<serde_cw_value::DeserializerError>::new(
-                        __content.clone(),
-                    ),
-                ),
-                ExecuteMsg::Base,
-            ) {
-                return _serde::__private::Ok(__ok);
-            }
-            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
-                <ExecuteMsgExt as _serde::Deserialize>::deserialize(
-                    serde_cw_value::ValueDeserializer::<
-                        // [2] Error is also where the problem lies
-                        serde_cw_value::DeserializerError,
-                    >::new(__content.clone()),
-                ),
-                ExecuteMsg::Ext,
-            ) {
-                return _serde::__private::Ok(__ok);
-            }
-            _serde::__private::Err(_serde::de::Error::custom(
-                "data did not match any variant of untagged enum ExecuteMsg",
-            ))
-        }
-    }
-};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -136,53 +79,6 @@ pub enum QueryMsgExt {
     MigratedFrom {},
     MigratedTo {},
 }
-
-// todo: remove when resolved
-// https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
-#[doc(hidden)]
-#[allow(non_upper_case_globals, unused_attributes, unused_qualifications)]
-const _: () = {
-    #[allow(unused_extern_crates, clippy::useless_attribute)]
-    extern crate serde as _serde;
-    #[automatically_derived]
-    impl<'de> _serde::Deserialize<'de> for QueryMsg {
-        fn deserialize<__D>(__deserializer: __D) -> _serde::__private::Result<Self, __D::Error>
-            where
-                __D: _serde::Deserializer<'de>,
-        {
-            // [1] `_serde::__private::de::Content` is where the problem lies
-            let __content = match <serde_cw_value::Value>::deserialize(__deserializer) {
-                _serde::__private::Ok(__val) => __val,
-                _serde::__private::Err(__err) => {
-                    return _serde::__private::Err(__err);
-                }
-            };
-            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
-                <snip721_reference_impl::msg::QueryMsg as _serde::Deserialize>::deserialize(
-                    serde_cw_value::ValueDeserializer::<serde_cw_value::DeserializerError>::new(
-                        __content.clone(),
-                    ),
-                ),
-                QueryMsg::Base,
-            ) {
-                return _serde::__private::Ok(__ok);
-            }
-            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
-                <QueryMsgExt as _serde::Deserialize>::deserialize(
-                    serde_cw_value::ValueDeserializer::<serde_cw_value::DeserializerError>::new(
-                        __content.clone(),
-                    ),
-                ),
-                QueryMsg::Ext,
-            ) {
-                return _serde::__private::Ok(__ok);
-            }
-            _serde::__private::Err(_serde::de::Error::custom(
-                "data did not match any variant of untagged enum QueryMsg",
-            ))
-        }
-    }
-};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

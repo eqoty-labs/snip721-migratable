@@ -77,11 +77,6 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
             ExecuteMsgExt::MigrateTokensIn { pages, page_size } => {
                 (pages.unwrap_or(u32::MAX), page_size)
             }
-            _ => {
-                return Err(StdError::generic_err(
-                    "Only MigrateTokensIn msg is allowed when in ContractMode:MigrateDataIn",
-                ));
-            }
         },
         _ => {
             return Err(StdError::generic_err(format!(
