@@ -3,7 +3,7 @@ use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
 
-use migration::execute::register_on_migration_complete_notify_receiver;
+use migration::execute::register_to_notify_on_migration_complete;
 use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg};
 use migration::msg_types::MigrateTo;
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
@@ -92,11 +92,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     MigratableExecuteMsg::Migrate { admin_permit, migrate_to } =>
                         migrate(deps, env, info, &mut config, admin_permit, migrate_to),
                     MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } =>
-                        register_on_migration_complete_notify_receiver(deps, info, config.admin, address, code_hash),
+                        register_to_notify_on_migration_complete(deps, info, config.admin, address, code_hash),
                 },
             }
         }
-        ContractMode::MigratedOut => {
+        ContractMode::MigrateOutStarted | ContractMode::MigratedOut => {
             let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
             Err(StdError::generic_err(
                 to_string(&StateChangesNotAllowed {

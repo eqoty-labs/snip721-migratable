@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 pub static MIGRATED_FROM_KEY: &[u8] = b"migratedFrom";
 /// key for MigratedTo singleton
 pub static MIGRATED_TO_KEY: &[u8] = b"migratedTo";
-/// key for the ContractInfo of a contract to notify when this contract has been migrated
-pub static NOTIFY_OF_MIGRATION_RECEIVER_KEY: &[u8; 16] = b"notifyOnMigrated";
+/// key for Vec<ContractInfo> of contracts to notify when this contract has been migrated
+pub static NOTIFY_ON_MIGRATION_COMPLETE_KEY: &[u8; 16] = b"notifyOnMigrated";
 /// key for current ContractMode
 pub const CONTRACT_MODE_KEY: &[u8] = b"contractMode";
 
@@ -16,7 +16,14 @@ pub const CONTRACT_MODE_KEY: &[u8] = b"contractMode";
 pub enum ContractMode {
     MigrateDataIn = 1,
     Running = 2,
-    MigratedOut = 3,
+    // MigrateOutStarted is applicable when a migration can take more than one transaction to complete
+    // For example when migrating a snip721 contract. A takes a least two transactions
+    // The first execute migration message put's the contract in this state.
+    // Which disables the contract's state from being altered but allows queries until migration
+    // is complete (after all the tokens are migrated in a second transaction).
+    // After all tokens are migrated. the contract switches to ContractMode::MigratedOut
+    MigrateOutStarted = 3,
+    MigratedOut = 4,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

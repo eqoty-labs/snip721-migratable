@@ -11,11 +11,11 @@ use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
-use migration::msg::MigratableQueryAnswer::MigrationInfo;
 
+use migration::msg::MigratableQueryAnswer::MigrationInfo;
 use migration::msg::MigrationListenerExecuteMsg;
 use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
+use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
 use crate::contract::init_snip721;
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
@@ -54,7 +54,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
 
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
     if let Some(on_migration_complete_notify_receiver) = reply_data.on_migration_complete_notify_receiver {
-        save(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY, &on_migration_complete_notify_receiver)?;
+        save(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &on_migration_complete_notify_receiver)?;
     }
 
     // clear the data (that contains the secret) which would be set when init_snip721 is called
@@ -126,14 +126,17 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
         // todo add test for setting message
         let sub_msgs: Vec<SubMsg> =
-            if let Some(contract) = may_load::<ContractInfo>(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)? {
-                let execute = WasmMsg::Execute {
-                    msg: to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification {})?,
-                    contract_addr: contract.address.to_string(),
-                    code_hash: contract.code_hash,
-                    funds: vec![],
-                };
-                vec![SubMsg::new(execute)]
+            if let Some(contracts) = may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)? {
+                let msg = to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification {})?;
+                contracts.iter().map(|contract| {
+                    let execute = WasmMsg::Execute {
+                        msg: msg.clone(),
+                        contract_addr: contract.address.to_string(),
+                        code_hash: contract.code_hash.clone(),
+                        funds: vec![],
+                    };
+                    SubMsg::new(execute)
+                }).collect()
             } else {
                 Vec::new()
             };
@@ -277,7 +280,7 @@ pub(crate) fn migrate(
         migration_secret: secret.clone(),
     });
     save(deps.storage, MIGRATED_TO_KEY, &migrated_to.unwrap())?;
-    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
+    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigrateOutStarted)?;
 
     let royalty_info: Option<RoyaltyInfo> = match may_load::<StoredRoyaltyInfo>(deps.storage, DEFAULT_ROYALTY_KEY)? {
         Some(stored_royalty_info) => Some(stored_to_msg_royalty_info(stored_royalty_info, deps.api)),
@@ -308,7 +311,7 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
-            on_migration_complete_notify_receiver: may_load(deps.storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)?,
+            on_migration_complete_notify_receiver: may_load(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?,
             minters: load(deps.storage, MINTERS_KEY)?,
             mint_count: snip721config.mint_cnt,
             secret,

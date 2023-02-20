@@ -4,8 +4,8 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
     use secret_toolkit::serialization::{Bincode2, Serde};
 
-    use crate::execute::register_on_migration_complete_notify_receiver;
-    use crate::state::NOTIFY_OF_MIGRATION_RECEIVER_KEY;
+    use crate::execute::register_to_notify_on_migration_complete;
+    use crate::state::NOTIFY_ON_MIGRATION_COMPLETE_KEY;
 
     #[test]
     fn register_on_migration_complete_notify_receiver_fails_with_for_non_admin() {
@@ -14,7 +14,7 @@ mod tests {
         let admin = deps.api.addr_canonicalize("admin").unwrap();
         let receiver_address = "addr".to_string();
         let receiver_code_hash = "code_hash".to_string();
-        let res = register_on_migration_complete_notify_receiver(
+        let res = register_to_notify_on_migration_complete(
             deps.as_mut(),
             non_admin_info,
             admin,
@@ -37,17 +37,17 @@ mod tests {
             address: Addr::unchecked("addr"),
             code_hash: "code_hash".to_string(),
         };
-        register_on_migration_complete_notify_receiver(
+        register_to_notify_on_migration_complete(
             deps.as_mut(),
             admin_info,
             admin,
             receiver.address.to_string(),
             receiver.code_hash.to_string(),
         )?;
-        let saved_contract: ContractInfo = Bincode2::deserialize(
-            &deps.storage.get(NOTIFY_OF_MIGRATION_RECEIVER_KEY).unwrap()
+        let saved_contract: Vec<ContractInfo> = Bincode2::deserialize(
+            &deps.storage.get(NOTIFY_ON_MIGRATION_COMPLETE_KEY).unwrap()
         )?;
-        assert_eq!(receiver, saved_contract);
+        assert_eq!(vec![receiver], saved_contract);
         Ok(())
     }
 }

@@ -13,7 +13,7 @@ mod tests {
     use migration::msg::MigratableExecuteMsg;
     use migration::msg_types::{MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
-    use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
+    use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
     use crate::contract::{execute, instantiate, query, reply};
     use crate::msg::{ExecuteMsg, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
@@ -214,7 +214,7 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(snip721_dealer_to_notify.clone().into()),
+                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone().into()]),
                 minters: expected_minters.clone(),
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -240,7 +240,7 @@ mod tests {
         };
         assert_eq!(expected_migrate_in_tokens_progress, load::<MigrateInTokensProgress>(deps.as_ref().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?);
         assert_eq!(ContractMode::MigrateDataIn, load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY)?);
-        assert_eq!(snip721_dealer_to_notify, load::<ContractInfo>(deps.as_ref().storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY)?);
+        assert_eq!(vec![snip721_dealer_to_notify], load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?);
         assert_eq!(expected_minters, load::<Vec<CanonicalAddr>>(deps.as_ref().storage, MINTERS_KEY)?);
 
         Ok(())
@@ -275,7 +275,7 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(snip721_dealer_to_notify.clone().into()),
+                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone().into()]),
                 minters: vec![],
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -454,8 +454,8 @@ mod tests {
             }),
         ).unwrap();
 
-        let saved_contract: ContractInfo =
-            load(deps.as_ref().storage, NOTIFY_OF_MIGRATION_RECEIVER_KEY).unwrap();
-        assert_eq!(receiver, saved_contract);
+        let saved_contract: Vec<ContractInfo> =
+            load(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY).unwrap();
+        assert_eq!(vec![receiver], saved_contract);
     }
 }

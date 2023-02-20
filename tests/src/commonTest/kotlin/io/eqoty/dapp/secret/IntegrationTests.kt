@@ -154,6 +154,51 @@ class IntegrationTests {
         return ExecuteResult(res, Coin(gasFee, "uscrt"))
     }
 
+    private suspend fun transferNft(
+        from: String,
+        to: String,
+        tokenId: String,
+        client: SigningCosmWasmClient,
+        contractInfo: CosmWasmStd.ContractInfo,
+
+        ): ExecuteResult<MintedRelease> {
+        val savedSender = client.senderAddress
+        client.senderAddress = from
+        val msg = Json.encodeToString(
+            Snip721Msgs.Execute(
+                transferNft = Snip721Msgs.Execute.TransferNft(
+                    recipient = to,
+                    tokenId = tokenId
+                )
+            )
+        )
+        val msgs = listOf(
+            MsgExecuteContract(
+                sender = from,
+                contractAddress = contractInfo.address,
+                codeHash = contractInfo.codeHash,
+                msg = msg,
+                sentFunds = listOf()
+            )
+        )
+        val simulate = client.simulate(msgs)
+        val gasLimit = (simulate.gasUsed.toDouble() * 1.1).toInt()
+
+        val txOptions = TxOptions(gasLimit = gasLimit)
+        val res = try {
+            client.execute(
+                msgs,
+                txOptions = txOptions
+            )
+        } catch (t: Throwable) {
+            Logger.i(t.message ?: "")
+            null
+        }
+        client.senderAddress = savedSender
+        val gasFee = client.gasToFee(txOptions.gasLimit, txOptions.gasPriceInFeeDenom)
+        return ExecuteResult(res, Coin(gasFee, "uscrt"))
+    }
+
     private suspend fun migrateTokens(
         client: SigningCosmWasmClient,
         contractInfo: CosmWasmStd.ContractInfo
@@ -543,6 +588,82 @@ class IntegrationTests {
             true
         }
         assertTrue(purchaseThrewError)
+    }
+
+    @Test
+    fun test_snip721_contract_state_being_migrated_cannot_be_altered_but_can_be_queried() = runTest {
+        val dealerContractInfo = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
+        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        // verify customer received one nft
+
+        assertEquals(
+            1,
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        )
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+
+        val transferError = try {
+            transferNft(
+                client.wallet.getAccounts()[1].address,
+                client.wallet.getAccounts()[2].address,
+                "0",
+                client,
+                snip721ContractV1
+            )
+            ""
+        } catch (t: Throwable) {
+            t.message!!
+        }
+        assertContains(transferError, "state_changes_not_allowed")
+
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        assertEquals(
+            1,
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        )
+
+    }
+
+    @Test
+    fun test_migrated_snip721_tokens_cannot_be_queried() = runTest {
+        val dealerContractInfo = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
+        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        // verify customer received one nft
+
+        assertEquals(
+            1,
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        )
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+
+        migrateTokens(client, snip721ContractInfoV2)
+
+        client.senderAddress = client.wallet.getAccounts()[1].address
+
+        val getNumTokensOfOwnerError = try {
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+            ""
+        } catch (t: Throwable) {
+            t.message!!
+        }
+        assertContains(getNumTokensOfOwnerError, "contract has been migrated")
+
     }
 
 

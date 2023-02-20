@@ -43,7 +43,7 @@ pub enum ExecuteMsgExt {
 pub struct InstantiateByMigrationReplyDataMsg {
     pub migrated_instantiate_msg: Snip721InstantiateMsg,
     pub migrate_from: MigrateFrom,
-    pub on_migration_complete_notify_receiver: Option<ContractInfo>,
+    pub on_migration_complete_notify_receiver: Option<Vec<ContractInfo>>,
     pub minters: Vec<CanonicalAddr>,
     pub mint_count: u32,
     pub secret: Binary,

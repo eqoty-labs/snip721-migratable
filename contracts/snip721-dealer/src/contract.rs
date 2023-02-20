@@ -4,7 +4,7 @@ use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721In
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
-use migration::execute::register_on_migration_complete_notify_receiver;
+use migration::execute::register_to_notify_on_migration_complete;
 use migration::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg};
 use migration::msg::MigratableExecuteMsg::Migrate;
 use migration::msg::MigratableQueryAnswer::MigrationInfo;
@@ -129,7 +129,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     let mut deps = deps;
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match mode {
-        ContractMode::MigrateDataIn => {
+        ContractMode::MigrateDataIn | ContractMode::MigrateOutStarted => {
             Err(StdError::generic_err(format!("Illegal Contact Mode: {:?}. This shouldn't happen", mode)))
         }
         ContractMode::Running => {
@@ -147,7 +147,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                             migrate(deps, env, info, admin_permit, migrate_to),
                         MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
                             let admin = load(deps.storage, ADMIN_KEY)?;
-                            register_on_migration_complete_notify_receiver(deps, info, admin, address, code_hash)
+                            register_to_notify_on_migration_complete(deps, info, admin, address, code_hash)
                         }
                     }
                 }
