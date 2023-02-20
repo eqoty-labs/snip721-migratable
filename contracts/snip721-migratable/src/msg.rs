@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-use migration::msg::MigratableExecuteMsg;
+use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg};
 use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -65,6 +65,7 @@ pub enum ExecuteAnswer {
 pub enum QueryMsg {
     Base(snip721_reference_impl::msg::QueryMsg),
     Ext(QueryMsgExt),
+    Migrate(MigratableQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
@@ -76,8 +77,6 @@ pub enum QueryMsgExt {
         max_count: Option<u32>,
         secret: Binary,
     },
-    MigratedFrom {},
-    MigratedTo {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -87,6 +86,5 @@ pub enum QueryAnswer {
         last_mint_index: u32,
         nft_dossiers: Vec<BatchNftDossierElement>,
     },
-    MigrationInfo(Option<ContractInfo>),
 }
 

@@ -5,15 +5,17 @@ use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
 use migration::execute::register_on_migration_complete_notify_receiver;
-use migration::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
+use migration::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg};
 use migration::msg::MigratableExecuteMsg::Migrate;
+use migration::msg::MigratableQueryAnswer::MigrationInfo;
+use migration::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
 use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
-use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedTo};
+use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedToState};
 use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
-use crate::msg::{DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
+use crate::msg::{DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
 use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
@@ -158,7 +160,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             }
         }
         ContractMode::MigratedOut => {
-            let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
             Err(StdError::generic_err(
                 to_string(&StateChangesNotAllowed {
                     message: "This contract has been migrated. No further state changes are allowed!".to_string(),
@@ -172,12 +174,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
     let current_child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
     let current_child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let child_snip721_migrated_to: QueryAnswer = deps.querier.query_wasm_smart(
+    let child_snip721_migrated_to: MigratableQueryAnswer = deps.querier.query_wasm_smart(
         current_child_snip721_code_hash.clone(),
         deps.api.addr_humanize(&current_child_snip721_address)?,
-        &QueryMsg::MigratedTo {},
+        &MigratedTo {},
     ).unwrap();
-    if let QueryAnswer::MigrationInfo(Some(migrated_to)) = child_snip721_migrated_to {
+    if let MigrationInfo(Some(migrated_to)) = child_snip721_migrated_to {
         if info.sender != migrated_to.address {
             // The newly migrated contract only calls this after all contracts have been migrated.
             // This prevents someone from updating the child contract before all tokens have been migrated
@@ -309,23 +311,35 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match mode {
         ContractMode::MigratedOut => {
-            let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
             let migrated_error = Err(StdError::generic_err(format!(
                 "This contract has been migrated to {:?}. Only MigratedTo, MigratedFrom queries allowed!",
                 migrated_to.contract.address
             )));
             match msg {
-                QueryMsg::MigratedTo {} => query_migrated_info(deps, false),
-                QueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
+                QueryMsg::Migrate(migrate_msg) => {
+                    match migrate_msg {
+                        MigratedTo {} => query_migrated_info(deps, false),
+                        MigratedFrom {} => query_migrated_info(deps, true),
+                    }
+                }
                 _ => migrated_error
             }
         }
         _ => {
             match msg {
-                QueryMsg::GetPrices {} => query_prices(deps),
-                QueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
-                QueryMsg::MigratedTo {} => query_migrated_info(deps, false),
-                QueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
+                QueryMsg::Dealer(dealer_msg) => {
+                    match dealer_msg {
+                        DealerQueryMsg::GetPrices {} => query_prices(deps),
+                        DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
+                    }
+                }
+                QueryMsg::Migrate(migrate_msg) => {
+                    match migrate_msg {
+                        MigratedTo {} => query_migrated_info(deps, false),
+                        MigratedFrom {} => query_migrated_info(deps, true),
+                    }
+                }
             }
         }
     };

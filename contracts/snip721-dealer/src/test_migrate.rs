@@ -10,7 +10,7 @@ mod tests {
     use migration::msg::MigratableExecuteMsg;
     use migration::msg_types::{InstantiateByMigrationMsg, MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
-    use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
+    use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
     use crate::contract::{execute, instantiate, reply};
     use crate::msg::{DealerState, ExecuteMsg, InstantiateByMigrationReplyDataMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
@@ -259,14 +259,14 @@ mod tests {
         assert_eq!(migrated_snip721_code_hash, saved_child_snip721_code_hash);
         let saved_child_snip721_address: CanonicalAddr = load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
         assert_eq!(migrated_child_snip721_address, deps.api.addr_humanize(&saved_child_snip721_address).unwrap());
-        let expected_migrated_from = MigratedFrom {
+        let expected_migrated_from = MigratedFromState {
             contract: ContractInfo {
                 address: migrate_from_env.contract.address.clone(),
                 code_hash: migrate_from_env.contract.code_hash.clone(),
             },
             migration_secret: migrate_from_secret.clone(),
         };
-        let migrated_from: MigratedFrom = load(deps.as_ref().storage, MIGRATED_FROM_KEY).unwrap();
+        let migrated_from: MigratedFromState = load(deps.as_ref().storage, MIGRATED_FROM_KEY).unwrap();
         assert_eq!(expected_migrated_from, migrated_from);
         let saved_contract_mode: Option<ContractMode> = may_load(deps.as_ref().storage, CONTRACT_MODE_KEY).unwrap();
         assert_eq!(Some(ContractMode::Running), saved_contract_mode);
@@ -373,7 +373,7 @@ mod tests {
             &admin_permit.clone(),
             &snip721_code_hash,
             &Addr::unchecked(child_snip721_address.clone()),
-            &load::<MigratedFrom>(deps.as_ref().storage, MIGRATED_TO_KEY).unwrap().migration_secret,
+            &load::<MigratedFromState>(deps.as_ref().storage, MIGRATED_TO_KEY).unwrap().migration_secret,
         );
         assert_eq!(expected_data, data);
     }

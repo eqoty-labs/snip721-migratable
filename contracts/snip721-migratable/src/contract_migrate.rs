@@ -11,10 +11,11 @@ use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
+use migration::msg::MigratableQueryAnswer::MigrationInfo;
 
 use migration::msg::MigrationListenerExecuteMsg;
 use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
+use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
 use crate::contract::init_snip721;
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
@@ -36,7 +37,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
     // actually instantiate the snip721 base contract using the migrated data
     let snip721_response = init_snip721(&mut deps, env, admin_info.clone(), reply_data.migrated_instantiate_msg).unwrap();
 
-    let migrated_from = MigratedFrom {
+    let migrated_from = MigratedFromState {
         contract: ContractInfo {
             address: deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap(),
             code_hash: reply_data.migrate_from.code_hash,
@@ -64,7 +65,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, env: &Env, msg: Re
 
 
 pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInfo, snip721_config: Config, msg: ExecuteMsg) -> StdResult<Response> {
-    let migrated_from: MigratedFrom = load(deps.storage, MIGRATED_FROM_KEY)?;
+    let migrated_from: MigratedFromState = load(deps.storage, MIGRATED_FROM_KEY)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
         return Err(StdError::generic_err(format!(
@@ -108,7 +109,6 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
                 save_migration_dossier_list(&mut deps, env, &migrated_from.contract.address.clone(), &admin_addr, nft_dossiers).unwrap();
                 last_mint_index + 1
             }
-            _ => panic!("unexpected ExportMigrationData query answer"),
         };
     }
     migrate_in_tokens_progress.migrate_in_next_mint_index = start_at_idx;
@@ -243,7 +243,7 @@ pub(crate) fn migrate(
             "Only the contract being migrated to can set the contract to migrate!",
         ));
     }
-    let mut migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+    let mut migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
     if migrated_to.is_some() {
         return Err(StdError::generic_err(
             "The contract has already been migrated!",
@@ -269,7 +269,7 @@ pub(crate) fn migrate(
 
     let secret = Binary::from(rng.rand_bytes());
 
-    migrated_to = Some(MigratedTo {
+    migrated_to = Some(MigratedToState {
         contract: ContractInfo {
             address: migrate_to_address,
             code_hash: migrate_to.code_hash,
@@ -326,26 +326,26 @@ pub(crate) fn migrate(
 pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<Binary> {
     return match migrated_from {
         true => {
-            let migrated_from: Option<MigratedFrom> = may_load(deps.storage, MIGRATED_FROM_KEY)?;
+            let migrated_from: Option<MigratedFromState> = may_load(deps.storage, MIGRATED_FROM_KEY)?;
             match migrated_from {
                 None => {
-                    to_binary(&QueryAnswer::MigrationInfo(None))
+                    to_binary(&MigrationInfo(None))
                 }
                 Some(some_migrated_from) => {
-                    to_binary(&QueryAnswer::MigrationInfo(
+                    to_binary(&MigrationInfo(
                         Some(some_migrated_from.contract.into()))
                     )
                 }
             }
         }
         false => {
-            let migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
             match migrated_to {
                 None => {
-                    to_binary(&QueryAnswer::MigrationInfo(None))
+                    to_binary(&MigrationInfo(None))
                 }
                 Some(some_migrated_to) => {
-                    to_binary(&QueryAnswer::MigrationInfo(
+                    to_binary(&MigrationInfo(
                         Some(some_migrated_to.contract.into()))
                     )
                 }
@@ -372,7 +372,7 @@ pub(crate) fn migration_dossier_list(
     max_count: Option<u32>,
     secret: &Binary,
 ) -> StdResult<Binary> {
-    let migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+    let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
     if migrated_to.is_none() {
         return Err(StdError::generic_err("This contract has not been migrated yet"));
     }

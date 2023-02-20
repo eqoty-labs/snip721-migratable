@@ -4,10 +4,10 @@ use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
 
 use migration::execute::register_on_migration_complete_notify_receiver;
-use migration::msg::MigratableExecuteMsg;
+use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg};
 use migration::msg_types::MigrateTo;
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
-use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedTo};
+use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedToState};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
 use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryMsg, QueryMsgExt};
@@ -97,7 +97,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             }
         }
         ContractMode::MigratedOut => {
-            let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
             Err(StdError::generic_err(
                 to_string(&StateChangesNotAllowed {
                     message: "This contract has been migrated. No further state changes are allowed!".to_string(),
@@ -123,7 +123,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Base(base_msg) => {
             match mode {
                 ContractMode::MigratedOut => {
-                    let migrated_to: MigratedTo = load(deps.storage, MIGRATED_TO_KEY)?;
+                    let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
                     let migrated_error = Err(StdError::generic_err(format!(
                         "This contract has been migrated to {:?}. Only TransactionHistory, MigratedTo, MigratedFrom queries allowed!",
                         migrated_to.contract.address
@@ -150,10 +150,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Ext(base_msg) => {
             match base_msg {
-                QueryMsgExt::MigratedTo {} => query_migrated_info(deps, false),
-                QueryMsgExt::MigratedFrom {} => query_migrated_info(deps, true),
                 QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
                     migration_dossier_list(deps, &env.block, start_index, max_count, &secret),
+            }
+        }
+        QueryMsg::Migrate(migrate_msg) => {
+            match migrate_msg {
+                MigratableQueryMsg::MigratedTo {} => query_migrated_info(deps, false),
+                MigratableQueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
             }
         }
     };

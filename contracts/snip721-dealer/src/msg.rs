@@ -3,8 +3,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
-use migration::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 
+use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
 use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -87,14 +87,19 @@ pub struct InstantiateByMigrationReplyDataMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteAnswer {}
 
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    Dealer(DealerQueryMsg),
+    Migrate(MigratableQueryMsg),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DealerQueryMsg {
     /// GetPrices returns the purchase price in acceptable coin types.
     GetPrices {},
     GetChildSnip721 {},
-    MigratedFrom {},
-    MigratedTo {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -103,5 +108,4 @@ pub enum QueryAnswer {
     // GetPrices returns the purchase price in acceptable coin types.
     GetPrices { prices: Vec<Coin> },
     ContractInfo(ContractInfo),
-    MigrationInfo(Option<ContractInfo>),
 }

@@ -4,16 +4,17 @@ use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::{load, may_load, PREFIX_REVOKED_PERMITS, save};
 
+use migration::msg::MigratableQueryAnswer;
 use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFrom, MigratedTo};
+use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState};
 
-use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg, QueryAnswer};
+use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg};
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
     let reply_data: InstantiateByMigrationReplyDataMsg = from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
 
-    let migrated_from = MigratedFrom {
+    let migrated_from = MigratedFromState {
         contract: ContractInfo {
             address: deps.api.addr_validate(reply_data.migrate_from.address.as_str()).unwrap(),
             code_hash: reply_data.migrate_from.code_hash,
@@ -68,7 +69,7 @@ pub(crate) fn migrate(
             "Only the contract being migrated to can set the contract to migrate!",
         ));
     }
-    let mut migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+    let mut migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
     if migrated_to.is_some() {
         return Err(StdError::generic_err(
             "The contract has already been migrated!",
@@ -94,7 +95,7 @@ pub(crate) fn migrate(
 
     let secret = Binary::from(rng.rand_bytes());
 
-    migrated_to = Some(MigratedTo {
+    migrated_to = Some(MigratedToState {
         contract: ContractInfo {
             address: migrate_to_address,
             code_hash: migrate_to.code_hash,
@@ -137,26 +138,26 @@ pub(crate) fn migrate(
 pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<Binary> {
     return match migrated_from {
         true => {
-            let migrated_from: Option<MigratedFrom> = may_load(deps.storage, MIGRATED_FROM_KEY)?;
+            let migrated_from: Option<MigratedFromState> = may_load(deps.storage, MIGRATED_FROM_KEY)?;
             match migrated_from {
                 None => {
-                    to_binary(&QueryAnswer::MigrationInfo(None))
+                    to_binary(&MigratableQueryAnswer::MigrationInfo(None))
                 }
                 Some(some_migrated_from) => {
-                    to_binary(&QueryAnswer::MigrationInfo(
+                    to_binary(&MigratableQueryAnswer::MigrationInfo(
                         Some(some_migrated_from.contract.into()))
                     )
                 }
             }
         }
         false => {
-            let migrated_to: Option<MigratedTo> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
             match migrated_to {
                 None => {
-                    to_binary(&QueryAnswer::MigrationInfo(None))
+                    to_binary(&MigratableQueryAnswer::MigrationInfo(None))
                 }
                 Some(some_migrated_to) => {
-                    to_binary(&QueryAnswer::MigrationInfo(
+                    to_binary(&MigratableQueryAnswer::MigrationInfo(
                         Some(some_migrated_to.contract.into()))
                     )
                 }

@@ -1,4 +1,4 @@
-use migration::msg::MigratableExecuteMsg;
+use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg};
 
 use crate::msg::{ExecuteMsg, ExecuteMsgExt, QueryMsg, QueryMsgExt};
 
@@ -99,6 +99,16 @@ const _: () = {
                     ),
                 ),
                 QueryMsg::Ext,
+            ) {
+                return _serde::__private::Ok(__ok);
+            }
+            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
+                <MigratableQueryMsg as _serde::Deserialize>::deserialize(
+                    serde_cw_value::ValueDeserializer::<serde_cw_value::DeserializerError>::new(
+                        __content.clone(),
+                    ),
+                ),
+                QueryMsg::Migrate,
             ) {
                 return _serde::__private::Ok(__ok);
             }

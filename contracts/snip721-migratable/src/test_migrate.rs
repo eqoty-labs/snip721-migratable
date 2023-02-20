@@ -13,7 +13,7 @@ mod tests {
     use migration::msg::MigratableExecuteMsg;
     use migration::msg_types::{MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
-    use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFrom, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
+    use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_OF_MIGRATION_RECEIVER_KEY};
 
     use crate::contract::{execute, instantiate, query, reply};
     use crate::msg::{ExecuteMsg, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
@@ -178,7 +178,6 @@ mod tests {
         if query_answer.is_ok() {
             return match query_answer.unwrap() {
                 MigrationBatchNftDossier { last_mint_index: _, nft_dossiers } => nft_dossiers,
-                _ => panic!("unexpected"),
             };
         } else {
             panic!("{}", query_answer.unwrap_err())
@@ -229,11 +228,11 @@ mod tests {
         };
         reply(deps.as_mut(), env_1, reply_msg)?;
 
-        let expected_migrated_from = MigratedFrom {
+        let expected_migrated_from = MigratedFromState {
             contract: env_0.contract,
             migration_secret: expected_secret,
         };
-        assert_eq!(expected_migrated_from, load::<MigratedFrom>(deps.as_ref().storage, MIGRATED_FROM_KEY)?);
+        assert_eq!(expected_migrated_from, load::<MigratedFromState>(deps.as_ref().storage, MIGRATED_FROM_KEY)?);
 
         let expected_migrate_in_tokens_progress = MigrateInTokensProgress {
             migrate_in_mint_cnt: expected_mint_count,
