@@ -581,13 +581,13 @@ class IntegrationTests {
 
         client.senderAddress = client.wallet.getAccounts()[1].address
 
-        val purchaseThrewError = try {
+        val purchaseError = try {
             purchaseOneMint(client, dealerContractInfo, purchasePrices)
-            false
+            ""
         } catch (t: Throwable) {
-            true
+            t.message!!
         }
-        assertTrue(purchaseThrewError)
+        assertContains(purchaseError, "state_changes_not_allowed")
     }
 
     @Test
