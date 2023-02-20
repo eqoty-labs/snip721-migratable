@@ -125,21 +125,19 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
         // migration complete
         save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
         // todo add test for setting message
-        let sub_msgs: Vec<SubMsg> =
-            if let Some(contracts) = may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)? {
-                let msg = to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification {})?;
-                contracts.iter().map(|contract| {
-                    let execute = WasmMsg::Execute {
-                        msg: msg.clone(),
-                        contract_addr: contract.address.to_string(),
-                        code_hash: contract.code_hash.clone(),
-                        funds: vec![],
-                    };
-                    SubMsg::new(execute)
-                }).collect()
-            } else {
-                Vec::new()
+        let mut contracts = may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?.unwrap_or_default();
+        // always notify the contract being migrated from so it can change its mode from MigrateOutStarted to MigratedOut
+        contracts.append(&mut vec![migrated_from.contract]);
+        let msg = to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification {})?;
+        let sub_msgs: Vec<SubMsg> = contracts.iter().map(|contract| {
+            let execute = WasmMsg::Execute {
+                msg: msg.clone(),
+                contract_addr: contract.address.to_string(),
+                code_hash: contract.code_hash.clone(),
+                funds: vec![],
             };
+            SubMsg::new(execute)
+        }).collect();
 
         Ok(Response::new()
             .add_submessages(sub_msgs)

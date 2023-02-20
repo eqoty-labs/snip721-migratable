@@ -4,13 +4,13 @@ use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
 
 use migration::execute::register_to_notify_on_migration_complete;
-use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg};
+use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
 use migration::msg_types::MigrateTo;
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedToState};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
-use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryMsg, QueryMsgExt};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, QueryMsgExt};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
 
@@ -81,31 +81,55 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 ExecuteMsg::Base(base_msg) => {
                     snip721_reference_impl::contract::execute(deps, env, info, base_msg)
                 }
-                ExecuteMsg::Ext(ext_msg) => match ext_msg {
-                    ExecuteMsgExt::MigrateTokensIn { .. } => {
-                        Err(StdError::generic_err(
-                            "MigrateTokensIn msg is allowed only in ContractMode:MigrateDataIn",
-                        ))
-                    }
-                },
                 ExecuteMsg::Migrate(ext_msg) => match ext_msg {
                     MigratableExecuteMsg::Migrate { admin_permit, migrate_to } =>
                         migrate(deps, env, info, &mut config, admin_permit, migrate_to),
                     MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } =>
                         register_to_notify_on_migration_complete(deps, info, config.admin, address, code_hash),
                 },
+                _ => {
+                    Err(StdError::generic_err(
+                        "Operation not allowed allowed in ContractMode::Running",
+                    ))
+                }
             }
         }
-        ContractMode::MigrateOutStarted | ContractMode::MigratedOut => {
-            let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
-            Err(StdError::generic_err(
-                to_string(&StateChangesNotAllowed {
-                    message: "This contract has been migrated. No further state changes are allowed!".to_string(),
-                    migrated_to: migrated_to.contract.into(),
-                }).unwrap()
-            ))
+        ContractMode::MigrateOutStarted => {
+            match msg {
+                ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
+                    MigrationListenerExecuteMsg::MigrationCompleteNotification {} =>
+                        on_migration_complete(deps, info)
+                },
+                _ => no_state_changes_allowed(deps)
+            }
         }
+        ContractMode::MigratedOut => no_state_changes_allowed(deps),
     };
+}
+
+fn on_migration_complete(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
+    let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
+    return if migrated_to.contract.address != info.sender {
+        Err(StdError::generic_err(
+            to_string(&StateChangesNotAllowed {
+                message: "Only listening for migration complete notifications from the contract being migrated to".to_string(),
+                migrated_to: migrated_to.contract.into(),
+            }).unwrap()
+        ))
+    } else {
+        save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
+        Ok(Response::new())
+    };
+}
+
+fn no_state_changes_allowed(deps: DepsMut) -> StdResult<Response> {
+    let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
+    Err(StdError::generic_err(
+        to_string(&StateChangesNotAllowed {
+            message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+            migrated_to: migrated_to.contract.into(),
+        }).unwrap()
+    ))
 }
 
 #[entry_point]

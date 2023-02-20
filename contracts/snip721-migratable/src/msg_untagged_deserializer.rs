@@ -1,4 +1,4 @@
-use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg};
+use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
 
 use crate::msg::{ExecuteMsg, ExecuteMsgExt, QueryMsg, QueryMsgExt};
 
@@ -51,6 +51,17 @@ const _: () = {
                     >::new(__content.clone()),
                 ),
                 ExecuteMsg::Ext,
+            ) {
+                return _serde::__private::Ok(__ok);
+            }
+            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
+                <MigrationListenerExecuteMsg as _serde::Deserialize>::deserialize(
+                    serde_cw_value::ValueDeserializer::<
+                        // [2] Error is also where the problem lies
+                        serde_cw_value::DeserializerError,
+                    >::new(__content.clone()),
+                ),
+                ExecuteMsg::MigrateListener,
             ) {
                 return _serde::__private::Ok(__ok);
             }
