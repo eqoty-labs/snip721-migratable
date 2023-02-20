@@ -1,10 +1,10 @@
-package io.eqoty.dapp.secret.types.contract
+package io.eqoty.dapp.secret.types.contract.migratable
 
 import io.eqoty.secretk.types.extensions.Permit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-object MigrationMsg {
+object MigratableContractTypes {
 
     @Serializable
     data class InstantiateByMigration(

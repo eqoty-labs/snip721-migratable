@@ -63,7 +63,7 @@ pub(crate) fn migrate(
             "Only the admins permit is allowed to initiate migration!",
         ));
     }
-    let migrate_to_address = deps.api.addr_validate(migrate_to.address.as_str()).unwrap();
+    let migrate_to_address = deps.api.addr_validate(migrate_to.address.as_str())?;
     if info.sender != migrate_to_address {
         return Err(StdError::generic_err(
             "Only the contract being migrated to can set the contract to migrate!",
@@ -124,7 +124,7 @@ pub(crate) fn migrate(
                 admin_permit,
             },
             secret,
-        }).unwrap())
+        })?)
     )
 }
 

@@ -11,6 +11,8 @@ import io.eqoty.dapp.secret.types.ContractInfo
 import io.eqoty.dapp.secret.types.ExecuteResult
 import io.eqoty.dapp.secret.types.MintedRelease
 import io.eqoty.dapp.secret.types.contract.*
+import io.eqoty.dapp.secret.types.contract.migratable.MigratableContractMsg
+import io.eqoty.dapp.secret.types.contract.migratable.MigratableContractTypes
 import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
 import io.eqoty.dapp.secret.utils.getEnv
@@ -41,7 +43,7 @@ class IntegrationTests {
     private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure
-    private suspend fun initializeAndUploadDealerContract(migrateFrom: MigrationMsg.MigrateFrom? = null): ContractInfo {
+    private suspend fun initializeAndUploadDealerContract(migrateFrom: MigratableContractTypes.MigrateFrom? = null): ContractInfo {
         val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, snip721MigratableContractCodePath)
         val initMsg = if (migrateFrom == null) {
             Snip721DealerMsgs.Instantiate(
@@ -58,7 +60,7 @@ class IntegrationTests {
             )
         } else {
             Snip721DealerMsgs.Instantiate(
-                migrate = MigrationMsg.InstantiateByMigration(
+                migrate = MigratableContractTypes.InstantiateByMigration(
                     migrateFrom = migrateFrom,
                     entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
                 )
@@ -79,8 +81,13 @@ class IntegrationTests {
             instantiateMsgs,
         )
     }
+    private suspend fun migrateSnip721Contract(contract: CosmWasmStd.ContractInfo) =
+        migrateContract(contract, "Snip721Migratable", snip721MigratableContractCodePath)
 
-    private suspend fun migrateSnip721Contract(contract: CosmWasmStd.ContractInfo): ContractInfo {
+    private suspend fun migrateSnip721Dealer(contract: CosmWasmStd.ContractInfo) =
+        migrateContract(contract, "Snip721Dealer", snip721DealerContractCodePath)
+
+    private suspend fun migrateContract(contract: CosmWasmStd.ContractInfo, labelBase: String, codepath: Path): ContractInfo {
         val permit = PermitFactory.newPermit(
             client.wallet,
             client.senderAddress,
@@ -89,14 +96,14 @@ class IntegrationTests {
             listOf(contract.address),
             listOf(Permission.Owner)
         )
-        val migrateFrom = MigrationMsg.MigrateFrom(
+        val migrateFrom = MigratableContractTypes.MigrateFrom(
             contract.address,
             contract.codeHash,
             permit
         )
-        val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, snip721MigratableContractCodePath)
-        val instantiateByMigration = Snip721MigratableMsg.Instantiate(
-            migrate = MigrationMsg.InstantiateByMigration(
+        val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, codepath)
+        val instantiateByMigration = MigratableContractMsg.Instantiate(
+            migrate = MigratableContractTypes.InstantiateByMigration(
                 migrateFrom = migrateFrom,
                 entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
             )
@@ -107,7 +114,7 @@ class IntegrationTests {
                 sender = client.senderAddress,
                 codeId = null, // will be set later
                 initMsg = Json.encodeToString(instantiateByMigration),
-                label = "Snip721Migratable" + ceil(Random.nextDouble() * 10000),
+                label = labelBase + ceil(Random.nextDouble() * 10000),
                 codeHash = null // will be set later
             )
         )
@@ -404,7 +411,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_purchase_one_and_migrate() = runTest {
+    fun test_purchase_one_and_migrate_snip721() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -462,7 +469,7 @@ class IntegrationTests {
         val dealerQueriedSnip721V1 = getChildSnip721ContractInfo(dealerContractInfo)
         val migratedFromInfoV1 = getMigratedFromContractInfo(dealerQueriedSnip721V1)
         assertEquals(null, migratedFromInfoV1)
-        var migratedToInfoV1 = getMigratedToContractInfo(dealerContractInfo)
+        var migratedToInfoV1 = getMigratedToContractInfo(dealerQueriedSnip721V1)
         assertEquals(null, migratedToInfoV1)
         val snip721ContractInfoV2 = with(migrateSnip721Contract(dealerQueriedSnip721V1)) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
@@ -489,6 +496,42 @@ class IntegrationTests {
         assertEquals(dealerQueriedSnip721V1, migratedFromInfoV2)
 
         migratedToInfoV2 = getMigratedToContractInfo(snip721ContractInfoV2)
+        assertEquals(null, migratedToInfoV2)
+    }
+
+    @Test
+    fun test_dealer_migrated_info() = runTest {
+        val dealerContractV1 = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        val migratedFromInfoV1 = getMigratedFromContractInfo(dealerContractV1)
+        assertEquals(null, migratedFromInfoV1)
+        var migratedToInfoV1 = getMigratedToContractInfo(dealerContractV1)
+        assertEquals(null, migratedToInfoV1)
+        val dealerContractV2 = with(migrateSnip721Dealer(dealerContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        assertNotEquals(dealerContractV1, dealerContractV2)
+
+        migratedToInfoV1 = getMigratedToContractInfo(dealerContractV1)
+        assertEquals(dealerContractV2, migratedToInfoV1)
+
+        var migratedFromInfoV2 = getMigratedFromContractInfo(dealerContractV2)
+        assertEquals(dealerContractV1, migratedFromInfoV2)
+
+        var migratedToInfoV2 = getMigratedToContractInfo(dealerContractV2)
+
+        assertEquals(null, migratedToInfoV2)
+
+
+        // test again to make sure queries are still available after contract changes mode to Running
+        migratedToInfoV1 = getMigratedToContractInfo(dealerContractV1)
+        assertEquals(dealerContractV2, migratedToInfoV1)
+
+        migratedFromInfoV2 = getMigratedFromContractInfo(dealerContractV2)
+        assertEquals(dealerContractV1, migratedFromInfoV2)
+
+        migratedToInfoV2 = getMigratedToContractInfo(dealerContractV2)
         assertEquals(null, migratedToInfoV2)
     }
 

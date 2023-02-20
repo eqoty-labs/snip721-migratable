@@ -1,5 +1,6 @@
 package io.eqoty.dapp.secret.types.contract
 
+import io.eqoty.dapp.secret.types.contract.migratable.MigratableContractTypes
 import io.eqoty.secretk.types.Coin
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -7,7 +8,7 @@ import kotlinx.serialization.Serializable
 object Snip721DealerMsgs {
     @Serializable
     data class Instantiate(
-        val migrate: MigrationMsg.InstantiateByMigration? = null,
+        val migrate: MigratableContractTypes.InstantiateByMigration? = null,
         val new: InstantiateSelfAnChildSnip721Msg? = null,
     ) {
 
