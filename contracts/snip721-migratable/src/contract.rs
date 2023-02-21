@@ -1,11 +1,13 @@
-use cosmwasm_std::{Binary, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use cosmwasm_std::{Binary, CanonicalAddr, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-use snip721_reference_impl::state::{Config, CONFIG_KEY, load, save};
+use snip721_reference_impl::state::{Config, CONFIG_KEY, load, may_load, MINTERS_KEY, save};
 
 use migration::execute::register_to_notify_on_migration_complete;
-use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
-use migration::msg_types::MigrateTo;
+use migration::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg};
+use migration::msg::MigratableQueryAnswer::MigrationInfo;
+use migration::msg::MigratableQueryMsg::MigratedTo;
+use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
 use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedToState};
 
@@ -87,6 +89,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } =>
                         register_to_notify_on_migration_complete(deps, info, config.admin, address, code_hash),
                 },
+                ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
+                    MigrationListenerExecuteMsg::MigrationCompleteNotification { from } =>
+                        update_migrated_minter(deps, from)
+                },
                 _ => {
                     Err(StdError::generic_err(
                         "Operation not allowed allowed in ContractMode::Running",
@@ -97,7 +103,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ContractMode::MigrateOutStarted => {
             match msg {
                 ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
-                    MigrationListenerExecuteMsg::MigrationCompleteNotification {} =>
+                    MigrationListenerExecuteMsg::MigrationCompleteNotification { .. } =>
                         on_migration_complete(deps, info)
                 },
                 _ => no_state_changes_allowed(deps)
@@ -105,6 +111,35 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         }
         ContractMode::MigratedOut => no_state_changes_allowed(deps),
     };
+}
+
+fn update_migrated_minter(deps: DepsMut, from: ContractInfo) -> StdResult<Response> {
+    let mut minters: Vec<CanonicalAddr> = may_load(deps.storage, MINTERS_KEY)?.unwrap_or_default();
+    let mut update = false;
+    let from_raw = deps.api.addr_canonicalize(from.address.as_str())?;
+    let minter_index_to_update = minters.iter().position(|minter| minter == &from_raw);
+    if let Some(some_minter_index_to_update) = minter_index_to_update {
+        // Since anyone can execute a MigrationCompleteNotification. We do not include the migrated_to
+        // info in the message only migrated_from. As someone could potentially exploit that to set
+        // their own minter.
+        // To make sure that does not happen, query the contract that is being migrated from
+        // to find out where it is being migrated to.
+        let migrated_to: MigratableQueryAnswer = deps.querier.query_wasm_smart(
+            from.code_hash,
+            from.address,
+            &MigratedTo {},
+        ).unwrap();
+        if let MigrationInfo(Some(migrated_to)) = migrated_to {
+            minters[some_minter_index_to_update] = deps.api.addr_canonicalize(migrated_to.address.as_str())?;
+            update = true;
+        }
+    }
+
+    // only save if the list changed
+    if update {
+        save(deps.storage, MINTERS_KEY, &minters)?;
+    }
+    Ok(Response::new())
 }
 
 fn on_migration_complete(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {

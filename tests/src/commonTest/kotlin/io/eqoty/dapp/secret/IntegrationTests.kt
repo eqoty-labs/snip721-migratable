@@ -53,7 +53,7 @@ class IntegrationTests {
                 new = Snip721DealerMsgs.Instantiate.InstantiateSelfAnChildSnip721Msg(
                     snip721CodeId = snip721MigratableCodeInfo.codeId.toULong(),
                     snip721CodeHash = snip721MigratableCodeInfo.codeHash,
-                    snip721Label = "MigratableSnip721" + ceil(Random.nextDouble() * 10000),
+                    snip721Label = "MigratableSnip721" + ceil(Random.nextDouble() * 1000000),
                     prices = purchasePrices,
                     publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
                     privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
@@ -74,7 +74,7 @@ class IntegrationTests {
                 sender = client.senderAddress,
                 codeId = null, // will be set later
                 initMsg = Json.encodeToString(initMsg),
-                label = "Snip721Dealer" + ceil(Random.nextDouble() * 10000),
+                label = "Snip721Dealer" + ceil(Random.nextDouble() * 1000000),
                 codeHash = null // will be set later
             )
         )
@@ -122,7 +122,7 @@ class IntegrationTests {
                 sender = client.senderAddress,
                 codeId = null, // will be set later
                 initMsg = Json.encodeToString(instantiateByMigration),
-                label = labelBase + ceil(Random.nextDouble() * 10000),
+                label = labelBase + ceil(Random.nextDouble() * 1000000),
                 codeHash = null // will be set later
             )
         )

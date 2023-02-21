@@ -98,10 +98,15 @@ mod tests {
                 child_snip721_address: child_snip721_address.clone(),
             },
             migrate_from: MigrateFrom {
-                address: env.contract.address,
-                code_hash: env.contract.code_hash,
+                address: env.contract.address.clone(),
+                code_hash: env.contract.code_hash.clone(),
                 admin_permit: admin_permit.clone(),
             },
+            on_migration_complete_notify_receiver: vec![
+                ContractInfo {
+                    address: Addr::unchecked(child_snip721_address),
+                    code_hash: child_snip721_code_hash.clone(),
+                }.into()],
             secret: secret.clone(),
         }
     }

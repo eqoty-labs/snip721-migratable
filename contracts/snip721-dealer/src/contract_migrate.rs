@@ -1,12 +1,12 @@
-use cosmwasm_std::{Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, to_binary};
+use cosmwasm_std::{Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::{load, may_load, PREFIX_REVOKED_PERMITS, save};
 
-use migration::msg::MigratableQueryAnswer;
+use migration::msg::{MigratableQueryAnswer, MigrationListenerExecuteMsg};
 use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState};
+use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
 use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg};
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
@@ -30,6 +30,8 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
         public_metadata: reply_data.dealer_state.public_metadata,
         private_metadata: reply_data.dealer_state.private_metadata,
     })?;
+    save(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &reply_data.on_migration_complete_notify_receiver)?;
+
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
 
 
@@ -108,7 +110,22 @@ pub(crate) fn migrate(
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
     let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
+    let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
+    let msg = to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification {
+        from: env.contract.clone().into()
+    })?;
+    let sub_msgs: Vec<SubMsg> = contracts.iter().map(|contract| {
+        let execute = WasmMsg::Execute {
+            msg: msg.clone(),
+            contract_addr: contract.address.to_string(),
+            code_hash: contract.code_hash.clone(),
+            funds: vec![],
+        };
+        SubMsg::new(execute)
+    }).collect();
+
     Ok(Response::default()
+        .add_submessages(sub_msgs)
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
             dealer_state: DealerState {
                 prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
@@ -123,6 +140,7 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
+            on_migration_complete_notify_receiver: load(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?,
             secret,
         })?)
     )

@@ -80,6 +80,7 @@ pub enum DealerExecuteMsg {
 pub struct InstantiateByMigrationReplyDataMsg {
     pub dealer_state: DealerState,
     pub migrate_from: MigrateFrom,
+    pub on_migration_complete_notify_receiver: Vec<ContractInfo>,
     pub secret: Binary,
 }
 

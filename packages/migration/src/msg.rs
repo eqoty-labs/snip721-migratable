@@ -24,7 +24,9 @@ pub enum MigratableExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MigrationListenerExecuteMsg {
-    MigrationCompleteNotification {}
+    MigrationCompleteNotification {
+        from: ContractInfo
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]

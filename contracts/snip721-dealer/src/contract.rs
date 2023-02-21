@@ -11,7 +11,7 @@ use migration::msg::MigratableQueryAnswer::MigrationInfo;
 use migration::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
 use migration::msg_types::{ContractInfo, MigrateTo};
 use migration::msg_types::ReplyError::StateChangesNotAllowed;
-use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedToState};
+use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
@@ -153,7 +153,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 }
                 ExecuteMsg::MigrateListener(migrate_listener_msg) => {
                     match migrate_listener_msg {
-                        MigrationListenerExecuteMsg::MigrationCompleteNotification {} =>
+                        MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } =>
                             update_child_snip721(deps, info)
                     }
                 }
@@ -172,11 +172,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 }
 
 fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
-    let current_child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
+    let current_child_snip721_address = deps.api.addr_humanize(&load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?;
     let current_child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let child_snip721_migrated_to: MigratableQueryAnswer = deps.querier.query_wasm_smart(
         current_child_snip721_code_hash.clone(),
-        deps.api.addr_humanize(&current_child_snip721_address)?,
+        current_child_snip721_address.clone(),
         &MigratedTo {},
     ).unwrap();
     if let MigrationInfo(Some(migrated_to)) = child_snip721_migrated_to {
@@ -189,6 +189,16 @@ fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response>
         }
         save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(migrated_to.address.as_str())?)?;
         save(deps.storage, CHILD_SNIP721_CODE_HASH_KEY, &migrated_to.code_hash)?;
+
+        let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
+        let updated_contracts: Vec<ContractInfo> = contracts.iter().map(|contract|
+            if contract.address == current_child_snip721_address {
+                migrated_to.clone()
+            } else {
+                contract.clone()
+            }
+        ).collect();
+        save(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &updated_contracts)?;
         Ok(Response::new())
     } else {
         Err(StdError::generic_err("Child snip721 has not been migrated"))
@@ -277,6 +287,11 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
     save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(child_snip721_address.as_str())?)?;
     let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let admin: Addr = deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+    save(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &vec![ContractInfo {
+        address: child_snip721_address.clone(),
+        code_hash: child_snip721_code_hash.clone(),
+    }])?;
+
 
     let reg_on_migration_complete_notify_receiver_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
