@@ -511,6 +511,27 @@ class IntegrationTests {
     }
 
     @Test
+    fun test_dealer_can_mint_after_dealer_migrates_twice() = runTest {
+        val dealerContractV1 = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        val dealerContractV2 = with(migrateSnip721Dealer(dealerContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        val dealerContractV3 = with(migrateSnip721Dealer(dealerContractV2)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        val snip721Contract = getChildSnip721ContractInfo(dealerContractV3)
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        purchaseOneMint(client, dealerContractV3, purchasePrices)
+
+        assertEquals(
+            1,
+            getNumTokensOfOwner(client.senderAddress, snip721Contract.address).count
+        )
+    }
+
+    @Test
     fun test_purchase_one_and_migrate_snip721() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
@@ -518,13 +539,12 @@ class IntegrationTests {
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
 
-        val startingNumTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+
         purchaseOneMint(client, dealerContractInfo, purchasePrices)
         // verify customer received one nft
         val numTokensOfOwner =
             getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
-        assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
+        assertEquals(1, numTokensOfOwner)
 
         val snip721ContractInfoQueryV1 = getContractInfo(snip721ContractV1)
         val contractConfigV1 = getContractConfig(snip721ContractV1)
@@ -627,6 +647,38 @@ class IntegrationTests {
         // verify customer received one nft
         numTokensOfOwner =
             getNumTokensOfOwner(client.senderAddress, snip721ContractInfoV2.address).count
+        assertEquals(2, numTokensOfOwner)
+    }
+
+    @Test
+    fun test_dealer_can_mint_after_snip721_migrates_tokens_twice() = runTest {
+        val dealerContractInfo = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
+        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        // verify customer received one nft
+        var numTokensOfOwner =
+            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        assertEquals(1, numTokensOfOwner)
+
+        client.senderAddress = client.wallet.getAccounts()[0].address
+        val snip721ContractInfoV2 = with(migrateSnip721Contract(snip721ContractV1)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        migrateTokens(client, snip721ContractInfoV2)
+        val snip721ContractInfoV3 = with(migrateSnip721Contract(snip721ContractInfoV2)) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        migrateTokens(client, snip721ContractInfoV3)
+
+        client.senderAddress = client.wallet.getAccounts()[1].address
+
+        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        // verify customer received one nft
+        numTokensOfOwner =
+            getNumTokensOfOwner(client.senderAddress, snip721ContractInfoV3.address).count
         assertEquals(2, numTokensOfOwner)
     }
 
