@@ -1,22 +1,22 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128};
+    use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
     use schemars::_serde_json::to_string;
     use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-    use snip721_reference_impl::state::{load, MINTERS_KEY};
+    use snip721_reference_impl::state::{load, may_load, MINTERS_KEY, save};
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg::MigratableExecuteMsg;
+    use migration::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
     use migration::msg_types::{MigrateFrom, MigrateTo};
     use migration::msg_types::ReplyError::StateChangesNotAllowed;
     use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
     use crate::contract::{execute, instantiate, query, reply};
-    use crate::msg::{ExecuteMsg, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
+    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
     use crate::state::{MIGRATE_IN_TOKENS_PROGRESS_KEY, MigrateInTokensProgress};
@@ -457,5 +457,166 @@ mod tests {
         let saved_contract: Vec<ContractInfo> =
             load(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY).unwrap();
         assert_eq!(vec![receiver], saved_contract);
+    }
+
+    fn assert_is_migration_complete_notification_msg_to_contract(
+        cosmos_msg: &CosmosMsg,
+        send_to: &ContractInfo,
+        migrated_from: &ContractInfo,
+    ) {
+        return match cosmos_msg {
+            CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
+                WasmMsg::Execute {
+                    contract_addr, code_hash, msg, funds
+                } => {
+                    assert_eq!(&send_to.address, contract_addr);
+                    assert_eq!(&send_to.code_hash, code_hash);
+                    assert_eq!(&Vec::<Coin>::new(), funds);
+                    let execute_msg: MigrationListenerExecuteMsg = from_binary(msg).unwrap();
+                    let expected_execute_msg = MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                        from: migrated_from.clone().into(),
+                    };
+                    assert_eq!(expected_execute_msg, execute_msg);
+                }
+
+                _ => {}
+            },
+            _ => {}
+        };
+    }
+
+
+    #[test]
+    fn migrate_data_in_adds_message_to_notify_migrated_contract_of_completion() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_permit = &get_admin_permit();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
+        let admin_info = mock_info(admin_addr.as_str(), &[]);
+
+        let instantiate_msg = instantiate_msg(admin_info.clone());
+        let env_0 = custom_mock_env_0();
+        let _res = instantiate(
+            deps.as_mut(),
+            env_0.clone(),
+            admin_info.clone(),
+            instantiate_msg,
+        )?;
+        save(deps.as_mut().storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
+        let mock_secret = Binary::from(b"secret_to_migrate_data_in");
+        let mock_migrated_from = MigratedFromState {
+            contract: env_0.contract,
+            migration_secret: mock_secret,
+        };
+        save(deps.as_mut().storage, MIGRATED_FROM_KEY, &mock_migrated_from)?;
+        let mock_migrate_in_tokens_progress = MigrateInTokensProgress {
+            migrate_in_mint_cnt: 0,
+            migrate_in_next_mint_index: 0,
+        };
+        save(deps.as_mut().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &mock_migrate_in_tokens_progress)?;
+
+        let contracts = may_load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?.unwrap_or_default();
+        assert_eq!(0, contracts.len());
+
+        let res = execute(
+            deps.as_mut(),
+            custom_mock_env_0(),
+            admin_info.clone(),
+            ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn {
+                pages: None,
+                page_size: None,
+            }),
+        )?;
+
+        assert_eq!(1, res.messages.len());
+        assert_eq!(0, res.messages[0].id);
+        assert_eq!(ReplyOn::Never, res.messages[0].reply_on);
+        assert!(matches!(
+            res.messages[0].msg,
+            CosmosMsg::Wasm(WasmMsg::Execute { .. })
+        ));
+        assert_is_migration_complete_notification_msg_to_contract(
+            &res.messages[0].msg,
+            &mock_migrated_from.contract,
+            &mock_migrated_from.contract,
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_data_in_adds_message_to_notify_migrated_contract_of_completion_and_all_others_registered() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_permit = &get_admin_permit();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
+        let admin_info = mock_info(admin_addr.as_str(), &[]);
+
+        let instantiate_msg = instantiate_msg(admin_info.clone());
+        let env_0 = custom_mock_env_0();
+        let _res = instantiate(
+            deps.as_mut(),
+            env_0.clone(),
+            admin_info.clone(),
+            instantiate_msg,
+        )?;
+        save(deps.as_mut().storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
+        let mock_secret = Binary::from(b"secret_to_migrate_data_in");
+        let mock_migrated_from = MigratedFromState {
+            contract: env_0.contract,
+            migration_secret: mock_secret,
+        };
+        save(deps.as_mut().storage, MIGRATED_FROM_KEY, &mock_migrated_from)?;
+        let mock_migrate_in_tokens_progress = MigrateInTokensProgress {
+            migrate_in_mint_cnt: 0,
+            migrate_in_next_mint_index: 0,
+        };
+        save(deps.as_mut().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &mock_migrate_in_tokens_progress)?;
+
+        let contracts_to_notify = vec![
+            ContractInfo {
+                address: Addr::unchecked("notify_0_address"),
+                code_hash: "notify_0_code_hash".to_string(),
+            },
+            ContractInfo {
+                address: Addr::unchecked("notify_1_address"),
+                code_hash: "notify_1_code_hash".to_string(),
+            },
+        ];
+        save(deps.as_mut().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &contracts_to_notify)?;
+
+        let res = execute(
+            deps.as_mut(),
+            custom_mock_env_0(),
+            admin_info.clone(),
+            ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn {
+                pages: None,
+                page_size: None,
+            }),
+        )?;
+
+        assert_eq!(3, res.messages.len());
+        for sub_msg in &res.messages {
+            assert_eq!(0, sub_msg.id);
+            assert_eq!(ReplyOn::Never, sub_msg.reply_on);
+        }
+
+        assert_is_migration_complete_notification_msg_to_contract(
+            &res.messages[0].msg,
+            &mock_migrated_from.contract,
+            &mock_migrated_from.contract,
+        );
+
+        assert_is_migration_complete_notification_msg_to_contract(
+            &res.messages[1].msg,
+            &contracts_to_notify[0],
+            &mock_migrated_from.contract,
+        );
+        assert_is_migration_complete_notification_msg_to_contract(
+            &res.messages[2].msg,
+            &contracts_to_notify[1],
+            &mock_migrated_from.contract,
+        );
+
+
+        Ok(())
     }
 }

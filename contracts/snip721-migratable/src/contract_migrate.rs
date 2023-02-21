@@ -124,10 +124,9 @@ pub(crate) fn perform_token_migration(deps: DepsMut, env: &Env, info: MessageInf
     } else {
         // migration complete
         save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
-        // todo add test for setting message
-        let mut contracts = may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?.unwrap_or_default();
         // always notify the contract being migrated from so it can change its mode from MigrateOutStarted to MigratedOut
-        contracts.append(&mut vec![migrated_from.contract.clone()]);
+        let contracts = &mut vec![migrated_from.contract.clone()];
+        contracts.append(&mut may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?.unwrap_or_default());
         let msg = to_binary(&MigrationListenerExecuteMsg::MigrationCompleteNotification { from: migrated_from.contract.into() })?;
         let sub_msgs: Vec<SubMsg> = contracts.iter().map(|contract| {
             let execute = WasmMsg::Execute {
