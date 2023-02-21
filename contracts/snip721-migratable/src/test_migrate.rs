@@ -184,6 +184,32 @@ mod tests {
         }
     }
 
+    fn assert_is_migration_complete_notification_msg_to_contract(
+        cosmos_msg: &CosmosMsg,
+        send_to: &migration::msg_types::ContractInfo,
+        migrated_from: &migration::msg_types::ContractInfo,
+    ) {
+        return match cosmos_msg {
+            CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
+                WasmMsg::Execute {
+                    contract_addr, code_hash, msg, funds
+                } => {
+                    assert_eq!(&send_to.address, contract_addr);
+                    assert_eq!(&send_to.code_hash, code_hash);
+                    assert_eq!(&Vec::<Coin>::new(), funds);
+                    let execute_msg: MigrationListenerExecuteMsg = from_binary(msg).unwrap();
+                    let expected_execute_msg = MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                        from: migrated_from.clone(),
+                    };
+                    assert_eq!(expected_execute_msg, execute_msg);
+                }
+
+                _ => {}
+            },
+            _ => {}
+        };
+    }
+
     #[test]
     fn instantiate_with_migrated_config_saves_config() -> StdResult<()> {
         let mut deps = mock_dependencies();
@@ -459,33 +485,6 @@ mod tests {
         assert_eq!(vec![receiver], saved_contract);
     }
 
-    fn assert_is_migration_complete_notification_msg_to_contract(
-        cosmos_msg: &CosmosMsg,
-        send_to: &ContractInfo,
-        migrated_from: &ContractInfo,
-    ) {
-        return match cosmos_msg {
-            CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
-                WasmMsg::Execute {
-                    contract_addr, code_hash, msg, funds
-                } => {
-                    assert_eq!(&send_to.address, contract_addr);
-                    assert_eq!(&send_to.code_hash, code_hash);
-                    assert_eq!(&Vec::<Coin>::new(), funds);
-                    let execute_msg: MigrationListenerExecuteMsg = from_binary(msg).unwrap();
-                    let expected_execute_msg = MigrationListenerExecuteMsg::MigrationCompleteNotification {
-                        from: migrated_from.clone().into(),
-                    };
-                    assert_eq!(expected_execute_msg, execute_msg);
-                }
-
-                _ => {}
-            },
-            _ => {}
-        };
-    }
-
-
     #[test]
     fn migrate_data_in_adds_message_to_notify_migrated_contract_of_completion() -> StdResult<()> {
         let mut deps = mock_dependencies();
@@ -536,8 +535,8 @@ mod tests {
         ));
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[0].msg,
-            &mock_migrated_from.contract,
-            &mock_migrated_from.contract,
+            &mock_migrated_from.contract.clone().into(),
+            &mock_migrated_from.contract.into(),
         );
 
         Ok(())
@@ -601,19 +600,19 @@ mod tests {
 
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[0].msg,
-            &mock_migrated_from.contract,
-            &mock_migrated_from.contract,
+            &mock_migrated_from.contract.clone().into(),
+            &mock_migrated_from.contract.clone().into(),
         );
 
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[1].msg,
-            &contracts_to_notify[0],
-            &mock_migrated_from.contract,
+            &contracts_to_notify[0].clone().into(),
+            &mock_migrated_from.contract.clone().into(),
         );
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[2].msg,
-            &contracts_to_notify[1],
-            &mock_migrated_from.contract,
+            &contracts_to_notify[1].clone().into(),
+            &mock_migrated_from.contract.into(),
         );
 
 
