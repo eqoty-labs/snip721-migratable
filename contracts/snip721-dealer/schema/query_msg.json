@@ -1,17 +1,89 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
-        "get_count"
+        "dealer"
       ],
       "properties": {
-        "get_count": {
-          "type": "object"
+        "dealer": {
+          "$ref": "#/definitions/DealerQueryMsg"
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "migrate"
+      ],
+      "properties": {
+        "migrate": {
+          "$ref": "#/definitions/MigratableQueryMsg"
+        }
+      },
+      "additionalProperties": false
     }
-  ]
+  ],
+  "definitions": {
+    "DealerQueryMsg": {
+      "oneOf": [
+        {
+          "description": "GetPrices returns the purchase price in acceptable coin types.",
+          "type": "object",
+          "required": [
+            "get_prices"
+          ],
+          "properties": {
+            "get_prices": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "get_child_snip721"
+          ],
+          "properties": {
+            "get_child_snip721": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MigratableQueryMsg": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "migrated_from"
+          ],
+          "properties": {
+            "migrated_from": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "migrated_to"
+          ],
+          "properties": {
+            "migrated_to": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
 }
