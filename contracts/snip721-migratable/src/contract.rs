@@ -1,17 +1,27 @@
-use cosmwasm_std::{Binary, CanonicalAddr, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdError, StdResult, SubMsg, WasmMsg,
+};
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-use snip721_reference_impl::state::{Config, CONFIG_KEY, load, may_load, MINTERS_KEY, save};
+use snip721_reference_impl::state::{load, may_load, save, Config, CONFIG_KEY, MINTERS_KEY};
 
 use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
-use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::MigratedTo;
-use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
+use cosmwasm_contract_migratable_std::msg::{
+    MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg,
+};
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
-use cosmwasm_contract_migratable_std::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedToState};
+use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
+use cosmwasm_contract_migratable_std::state::{
+    ContractMode, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_TO_KEY,
+};
 
-use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
+use crate::contract_migrate::{
+    instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration,
+    query_migrated_info,
+};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, QueryMsgExt};
 
 const MIGRATE_REPLY_ID: u64 = 1u64;
@@ -43,15 +53,9 @@ pub fn instantiate(
                 funds: vec![],
             };
 
-            let migrate_submessage = SubMsg::reply_on_success(
-                migrate_wasm_msg,
-                MIGRATE_REPLY_ID,
-            );
+            let migrate_submessage = SubMsg::reply_on_success(migrate_wasm_msg, MIGRATE_REPLY_ID);
 
-
-            Ok(Response::new()
-                .add_submessages([migrate_submessage])
-            )
+            Ok(Response::new().add_submessages([migrate_submessage]))
         }
     };
 }
@@ -63,52 +67,55 @@ pub(crate) fn init_snip721(
     msg: Snip721InstantiateMsg,
 ) -> StdResult<Response> {
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
-    let snip721_response = snip721_reference_impl::contract::instantiate(deps, env, info.clone(), msg)
-        .unwrap();
+    let snip721_response =
+        snip721_reference_impl::contract::instantiate(deps, env, info.clone(), msg).unwrap();
 
     return Ok(snip721_response);
 }
-
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match mode {
-        ContractMode::MigrateDataIn => {
-            perform_token_migration(deps, &env, info, config, msg)
-        }
-        ContractMode::Running => {
-            match msg {
-                ExecuteMsg::Base(base_msg) => {
-                    snip721_reference_impl::contract::execute(deps, env, info, base_msg)
-                }
-                ExecuteMsg::Migrate(ext_msg) => match ext_msg {
-                    MigratableExecuteMsg::Migrate { admin_permit, migrate_to } =>
-                        migrate(deps, env, info, &mut config, admin_permit, migrate_to),
-                    MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } =>
-                        register_to_notify_on_migration_complete(deps, info, config.admin, address, code_hash),
-                },
-                ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
-                    MigrationListenerExecuteMsg::MigrationCompleteNotification { from } =>
-                        update_migrated_minter(deps, from)
-                },
-                _ => {
-                    Err(StdError::generic_err(
-                        "Operation not allowed allowed in ContractMode::Running",
-                    ))
-                }
+        ContractMode::MigrateDataIn => perform_token_migration(deps, &env, info, config, msg),
+        ContractMode::Running => match msg {
+            ExecuteMsg::Base(base_msg) => {
+                snip721_reference_impl::contract::execute(deps, env, info, base_msg)
             }
-        }
-        ContractMode::MigrateOutStarted => {
-            match msg {
-                ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
-                    MigrationListenerExecuteMsg::MigrationCompleteNotification { .. } =>
-                        on_migration_complete(deps, info)
-                },
-                _ => no_state_changes_allowed(deps)
-            }
-        }
+            ExecuteMsg::Migrate(ext_msg) => match ext_msg {
+                MigratableExecuteMsg::Migrate {
+                    admin_permit,
+                    migrate_to,
+                } => migrate(deps, env, info, &mut config, admin_permit, migrate_to),
+                MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+                    address,
+                    code_hash,
+                } => register_to_notify_on_migration_complete(
+                    deps,
+                    info,
+                    config.admin,
+                    address,
+                    code_hash,
+                ),
+            },
+            ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
+                MigrationListenerExecuteMsg::MigrationCompleteNotification { from } => {
+                    update_migrated_minter(deps, from)
+                }
+            },
+            _ => Err(StdError::generic_err(
+                "Operation not allowed allowed in ContractMode::Running",
+            )),
+        },
+        ContractMode::MigrateOutStarted => match msg {
+            ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
+                MigrationListenerExecuteMsg::MigrationCompleteNotification { .. } => {
+                    on_migration_complete(deps, info)
+                }
+            },
+            _ => no_state_changes_allowed(deps),
+        },
         ContractMode::MigratedOut => no_state_changes_allowed(deps),
     };
 }
@@ -124,13 +131,13 @@ fn update_migrated_minter(deps: DepsMut, from: ContractInfo) -> StdResult<Respon
         // their own minter.
         // To make sure that does not happen, query the contract that is being migrated from
         // to find out where it is being migrated to.
-        let migrated_to: MigratableQueryAnswer = deps.querier.query_wasm_smart(
-            from.code_hash,
-            from.address,
-            &MigratedTo {},
-        ).unwrap();
+        let migrated_to: MigratableQueryAnswer = deps
+            .querier
+            .query_wasm_smart(from.code_hash, from.address, &MigratedTo {})
+            .unwrap();
         if let MigrationInfo(Some(migrated_to)) = migrated_to {
-            minters[some_minter_index_to_update] = deps.api.addr_canonicalize(migrated_to.address.as_str())?;
+            minters[some_minter_index_to_update] =
+                deps.api.addr_canonicalize(migrated_to.address.as_str())?;
             update = true;
         }
     }
@@ -161,9 +168,11 @@ fn no_state_changes_allowed(deps: DepsMut) -> StdResult<Response> {
     let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
     Err(StdError::generic_err(
         to_string(&StateChangesNotAllowed {
-            message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+            message: "This contract has been migrated. No further state changes are allowed!"
+                .to_string(),
             migrated_to: migrated_to.contract.into(),
-        }).unwrap()
+        })
+        .unwrap(),
     ))
 }
 
@@ -204,20 +213,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                         migrated_error
                     }
                 }
-                _ => snip721_reference_impl::contract::query(deps, env, base_msg)
+                _ => snip721_reference_impl::contract::query(deps, env, base_msg),
             }
         }
-        QueryMsg::Ext(base_msg) => {
-            match base_msg {
-                QueryMsgExt::ExportMigrationData { start_index, max_count, secret } =>
-                    migration_dossier_list(deps, &env.block, start_index, max_count, &secret),
-            }
-        }
-        QueryMsg::Migrate(migrate_msg) => {
-            match migrate_msg {
-                MigratableQueryMsg::MigratedTo {} => query_migrated_info(deps, false),
-                MigratableQueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
-            }
-        }
+        QueryMsg::Ext(base_msg) => match base_msg {
+            QueryMsgExt::ExportMigrationData {
+                start_index,
+                max_count,
+                secret,
+            } => migration_dossier_list(deps, &env.block, start_index, max_count, &secret),
+        },
+        QueryMsg::Migrate(migrate_msg) => match migrate_msg {
+            MigratableQueryMsg::MigratedTo {} => query_migrated_info(deps, false),
+            MigratableQueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
+        },
     };
 }

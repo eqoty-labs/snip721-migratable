@@ -10,4 +10,3 @@ pub struct MigrateInTokensProgress {
     /// the next mint index out of migrate_in_mint_cnt that must be migrated
     pub migrate_in_next_mint_index: u32,
 }
-

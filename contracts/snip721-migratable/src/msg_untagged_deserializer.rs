@@ -1,4 +1,6 @@
-use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg::{
+    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
+};
 
 use crate::msg::{ExecuteMsg, ExecuteMsgExt, QueryMsg, QueryMsgExt};
 
@@ -12,8 +14,8 @@ const _: () = {
     #[automatically_derived]
     impl<'de> _serde::Deserialize<'de> for ExecuteMsg {
         fn deserialize<__D>(__deserializer: __D) -> _serde::__private::Result<Self, __D::Error>
-            where
-                __D: _serde::Deserializer<'de>,
+        where
+            __D: _serde::Deserializer<'de>,
         {
             // [1] `_serde::__private::de::Content` is where the problem lies
             let __content = match <serde_cw_value::Value>::deserialize(__deserializer) {
@@ -65,13 +67,13 @@ const _: () = {
             ) {
                 return _serde::__private::Ok(__ok);
             }
-            _serde::__private::Err(_serde::de::Error::custom(
-                format!("{:?} did not match any variant of untagged enum ExecuteMsg", __content)
-            ))
+            _serde::__private::Err(_serde::de::Error::custom(format!(
+                "{:?} did not match any variant of untagged enum ExecuteMsg",
+                __content
+            )))
         }
     }
 };
-
 
 // todo: remove when resolved
 // https://github.com/CosmWasm/serde-json-wasm/issues/43#issuecomment-1263097436
@@ -83,8 +85,8 @@ const _: () = {
     #[automatically_derived]
     impl<'de> _serde::Deserialize<'de> for QueryMsg {
         fn deserialize<__D>(__deserializer: __D) -> _serde::__private::Result<Self, __D::Error>
-            where
-                __D: _serde::Deserializer<'de>,
+        where
+            __D: _serde::Deserializer<'de>,
         {
             // [1] `_serde::__private::de::Content` is where the problem lies
             let __content = match <serde_cw_value::Value>::deserialize(__deserializer) {
@@ -123,9 +125,10 @@ const _: () = {
             ) {
                 return _serde::__private::Ok(__ok);
             }
-            _serde::__private::Err(_serde::de::Error::custom(
-                format!("{:?} did not match any variant of untagged enum QueryMsg", __content)
-            ))
+            _serde::__private::Err(_serde::de::Error::custom(format!(
+                "{:?} did not match any variant of untagged enum QueryMsg",
+                __content
+            )))
         }
     }
 };

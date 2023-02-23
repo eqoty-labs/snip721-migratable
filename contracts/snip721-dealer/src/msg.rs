@@ -4,8 +4,12 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
-use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
-use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
+use cosmwasm_contract_migratable_std::msg::{
+    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
+};
+use cosmwasm_contract_migratable_std::msg_types::{
+    ContractInfo, InstantiateByMigrationMsg, MigrateFrom,
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -41,7 +45,6 @@ pub struct InstantiateSelfAndChildSnip721Msg {
     pub royalty_info: Option<RoyaltyInfo>,
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DealerState {
     pub admin: Addr,
@@ -66,14 +69,12 @@ pub enum ExecuteMsg {
     MigrateListener(MigrationListenerExecuteMsg),
 }
 
-
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DealerExecuteMsg {
     // Purchase a nft mint
     PurchaseMint {},
 }
-
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]

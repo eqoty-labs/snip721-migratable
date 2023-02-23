@@ -1,15 +1,23 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, from_binary, StdError, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, Uint128, WasmMsg,
+    };
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
-    use crate::state::{CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, PurchasableMetadata};
-    use crate::test_utils::test_utils::{child_snip721_address, successful_child_snip721_instantiate_reply};
+    use crate::msg::{
+        DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg,
+    };
+    use crate::state::{
+        PurchasableMetadata, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
+    };
+    use crate::test_utils::test_utils::{
+        child_snip721_address, successful_child_snip721_instantiate_reply,
+    };
 
     #[test]
     fn purchase_and_mint_successfully_w_correct_denom_w_correct_amount() {
@@ -43,11 +51,17 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         // fake a reply after successful instantiate of child snip721
         let child_snip721_address = child_snip721_address();
-        reply(deps.as_mut(), mock_env(), successful_child_snip721_instantiate_reply(child_snip721_address.as_str())).unwrap();
+        reply(
+            deps.as_mut(),
+            mock_env(),
+            successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -55,7 +69,8 @@ mod tests {
             mock_env(),
             mint_recipient_info.clone(),
             exec_purchase_msg,
-        ).unwrap();
+        )
+        .unwrap();
 
         // there should be one message
         assert_eq!(exec_purchase_res.messages.len(), 2);
@@ -87,15 +102,37 @@ mod tests {
         match &exec_purchase_res.messages[1].msg {
             CosmosMsg::Wasm(msg) => match msg {
                 WasmMsg::Execute {
-                    contract_addr, code_hash, msg, funds
+                    contract_addr,
+                    code_hash,
+                    msg,
+                    funds,
                 } => {
-                    let child_snip721_code_hash: String = load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
-                    let child_snip721_address: CanonicalAddr = load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
-                    assert_eq!(&deps.api.addr_humanize(&child_snip721_address).unwrap().to_string(), contract_addr);
+                    let child_snip721_code_hash: String =
+                        load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+                    let child_snip721_address: CanonicalAddr =
+                        load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
+                    assert_eq!(
+                        &deps
+                            .api
+                            .addr_humanize(&child_snip721_address)
+                            .unwrap()
+                            .to_string(),
+                        contract_addr
+                    );
                     assert_eq!(&child_snip721_code_hash.to_string(), code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     match from_binary(msg).unwrap() {
-                        Snip721ExecuteMsg::MintNft { token_id, owner, public_metadata, private_metadata, serial_number, royalty_info, transferable, memo, padding } => {
+                        Snip721ExecuteMsg::MintNft {
+                            token_id,
+                            owner,
+                            public_metadata,
+                            private_metadata,
+                            serial_number,
+                            royalty_info,
+                            transferable,
+                            memo,
+                            padding,
+                        } => {
                             assert_eq!(None, token_id);
                             assert_eq!(Some(mint_recipient_info.sender.to_string()), owner);
                             assert_eq!(purchasable_metadata.public_metadata, public_metadata);
@@ -138,7 +175,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -154,7 +192,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
     }
 
@@ -188,7 +226,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -204,10 +243,9 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase price in {} is {}, but {} was sent",
                 prices[0].denom, prices[0].amount, invalid_funds[0]
-            ), )
+            ),)
         );
     }
-
 
     #[test]
     fn purchase_and_mint_fails_w_correct_denom_w_excessive_amount() {
@@ -239,7 +277,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -255,7 +294,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase price in {} is {}, but {} was sent",
                 prices[0].denom, prices[0].amount, invalid_funds[0]
-            ), )
+            ),)
         );
     }
 
@@ -289,7 +328,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -305,7 +345,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ), )
+            ),)
         );
     }
 
@@ -339,7 +379,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -355,10 +396,9 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ), )
+            ),)
         );
     }
-
 
     #[test]
     fn purchase_and_mint_fails_w_wrong_denom_w_excessive_amount() {
@@ -390,7 +430,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -406,7 +447,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ), )
+            ),)
         );
     }
 
@@ -439,7 +480,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -455,7 +497,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
     }
 
@@ -495,7 +537,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -511,7 +554,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
     }
 
@@ -551,7 +594,8 @@ mod tests {
             mock_env(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        ).unwrap();
+        )
+        .unwrap();
 
         let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
@@ -567,7 +611,7 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
     }
 }

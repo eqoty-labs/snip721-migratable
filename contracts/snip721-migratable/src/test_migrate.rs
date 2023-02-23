@@ -1,25 +1,38 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsgResponse, SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128, WasmMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
+    use cosmwasm_std::{
+        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
+        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult,
+        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+    };
     use schemars::_serde_json::to_string;
-    use secret_toolkit::permit::{Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate};
+    use secret_toolkit::permit::{
+        validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
+    };
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-    use snip721_reference_impl::state::{load, may_load, MINTERS_KEY, save};
+    use snip721_reference_impl::state::{load, may_load, save, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
 
-    use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
-    use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
+    use cosmwasm_contract_migratable_std::msg::{
+        MigratableExecuteMsg, MigrationListenerExecuteMsg,
+    };
     use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
-    use cosmwasm_contract_migratable_std::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
+    use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
+    use cosmwasm_contract_migratable_std::state::{
+        ContractMode, MigratedFromState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
+        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    };
 
     use crate::contract::{execute, instantiate, query, reply};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
-    use crate::state::{MIGRATE_IN_TOKENS_PROGRESS_KEY, MigrateInTokensProgress};
+    use crate::msg::{
+        ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg,
+    };
+    use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS_KEY};
     use crate::test_utils::test_utils::instantiate_msg;
 
     const CONTRACT_ADDRESS_0: &str = "secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq";
@@ -55,7 +68,11 @@ mod tests {
         }
     }
 
-    pub fn build_mint_msg(recipient: String, public_metadata: Option<Metadata>, private_metadata: Option<Metadata>) -> ExecuteMsg {
+    pub fn build_mint_msg(
+        recipient: String,
+        public_metadata: Option<Metadata>,
+        private_metadata: Option<Metadata>,
+    ) -> ExecuteMsg {
         ExecuteMsg::Base(Snip721ExecuteMsg::MintNft {
             token_id: None,
             owner: Some(recipient),
@@ -75,7 +92,12 @@ mod tests {
                 key: viewing_key.clone(),
                 padding: None,
             });
-        let res = execute(deps, custom_mock_env_0(), message_info.clone(), set_view_key_msg);
+        let res = execute(
+            deps,
+            custom_mock_env_0(),
+            message_info.clone(),
+            set_view_key_msg,
+        );
         assert!(res.is_ok(), "execute failed: {}", res.err().unwrap());
     }
 
@@ -113,15 +135,14 @@ mod tests {
         migration_target_addr: &Addr,
         migration_target_code_hash: &str,
     ) -> StdResult<Response> {
-        let set_view_key_msg =
-            ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
-                admin_permit: admin_permit.clone(),
-                migrate_to: MigrateTo {
-                    address: migration_target_addr.clone(),
-                    code_hash: migration_target_code_hash.to_string(),
-                    entropy: "magnets, how do they work?".to_string(),
-                },
-            });
+        let set_view_key_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
+            admin_permit: admin_permit.clone(),
+            migrate_to: MigrateTo {
+                address: migration_target_addr.clone(),
+                code_hash: migration_target_code_hash.to_string(),
+                entropy: "magnets, how do they work?".to_string(),
+            },
+        });
         let res = execute(
             deps,
             custom_mock_env_0(),
@@ -161,7 +182,12 @@ mod tests {
         }
     }
 
-    pub fn export_migration_data(deps: Deps, start_index: Option<u32>, max_count: Option<u32>, secret: Binary) -> Vec<BatchNftDossierElement> {
+    pub fn export_migration_data(
+        deps: Deps,
+        start_index: Option<u32>,
+        max_count: Option<u32>,
+        secret: Binary,
+    ) -> Vec<BatchNftDossierElement> {
         let query_msg = QueryMsg::Ext(ExportMigrationData {
             start_index,
             max_count,
@@ -177,7 +203,10 @@ mod tests {
         let query_answer: StdResult<QueryAnswer> = from_binary(&query_res.unwrap());
         if query_answer.is_ok() {
             return match query_answer.unwrap() {
-                MigrationBatchNftDossier { last_mint_index: _, nft_dossiers } => nft_dossiers,
+                MigrationBatchNftDossier {
+                    last_mint_index: _,
+                    nft_dossiers,
+                } => nft_dossiers,
             };
         } else {
             panic!("{}", query_answer.unwrap_err())
@@ -192,15 +221,19 @@ mod tests {
         return match cosmos_msg {
             CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
                 WasmMsg::Execute {
-                    contract_addr, code_hash, msg, funds
+                    contract_addr,
+                    code_hash,
+                    msg,
+                    funds,
                 } => {
                     assert_eq!(&send_to.address, contract_addr);
                     assert_eq!(&send_to.code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     let execute_msg: MigrationListenerExecuteMsg = from_binary(msg).unwrap();
-                    let expected_execute_msg = MigrationListenerExecuteMsg::MigrationCompleteNotification {
-                        from: migrated_from.clone(),
-                    };
+                    let expected_execute_msg =
+                        MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                            from: migrated_from.clone(),
+                        };
                     assert_eq!(expected_execute_msg, execute_msg);
                 }
 
@@ -223,9 +256,11 @@ mod tests {
         };
         let expected_mint_count = 3;
         let expected_secret = Binary::from(b"secret_to_migrate_data_in");
-        let expected_minters = vec![deps.api.addr_canonicalize(snip721_dealer_to_notify.address.as_str())?];
-        let instantiate_by_migration_reply_msg_data = to_binary(
-            &InstantiateByMigrationReplyDataMsg {
+        let expected_minters = vec![deps
+            .api
+            .addr_canonicalize(snip721_dealer_to_notify.address.as_str())?];
+        let instantiate_by_migration_reply_msg_data =
+            to_binary(&InstantiateByMigrationReplyDataMsg {
                 migrated_instantiate_msg: Snip721InstantiateMsg {
                     name: "migratable_snip721".to_string(),
                     admin: Some(admin_addr),
@@ -240,11 +275,14 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone().into()]),
+                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify
+                    .clone()
+                    .into()]),
                 minters: expected_minters.clone(),
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
-            }).unwrap();
+            })
+            .unwrap();
         let reply_msg = Reply {
             id: 1u64,
             result: SubMsgResult::Ok(SubMsgResponse {
@@ -258,16 +296,31 @@ mod tests {
             contract: env_0.contract,
             migration_secret: expected_secret,
         };
-        assert_eq!(expected_migrated_from, load::<MigratedFromState>(deps.as_ref().storage, MIGRATED_FROM_KEY)?);
+        assert_eq!(
+            expected_migrated_from,
+            load::<MigratedFromState>(deps.as_ref().storage, MIGRATED_FROM_KEY)?
+        );
 
         let expected_migrate_in_tokens_progress = MigrateInTokensProgress {
             migrate_in_mint_cnt: expected_mint_count,
             migrate_in_next_mint_index: 0,
         };
-        assert_eq!(expected_migrate_in_tokens_progress, load::<MigrateInTokensProgress>(deps.as_ref().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?);
-        assert_eq!(ContractMode::MigrateDataIn, load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY)?);
-        assert_eq!(vec![snip721_dealer_to_notify], load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?);
-        assert_eq!(expected_minters, load::<Vec<CanonicalAddr>>(deps.as_ref().storage, MINTERS_KEY)?);
+        assert_eq!(
+            expected_migrate_in_tokens_progress,
+            load::<MigrateInTokensProgress>(deps.as_ref().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?
+        );
+        assert_eq!(
+            ContractMode::MigrateDataIn,
+            load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY)?
+        );
+        assert_eq!(
+            vec![snip721_dealer_to_notify],
+            load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?
+        );
+        assert_eq!(
+            expected_minters,
+            load::<Vec<CanonicalAddr>>(deps.as_ref().storage, MINTERS_KEY)?
+        );
 
         Ok(())
     }
@@ -285,8 +338,8 @@ mod tests {
         };
         let expected_mint_count = 3;
         let expected_secret = Binary::from(b"secret_to_migrate_data_in");
-        let instantiate_by_migration_reply_msg_data = to_binary(
-            &InstantiateByMigrationReplyDataMsg {
+        let instantiate_by_migration_reply_msg_data =
+            to_binary(&InstantiateByMigrationReplyDataMsg {
                 migrated_instantiate_msg: Snip721InstantiateMsg {
                     name: "migratable_snip721".to_string(),
                     admin: Some(admin_addr),
@@ -301,11 +354,14 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone().into()]),
+                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify
+                    .clone()
+                    .into()]),
                 minters: vec![],
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
-            }).unwrap();
+            })
+            .unwrap();
         let reply_msg = Reply {
             id: 1u64,
             result: SubMsgResult::Ok(SubMsgResponse {
@@ -332,40 +388,69 @@ mod tests {
             custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
-        ).unwrap();
+        )
+        .unwrap();
 
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
             build_mint_msg(mint_recipient_info.sender.to_string(), None, None).clone(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), mint_recipient_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), mint_recipient_info.clone());
+        set_viewing_key(
+            deps.as_mut(),
+            viewing_key.clone(),
+            mint_recipient_info.clone(),
+        );
+        let tokens = get_tokens(
+            deps.as_ref(),
+            viewing_key.clone(),
+            mint_recipient_info.clone(),
+        );
         assert_eq!(tokens.len(), 1);
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
 
-        let migrate_0_result = migrate(deps.as_mut(), admin_permit, &migrate_to_addr_0, migrate_to_code_hash_0);
-        assert_eq!(true, migrate_0_result.is_ok(), "{:?}", migrate_0_result.unwrap_err());
+        let migrate_0_result = migrate(
+            deps.as_mut(),
+            admin_permit,
+            &migrate_to_addr_0,
+            migrate_to_code_hash_0,
+        );
+        assert_eq!(
+            true,
+            migrate_0_result.is_ok(),
+            "{:?}",
+            migrate_0_result.unwrap_err()
+        );
 
         let migrate_to_addr_1 = Addr::unchecked("new_address_1");
         let migrate_to_code_hash_1 = "code_hash_1";
-        let migrate_1_result = migrate(deps.as_mut(), admin_permit, &migrate_to_addr_1, migrate_to_code_hash_1);
+        let migrate_1_result = migrate(
+            deps.as_mut(),
+            admin_permit,
+            &migrate_to_addr_1,
+            migrate_to_code_hash_1,
+        );
         assert_eq!(false, migrate_1_result.is_ok());
         assert_eq!(
             migrate_1_result.err().unwrap(),
             StdError::generic_err(
                 to_string(&StateChangesNotAllowed {
-                    message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+                    message:
+                        "This contract has been migrated. No further state changes are allowed!"
+                            .to_string(),
                     migrated_to: ContractInfo {
                         address: migrate_to_addr_0,
                         code_hash: migrate_to_code_hash_0.to_string(),
-                    }.into(),
-                }).unwrap()
+                    }
+                    .into(),
+                })
+                .unwrap()
             )
         );
     }
@@ -384,72 +469,119 @@ mod tests {
         let mint_recipient_1_info = mock_info("minty_1", &prices.clone());
         let mint_recipient_2_info = mock_info("minty_2", &prices.clone());
 
-        let public_metadata = Some(Metadata { token_uri: Some("public_metadata_uri".to_string()), extension: None });
-        let private_metadata = Some(Metadata { token_uri: Some("private_metadata_uri".to_string()), extension: None });
+        let public_metadata = Some(Metadata {
+            token_uri: Some("public_metadata_uri".to_string()),
+            extension: None,
+        });
+        let private_metadata = Some(Metadata {
+            token_uri: Some("private_metadata_uri".to_string()),
+            extension: None,
+        });
         let instantiate_msg = instantiate_msg(admin_info.clone());
         let _res = instantiate(
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
-        ).unwrap();
+        )
+        .unwrap();
 
-
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            build_mint_msg(mint_recipient_0_info.sender.to_string(), public_metadata.clone(), private_metadata.clone()).clone(),
-        ).unwrap();
+            build_mint_msg(
+                mint_recipient_0_info.sender.to_string(),
+                public_metadata.clone(),
+                private_metadata.clone(),
+            )
+            .clone(),
+        )
+        .unwrap();
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            build_mint_msg(mint_recipient_1_info.sender.to_string(), public_metadata.clone(), private_metadata.clone()).clone(),
-        ).unwrap();
+            build_mint_msg(
+                mint_recipient_1_info.sender.to_string(),
+                public_metadata.clone(),
+                private_metadata.clone(),
+            )
+            .clone(),
+        )
+        .unwrap();
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            build_mint_msg(mint_recipient_2_info.sender.to_string(), public_metadata.clone(), private_metadata.clone()).clone(),
-        ).unwrap();
+            build_mint_msg(
+                mint_recipient_2_info.sender.to_string(),
+                public_metadata.clone(),
+                private_metadata.clone(),
+            )
+            .clone(),
+        )
+        .unwrap();
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
 
-        let migrate_0_result = migrate(deps.as_mut(), admin_permit, &migrate_to_addr_0, migrate_to_code_hash_0);
-        assert_eq!(migrate_0_result.is_ok(), true, "{:?}", migrate_0_result.unwrap_err());
+        let migrate_0_result = migrate(
+            deps.as_mut(),
+            admin_permit,
+            &migrate_to_addr_0,
+            migrate_to_code_hash_0,
+        );
+        assert_eq!(
+            migrate_0_result.is_ok(),
+            true,
+            "{:?}",
+            migrate_0_result.unwrap_err()
+        );
 
-        let migrate_data: InstantiateByMigrationReplyDataMsg = from_binary(&migrate_0_result.unwrap().data.unwrap()).unwrap();
+        let migrate_data: InstantiateByMigrationReplyDataMsg =
+            from_binary(&migrate_0_result.unwrap().data.unwrap()).unwrap();
 
         let secret: Binary = migrate_data.secret;
 
-        let migration_data = export_migration_data(
-            deps.as_ref(),
-            Some(0),
-            Some(3),
-            secret,
-        );
+        let migration_data = export_migration_data(deps.as_ref(), Some(0), Some(3), secret);
 
         let first_token = migration_data[0].clone();
         assert_eq!("0", first_token.token_id.clone());
-        assert_eq!(public_metadata.clone().unwrap(), first_token.public_metadata.unwrap());
-        assert_eq!(private_metadata.clone().unwrap(), first_token.private_metadata.unwrap());
+        assert_eq!(
+            public_metadata.clone().unwrap(),
+            first_token.public_metadata.unwrap()
+        );
+        assert_eq!(
+            private_metadata.clone().unwrap(),
+            first_token.private_metadata.unwrap()
+        );
         assert_eq!(mint_recipient_0_info.sender, first_token.owner.unwrap());
 
         let second_token = migration_data[1].clone();
         assert_eq!("1", second_token.token_id.clone());
-        assert_eq!(public_metadata.clone().unwrap(), second_token.public_metadata.unwrap());
-        assert_eq!(private_metadata.clone().unwrap(), second_token.private_metadata.unwrap());
+        assert_eq!(
+            public_metadata.clone().unwrap(),
+            second_token.public_metadata.unwrap()
+        );
+        assert_eq!(
+            private_metadata.clone().unwrap(),
+            second_token.private_metadata.unwrap()
+        );
         assert_eq!(mint_recipient_1_info.sender, second_token.owner.unwrap());
 
         let third_token = migration_data[2].clone();
         assert_eq!("2", third_token.token_id.clone());
-        assert_eq!(public_metadata.unwrap(), third_token.public_metadata.unwrap());
-        assert_eq!(private_metadata.unwrap(), third_token.private_metadata.unwrap());
+        assert_eq!(
+            public_metadata.unwrap(),
+            third_token.public_metadata.unwrap()
+        );
+        assert_eq!(
+            private_metadata.unwrap(),
+            third_token.private_metadata.unwrap()
+        );
         assert_eq!(mint_recipient_2_info.sender, third_token.owner.unwrap());
     }
-
 
     #[test]
     fn register_on_migration_complete_notify_receiver_saves_contract() {
@@ -464,7 +596,8 @@ mod tests {
             custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
-        ).unwrap();
+        )
+        .unwrap();
 
         let receiver = ContractInfo {
             address: Addr::unchecked("addr"),
@@ -478,7 +611,8 @@ mod tests {
                 address: receiver.address.to_string(),
                 code_hash: receiver.code_hash.to_string(),
             }),
-        ).unwrap();
+        )
+        .unwrap();
 
         let saved_contract: Vec<ContractInfo> =
             load(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY).unwrap();
@@ -500,20 +634,34 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )?;
-        save(deps.as_mut().storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
+        save(
+            deps.as_mut().storage,
+            CONTRACT_MODE_KEY,
+            &ContractMode::MigrateDataIn,
+        )?;
         let mock_secret = Binary::from(b"secret_to_migrate_data_in");
         let mock_migrated_from = MigratedFromState {
             contract: env_0.contract,
             migration_secret: mock_secret,
         };
-        save(deps.as_mut().storage, MIGRATED_FROM_KEY, &mock_migrated_from)?;
+        save(
+            deps.as_mut().storage,
+            MIGRATED_FROM_KEY,
+            &mock_migrated_from,
+        )?;
         let mock_migrate_in_tokens_progress = MigrateInTokensProgress {
             migrate_in_mint_cnt: 0,
             migrate_in_next_mint_index: 0,
         };
-        save(deps.as_mut().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &mock_migrate_in_tokens_progress)?;
+        save(
+            deps.as_mut().storage,
+            MIGRATE_IN_TOKENS_PROGRESS_KEY,
+            &mock_migrate_in_tokens_progress,
+        )?;
 
-        let contracts = may_load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?.unwrap_or_default();
+        let contracts =
+            may_load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?
+                .unwrap_or_default();
         assert_eq!(0, contracts.len());
 
         let res = execute(
@@ -543,7 +691,8 @@ mod tests {
     }
 
     #[test]
-    fn migrate_data_in_adds_message_to_notify_migrated_contract_of_completion_and_all_others_registered() -> StdResult<()> {
+    fn migrate_data_in_adds_message_to_notify_migrated_contract_of_completion_and_all_others_registered(
+    ) -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
         let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
@@ -557,18 +706,30 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )?;
-        save(deps.as_mut().storage, CONTRACT_MODE_KEY, &ContractMode::MigrateDataIn)?;
+        save(
+            deps.as_mut().storage,
+            CONTRACT_MODE_KEY,
+            &ContractMode::MigrateDataIn,
+        )?;
         let mock_secret = Binary::from(b"secret_to_migrate_data_in");
         let mock_migrated_from = MigratedFromState {
             contract: env_0.contract,
             migration_secret: mock_secret,
         };
-        save(deps.as_mut().storage, MIGRATED_FROM_KEY, &mock_migrated_from)?;
+        save(
+            deps.as_mut().storage,
+            MIGRATED_FROM_KEY,
+            &mock_migrated_from,
+        )?;
         let mock_migrate_in_tokens_progress = MigrateInTokensProgress {
             migrate_in_mint_cnt: 0,
             migrate_in_next_mint_index: 0,
         };
-        save(deps.as_mut().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY, &mock_migrate_in_tokens_progress)?;
+        save(
+            deps.as_mut().storage,
+            MIGRATE_IN_TOKENS_PROGRESS_KEY,
+            &mock_migrate_in_tokens_progress,
+        )?;
 
         let contracts_to_notify = vec![
             ContractInfo {
@@ -580,7 +741,11 @@ mod tests {
                 code_hash: "notify_1_code_hash".to_string(),
             },
         ];
-        save(deps.as_mut().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &contracts_to_notify)?;
+        save(
+            deps.as_mut().storage,
+            NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+            &contracts_to_notify,
+        )?;
 
         let res = execute(
             deps.as_mut(),
@@ -614,7 +779,6 @@ mod tests {
             &contracts_to_notify[1].clone().into(),
             &mock_migrated_from.contract.into(),
         );
-
 
         Ok(())
     }

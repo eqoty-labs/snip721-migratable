@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub mod test_utils {
-    use cosmwasm_std::{Event, MessageInfo, Reply, SubMsgResponse, SubMsgResult};
     use cosmwasm_std::testing::mock_info;
+    use cosmwasm_std::{Event, MessageInfo, Reply, SubMsgResponse, SubMsgResult};
 
     use crate::msg::InstantiateSelfAndChildSnip721Msg;
 
@@ -22,7 +22,8 @@ pub mod test_utils {
             id: 1u64,
             result: SubMsgResult::Ok(SubMsgResponse {
                 data: None,
-                events: vec![Event::new("instantiate").add_attribute("contract_address", child_snip721_address)],
+                events: vec![Event::new("instantiate")
+                    .add_attribute("contract_address", child_snip721_address)],
             }),
         }
     }

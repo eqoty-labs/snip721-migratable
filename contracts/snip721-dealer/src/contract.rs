@@ -1,23 +1,36 @@
 use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
-use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
-use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
+use cosmwasm_contract_migratable_std::msg::{
+    MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg,
+};
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
-use cosmwasm_contract_migratable_std::state::{ContractMode, MIGRATED_TO_KEY, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
-use cosmwasm_std::{Addr, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
+use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
+use cosmwasm_contract_migratable_std::state::{
+    ContractMode, MigratedToState, MIGRATED_TO_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+};
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut,
+    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+};
 use schemars::_serde_json::to_string;
-use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
+use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::state::{load, save};
 
 use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
-use crate::msg::{DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg};
+use crate::msg::{
+    DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg,
+    InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg,
+};
 use crate::msg_external::MigratableSnip721InstantiateMsg;
-use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};
+use crate::state::{
+    PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
+    CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+};
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
 const MIGRATE_REPLY_ID: u64 = 2u64;
@@ -50,13 +63,7 @@ pub fn instantiate(
             };
 
             Ok(Response::new()
-                .add_submessages([
-                    SubMsg::reply_on_success(
-                        migrate_wasm_msg,
-                        MIGRATE_REPLY_ID,
-                    ),
-                ])
-            )
+                .add_submessages([SubMsg::reply_on_success(migrate_wasm_msg, MIGRATE_REPLY_ID)]))
         }
     };
 }
@@ -77,16 +84,27 @@ fn init_snip721(
     let temp_snip721_admin = env.contract.address;
     let true_admin = match msg.admin {
         Some(admin) => deps.api.addr_validate(admin.as_str())?,
-        None => info.sender
+        None => info.sender,
     };
-    save(deps.storage, ADMIN_KEY, &deps.api.addr_canonicalize(true_admin.as_str())?)?;
+    save(
+        deps.storage,
+        ADMIN_KEY,
+        &deps.api.addr_canonicalize(true_admin.as_str())?,
+    )?;
     save(deps.storage, PURCHASE_PRICES_KEY, &msg.prices)?;
-    save(deps.storage, CHILD_SNIP721_CODE_HASH_KEY, &msg.snip721_code_hash)?;
-    save(deps.storage, PURCHASABLE_METADATA_KEY,
-         &PurchasableMetadata {
-             public_metadata: msg.public_metadata,
-             private_metadata: msg.private_metadata,
-         })?;
+    save(
+        deps.storage,
+        CHILD_SNIP721_CODE_HASH_KEY,
+        &msg.snip721_code_hash,
+    )?;
+    save(
+        deps.storage,
+        PURCHASABLE_METADATA_KEY,
+        &PurchasableMetadata {
+            public_metadata: msg.public_metadata,
+            private_metadata: msg.private_metadata,
+        },
+    )?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
     let instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
@@ -113,16 +131,11 @@ fn init_snip721(
         label: msg.snip721_label,
     };
 
-    return Ok(
-        Response::new().add_submessages([
-            SubMsg::reply_on_success(
-                instantiate_wasm_msg,
-                INSTANTIATE_SNIP721_REPLY_ID,
-            ),
-        ])
-    );
+    return Ok(Response::new().add_submessages([SubMsg::reply_on_success(
+        instantiate_wasm_msg,
+        INSTANTIATE_SNIP721_REPLY_ID,
+    )]));
 }
-
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
@@ -130,55 +143,62 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match mode {
         ContractMode::MigrateDataIn | ContractMode::MigrateOutStarted => {
-            Err(StdError::generic_err(format!("Illegal Contact Mode: {:?}. This shouldn't happen", mode)))
+            Err(StdError::generic_err(format!(
+                "Illegal Contact Mode: {:?}. This shouldn't happen",
+                mode
+            )))
         }
-        ContractMode::Running => {
-            match msg {
-                ExecuteMsg::Dealer(dealer_msg) => {
-                    match dealer_msg {
-                        DealerExecuteMsg::PurchaseMint { .. } => {
-                            purchase_and_mint(&mut deps, info)
-                        }
-                    }
+        ContractMode::Running => match msg {
+            ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
+                DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info),
+            },
+            ExecuteMsg::Migrate(migrate_msg) => match migrate_msg {
+                MigratableExecuteMsg::Migrate {
+                    admin_permit,
+                    migrate_to,
+                } => migrate(deps, env, info, admin_permit, migrate_to),
+                MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+                    address,
+                    code_hash,
+                } => {
+                    let admin = load(deps.storage, ADMIN_KEY)?;
+                    register_to_notify_on_migration_complete(deps, info, admin, address, code_hash)
                 }
-                ExecuteMsg::Migrate(migrate_msg) => {
-                    match migrate_msg {
-                        MigratableExecuteMsg::Migrate { admin_permit, migrate_to } =>
-                            migrate(deps, env, info, admin_permit, migrate_to),
-                        MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
-                            let admin = load(deps.storage, ADMIN_KEY)?;
-                            register_to_notify_on_migration_complete(deps, info, admin, address, code_hash)
-                        }
-                    }
+            },
+            ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
+                MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } => {
+                    update_child_snip721(deps, info)
                 }
-                ExecuteMsg::MigrateListener(migrate_listener_msg) => {
-                    match migrate_listener_msg {
-                        MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } =>
-                            update_child_snip721(deps, info)
-                    }
-                }
-            }
-        }
+            },
+        },
         ContractMode::MigratedOut => {
             let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
             Err(StdError::generic_err(
                 to_string(&StateChangesNotAllowed {
-                    message: "This contract has been migrated. No further state changes are allowed!".to_string(),
+                    message:
+                        "This contract has been migrated. No further state changes are allowed!"
+                            .to_string(),
                     migrated_to: migrated_to.contract.into(),
-                }).unwrap()
+                })
+                .unwrap(),
             ))
         }
     };
 }
 
 fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
-    let current_child_snip721_address = deps.api.addr_humanize(&load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?;
+    let current_child_snip721_address = deps
+        .api
+        .addr_humanize(&load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?;
     let current_child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let child_snip721_migrated_to: MigratableQueryAnswer = deps.querier.query_wasm_smart(
-        current_child_snip721_code_hash.clone(),
-        current_child_snip721_address.clone(),
-        &MigratedTo {},
-    ).unwrap();
+    let child_snip721_migrated_to: MigratableQueryAnswer = deps
+        .querier
+        .query_wasm_smart(
+            current_child_snip721_code_hash.clone(),
+            current_child_snip721_address.clone(),
+            &MigratedTo {},
+        )
+        .unwrap();
     if let MigrationInfo(Some(migrated_to)) = child_snip721_migrated_to {
         if info.sender != migrated_to.address {
             // The newly migrated contract only calls this after all contracts have been migrated.
@@ -187,28 +207,40 @@ fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response>
                 "Only the migrated child snip721 is allowed to trigger an update",
             ));
         }
-        save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(migrated_to.address.as_str())?)?;
-        save(deps.storage, CHILD_SNIP721_CODE_HASH_KEY, &migrated_to.code_hash)?;
+        save(
+            deps.storage,
+            CHILD_SNIP721_ADDRESS_KEY,
+            &deps.api.addr_canonicalize(migrated_to.address.as_str())?,
+        )?;
+        save(
+            deps.storage,
+            CHILD_SNIP721_CODE_HASH_KEY,
+            &migrated_to.code_hash,
+        )?;
 
         let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
-        let updated_contracts: Vec<ContractInfo> = contracts.iter().map(|contract|
-            if contract.address == current_child_snip721_address {
-                migrated_to.clone()
-            } else {
-                contract.clone()
-            }
-        ).collect();
-        save(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &updated_contracts)?;
+        let updated_contracts: Vec<ContractInfo> = contracts
+            .iter()
+            .map(|contract| {
+                if contract.address == current_child_snip721_address {
+                    migrated_to.clone()
+                } else {
+                    contract.clone()
+                }
+            })
+            .collect();
+        save(
+            deps.storage,
+            NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+            &updated_contracts,
+        )?;
         Ok(Response::new())
     } else {
         Err(StdError::generic_err("Child snip721 has not been migrated"))
     }
 }
 
-fn purchase_and_mint(
-    deps: &mut DepsMut,
-    info: MessageInfo,
-) -> StdResult<Response> {
+fn purchase_and_mint(deps: &mut DepsMut, info: MessageInfo) -> StdResult<Response> {
     if info.funds.len() != 1 {
         return Err(StdError::generic_err(format!(
             "Purchase requires one coin denom to be sent with transaction, {} were sent.",
@@ -232,7 +264,9 @@ fn purchase_and_mint(
         )));
     }
     let sender = info.clone().sender;
-    let admin_addr = &deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+    let admin_addr = &deps
+        .api
+        .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
     let send_funds_bank_msg = CosmosMsg::Bank(BankMsg::Send {
         to_address: admin_addr.to_string(),
         amount: info.funds.clone(),
@@ -259,13 +293,8 @@ fn purchase_and_mint(
     });
 
     Ok(Response::new()
-        .add_submessages([
-            SubMsg::new(send_funds_bank_msg),
-            SubMsg::new(mint_wasm_msg)
-        ])
-    )
+        .add_submessages([SubMsg::new(send_funds_bank_msg), SubMsg::new(mint_wasm_msg)]))
 }
-
 
 #[entry_point]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
@@ -278,47 +307,62 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 
 fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdResult<Response> {
     let result = reply.result.unwrap();
-    let contract_address = &result.events.iter()
-        .find(|e| e.ty == "instantiate").unwrap()
-        .attributes.iter()
-        .find(|a| a.key == "contract_address").unwrap()
+    let contract_address = &result
+        .events
+        .iter()
+        .find(|e| e.ty == "instantiate")
+        .unwrap()
+        .attributes
+        .iter()
+        .find(|a| a.key == "contract_address")
+        .unwrap()
         .value;
     let child_snip721_address = deps.api.addr_validate(contract_address.as_str())?;
-    save(deps.storage, CHILD_SNIP721_ADDRESS_KEY, &deps.api.addr_canonicalize(child_snip721_address.as_str())?)?;
+    save(
+        deps.storage,
+        CHILD_SNIP721_ADDRESS_KEY,
+        &deps.api.addr_canonicalize(child_snip721_address.as_str())?,
+    )?;
     let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let admin: Addr = deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
-    save(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY, &vec![ContractInfo {
-        address: child_snip721_address.clone(),
-        code_hash: child_snip721_code_hash.clone(),
-    }])?;
-
+    let admin: Addr = deps
+        .api
+        .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+    save(
+        deps.storage,
+        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+        &vec![ContractInfo {
+            address: child_snip721_address.clone(),
+            code_hash: child_snip721_code_hash.clone(),
+        }],
+    )?;
 
     let reg_on_migration_complete_notify_receiver_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
         code_hash: child_snip721_code_hash.clone(),
-        msg: to_binary(
-            &Snip721MigratableExecuteMsg::Migrate(
-                MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
-                    address: env.contract.address.to_string(),
-                    code_hash: env.contract.code_hash,
-                }
-            ))?,
+        msg: to_binary(&Snip721MigratableExecuteMsg::Migrate(
+            MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+                address: env.contract.address.to_string(),
+                code_hash: env.contract.code_hash,
+            },
+        ))?,
         funds: vec![],
     };
 
     let change_admin_to_true_admin_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
         code_hash: child_snip721_code_hash,
-        msg: to_binary(&ChangeAdmin { address: admin.to_string(), padding: None }).unwrap(),
+        msg: to_binary(&ChangeAdmin {
+            address: admin.to_string(),
+            padding: None,
+        })
+        .unwrap(),
         funds: vec![],
     };
 
-    Ok(Response::new()
-        .add_submessages([
-            SubMsg::new(reg_on_migration_complete_notify_receiver_wasm_msg),
-            SubMsg::new(change_admin_to_true_admin_wasm_msg),
-        ])
-    )
+    Ok(Response::new().add_submessages([
+        SubMsg::new(reg_on_migration_complete_notify_receiver_wasm_msg),
+        SubMsg::new(change_admin_to_true_admin_wasm_msg),
+    ]))
 }
 
 #[entry_point]
@@ -332,43 +376,35 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 migrated_to.contract.address
             )));
             match msg {
-                QueryMsg::Migrate(migrate_msg) => {
-                    match migrate_msg {
-                        MigratedTo {} => query_migrated_info(deps, false),
-                        MigratedFrom {} => query_migrated_info(deps, true),
-                    }
-                }
-                _ => migrated_error
+                QueryMsg::Migrate(migrate_msg) => match migrate_msg {
+                    MigratedTo {} => query_migrated_info(deps, false),
+                    MigratedFrom {} => query_migrated_info(deps, true),
+                },
+                _ => migrated_error,
             }
         }
-        _ => {
-            match msg {
-                QueryMsg::Dealer(dealer_msg) => {
-                    match dealer_msg {
-                        DealerQueryMsg::GetPrices {} => query_prices(deps),
-                        DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
-                    }
-                }
-                QueryMsg::Migrate(migrate_msg) => {
-                    match migrate_msg {
-                        MigratedTo {} => query_migrated_info(deps, false),
-                        MigratedFrom {} => query_migrated_info(deps, true),
-                    }
-                }
-            }
-        }
+        _ => match msg {
+            QueryMsg::Dealer(dealer_msg) => match dealer_msg {
+                DealerQueryMsg::GetPrices {} => query_prices(deps),
+                DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
+            },
+            QueryMsg::Migrate(migrate_msg) => match migrate_msg {
+                MigratedTo {} => query_migrated_info(deps, false),
+                MigratedFrom {} => query_migrated_info(deps, true),
+            },
+        },
     };
 }
 
 fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
-    to_binary(&QueryAnswer::ContractInfo(
-        ContractInfo {
-            address: deps.api.addr_humanize(&load::<CanonicalAddr>(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?,
-            code_hash: load::<String>(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?,
-        }
-    ))
+    to_binary(&QueryAnswer::ContractInfo(ContractInfo {
+        address: deps.api.addr_humanize(&load::<CanonicalAddr>(
+            deps.storage,
+            CHILD_SNIP721_ADDRESS_KEY,
+        )?)?,
+        code_hash: load::<String>(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?,
+    }))
 }
-
 
 /// Returns StdResult<Binary> displaying prices to mint in all acceptable currency denoms
 ///

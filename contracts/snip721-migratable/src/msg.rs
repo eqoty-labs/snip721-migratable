@@ -1,5 +1,9 @@
-use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
-use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
+use cosmwasm_contract_migratable_std::msg::{
+    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
+};
+use cosmwasm_contract_migratable_std::msg_types::{
+    ContractInfo, InstantiateByMigrationMsg, MigrateFrom,
+};
 use cosmwasm_std::{Binary, CanonicalAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,7 +28,6 @@ pub enum ExecuteMsg {
     Ext(ExecuteMsgExt),
     MigrateListener(MigrationListenerExecuteMsg),
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -87,4 +90,3 @@ pub enum QueryAnswer {
         nft_dossiers: Vec<BatchNftDossierElement>,
     },
 }
-
