@@ -6,7 +6,7 @@ mod tests {
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg::MigratableExecuteMsg;
+    use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg;
     use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
     use crate::contract::{instantiate, reply};

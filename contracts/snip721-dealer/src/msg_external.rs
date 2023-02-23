@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-use migration::msg_types::InstantiateByMigrationMsg;
+use cosmwasm_contract_migratable_std::msg_types::InstantiateByMigrationMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]

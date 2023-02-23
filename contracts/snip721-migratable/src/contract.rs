@@ -3,13 +3,13 @@ use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::state::{Config, CONFIG_KEY, load, may_load, MINTERS_KEY, save};
 
-use migration::execute::register_to_notify_on_migration_complete;
-use migration::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg};
-use migration::msg::MigratableQueryAnswer::MigrationInfo;
-use migration::msg::MigratableQueryMsg::MigratedTo;
-use migration::msg_types::{ContractInfo, MigrateTo};
-use migration::msg_types::ReplyError::StateChangesNotAllowed;
-use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedToState};
+use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
+use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
+use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::MigratedTo;
+use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
+use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
+use cosmwasm_contract_migratable_std::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_TO_KEY, MigratedToState};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration, query_migrated_info};
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, QueryMsgExt};

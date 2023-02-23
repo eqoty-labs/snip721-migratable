@@ -1,4 +1,4 @@
-use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
 
 use crate::msg::{DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, QueryMsg};
 

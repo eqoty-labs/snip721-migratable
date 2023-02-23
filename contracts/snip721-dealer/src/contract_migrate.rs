@@ -1,12 +1,11 @@
+use cosmwasm_contract_migratable_std::msg::{MigratableQueryAnswer, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
+use cosmwasm_contract_migratable_std::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 use cosmwasm_std::{Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::{load, may_load, PREFIX_REVOKED_PERMITS, save};
-
-use migration::msg::{MigratableQueryAnswer, MigrationListenerExecuteMsg};
-use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
 use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg};
 use crate::state::{ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY, CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PurchasableMetadata, PURCHASE_PRICES_KEY};

@@ -1,11 +1,10 @@
+use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 use cosmwasm_std::{Binary, CanonicalAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-
-use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
-use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

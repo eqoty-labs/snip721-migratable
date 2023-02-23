@@ -1,3 +1,7 @@
+use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
+use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
+use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
+use cosmwasm_contract_migratable_std::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 use cosmwasm_std::{Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
@@ -11,11 +15,6 @@ use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
 use snip721_reference_impl::state::{Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY, Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO, save};
 use snip721_reference_impl::token::Metadata;
-
-use migration::msg::MigratableQueryAnswer::MigrationInfo;
-use migration::msg::MigrationListenerExecuteMsg;
-use migration::msg_types::{MigrateFrom, MigrateTo};
-use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
 use crate::contract::init_snip721;
 use crate::msg::{ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};

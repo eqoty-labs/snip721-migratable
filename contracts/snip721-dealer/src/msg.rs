@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
-use migration::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
-use migration::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
+use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

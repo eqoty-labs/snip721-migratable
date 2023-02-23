@@ -1,17 +1,17 @@
+use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
+use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
+use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
+use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
+use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
+use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
+use cosmwasm_contract_migratable_std::state::{ContractMode, MIGRATED_TO_KEY, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 use cosmwasm_std::{Addr, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg};
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::state::{load, save};
 
-use migration::execute::register_to_notify_on_migration_complete;
-use migration::msg::{MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg};
-use migration::msg::MigratableExecuteMsg::Migrate;
-use migration::msg::MigratableQueryAnswer::MigrationInfo;
-use migration::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
-use migration::msg_types::{ContractInfo, MigrateTo};
-use migration::msg_types::ReplyError::StateChangesNotAllowed;
-use migration::state::{ContractMode, MIGRATED_TO_KEY, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};

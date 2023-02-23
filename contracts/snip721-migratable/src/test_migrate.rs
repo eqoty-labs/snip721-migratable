@@ -10,10 +10,10 @@ mod tests {
     use snip721_reference_impl::state::{load, may_load, MINTERS_KEY, save};
     use snip721_reference_impl::token::Metadata;
 
-    use migration::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
-    use migration::msg_types::{MigrateFrom, MigrateTo};
-    use migration::msg_types::ReplyError::StateChangesNotAllowed;
-    use migration::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
+    use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
+    use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
+    use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
+    use cosmwasm_contract_migratable_std::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MigratedFromState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
 
     use crate::contract::{execute, instantiate, query, reply};
     use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg};
@@ -186,8 +186,8 @@ mod tests {
 
     fn assert_is_migration_complete_notification_msg_to_contract(
         cosmos_msg: &CosmosMsg,
-        send_to: &migration::msg_types::ContractInfo,
-        migrated_from: &migration::msg_types::ContractInfo,
+        send_to: &cosmwasm_contract_migratable_std::msg_types::ContractInfo,
+        migrated_from: &cosmwasm_contract_migratable_std::msg_types::ContractInfo,
     ) {
         return match cosmos_msg {
             CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
