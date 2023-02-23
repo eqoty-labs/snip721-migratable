@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Binary, Coin};
+use cosmwasm_std::{Addr, Binary, Coin, ContractInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
@@ -7,9 +7,7 @@ use snip721_reference_impl::token::Metadata;
 use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
-use cosmwasm_contract_migratable_std::msg_types::{
-    ContractInfo, InstantiateByMigrationMsg, MigrateFrom,
-};
+use cosmwasm_contract_migratable_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

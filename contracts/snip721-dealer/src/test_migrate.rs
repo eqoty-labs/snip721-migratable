@@ -128,7 +128,7 @@ mod tests {
                 address: Addr::unchecked(child_snip721_address),
                 code_hash: child_snip721_code_hash.clone(),
             }
-            .into()],
+            ],
             secret: secret.clone(),
         }
     }
@@ -161,8 +161,8 @@ mod tests {
 
     fn assert_is_migration_complete_notification_msg_to_contract(
         cosmos_msg: &CosmosMsg,
-        send_to: &cosmwasm_contract_migratable_std::msg_types::ContractInfo,
-        migrated_from: &cosmwasm_contract_migratable_std::msg_types::ContractInfo,
+        send_to: &ContractInfo,
+        migrated_from: &ContractInfo,
     ) {
         return match cosmos_msg {
             CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
@@ -510,9 +510,8 @@ mod tests {
             &ContractInfo {
                 address: Addr::unchecked(child_snip721_address),
                 code_hash: snip721_code_hash,
-            }
-            .into(),
-            &env.contract.into(),
+            },
+            &env.contract,
         );
     }
 
@@ -612,19 +611,18 @@ mod tests {
             &ContractInfo {
                 address: Addr::unchecked(child_snip721_address),
                 code_hash: snip721_code_hash,
-            }
-            .into(),
-            &env.contract.clone().into(),
+            },
+            &env.contract.clone(),
         );
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[1].msg,
-            &contracts_to_notify[0].clone().into(),
-            &env.contract.clone().into(),
+            &contracts_to_notify[0].clone(),
+            &env.contract.clone(),
         );
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[2].msg,
-            &contracts_to_notify[1].clone().into(),
-            &env.contract.into(),
+            &contracts_to_notify[1].clone(),
+            &env.contract,
         );
 
         Ok(())
@@ -697,8 +695,7 @@ mod tests {
                     migrated_to: ContractInfo {
                         address: migrate_to_addr_0,
                         code_hash: migrate_to_code_hash_0.to_string(),
-                    }
-                    .into(),
+                    },
                 })
                 .unwrap()
             )

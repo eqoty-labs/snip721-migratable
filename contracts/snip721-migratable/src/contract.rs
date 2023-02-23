@@ -1,22 +1,21 @@
-use cosmwasm_std::{
-    entry_point, to_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdError, StdResult, SubMsg, WasmMsg,
-};
-use schemars::_serde_json::to_string;
-use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-use snip721_reference_impl::state::{load, may_load, save, Config, CONFIG_KEY, MINTERS_KEY};
-
 use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::MigratedTo;
 use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
+use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
-use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_TO_KEY,
 };
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+};
+use schemars::_serde_json::to_string;
+use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
+use snip721_reference_impl::state::{load, may_load, save, Config, CONFIG_KEY, MINTERS_KEY};
 
 use crate::contract_migrate::{
     instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration,
@@ -155,7 +154,7 @@ fn on_migration_complete(deps: DepsMut, info: MessageInfo) -> StdResult<Response
         Err(StdError::generic_err(
             to_string(&StateChangesNotAllowed {
                 message: "Only listening for migration complete notifications from the contract being migrated to".to_string(),
-                migrated_to: migrated_to.contract.into(),
+                migrated_to: migrated_to.contract,
             }).unwrap()
         ))
     } else {
@@ -170,7 +169,7 @@ fn no_state_changes_allowed(deps: DepsMut) -> StdResult<Response> {
         to_string(&StateChangesNotAllowed {
             message: "This contract has been migrated. No further state changes are allowed!"
                 .to_string(),
-            migrated_to: migrated_to.contract.into(),
+            migrated_to: migrated_to.contract,
         })
         .unwrap(),
     ))

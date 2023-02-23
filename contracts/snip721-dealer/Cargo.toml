@@ -23,7 +23,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 [dependencies]
 snip721-migratable = { path = "../../contracts/snip721-migratable", default-features = false }
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "55fbd90" }
-cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v0.2.0" }
+cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v0.3.0" }
 serde-cw-value = { version = "0.7.0" }
 serde = { version = "1.0.152", default-features = false, features = ["derive"] }
 schemars = "0.8.11"

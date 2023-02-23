@@ -154,7 +154,7 @@ pub(crate) fn migrate(
     let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
     let msg = to_binary(
         &MigrationListenerExecuteMsg::MigrationCompleteNotification {
-            from: env.contract.clone().into(),
+            from: env.contract.clone(),
         },
     )?;
     let sub_msgs: Vec<SubMsg> = contracts
@@ -209,7 +209,7 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             match migrated_from {
                 None => to_binary(&MigratableQueryAnswer::MigrationInfo(None)),
                 Some(some_migrated_from) => to_binary(&MigratableQueryAnswer::MigrationInfo(Some(
-                    some_migrated_from.contract.into(),
+                    some_migrated_from.contract,
                 ))),
             }
         }
@@ -218,7 +218,7 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             match migrated_to {
                 None => to_binary(&MigratableQueryAnswer::MigrationInfo(None)),
                 Some(some_migrated_to) => to_binary(&MigratableQueryAnswer::MigrationInfo(Some(
-                    some_migrated_to.contract.into(),
+                    some_migrated_to.contract,
                 ))),
             }
         }

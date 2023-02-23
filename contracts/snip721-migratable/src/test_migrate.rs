@@ -215,8 +215,8 @@ mod tests {
 
     fn assert_is_migration_complete_notification_msg_to_contract(
         cosmos_msg: &CosmosMsg,
-        send_to: &cosmwasm_contract_migratable_std::msg_types::ContractInfo,
-        migrated_from: &cosmwasm_contract_migratable_std::msg_types::ContractInfo,
+        send_to: &ContractInfo,
+        migrated_from: &ContractInfo,
     ) {
         return match cosmos_msg {
             CosmosMsg::Wasm(wasm_msg) => match wasm_msg {
@@ -276,8 +276,7 @@ mod tests {
                     admin_permit: admin_permit.clone(),
                 },
                 on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify
-                    .clone()
-                    .into()]),
+                    .clone()]),
                 minters: expected_minters.clone(),
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -355,8 +354,7 @@ mod tests {
                     admin_permit: admin_permit.clone(),
                 },
                 on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify
-                    .clone()
-                    .into()]),
+                    .clone()]),
                 minters: vec![],
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -447,8 +445,7 @@ mod tests {
                     migrated_to: ContractInfo {
                         address: migrate_to_addr_0,
                         code_hash: migrate_to_code_hash_0.to_string(),
-                    }
-                    .into(),
+                    },
                 })
                 .unwrap()
             )
@@ -683,8 +680,8 @@ mod tests {
         ));
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[0].msg,
-            &mock_migrated_from.contract.clone().into(),
-            &mock_migrated_from.contract.into(),
+            &mock_migrated_from.contract.clone(),
+            &mock_migrated_from.contract,
         );
 
         Ok(())
@@ -765,19 +762,19 @@ mod tests {
 
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[0].msg,
-            &mock_migrated_from.contract.clone().into(),
-            &mock_migrated_from.contract.clone().into(),
+            &mock_migrated_from.contract.clone(),
+            &mock_migrated_from.contract.clone(),
         );
 
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[1].msg,
-            &contracts_to_notify[0].clone().into(),
-            &mock_migrated_from.contract.clone().into(),
+            &contracts_to_notify[0].clone(),
+            &mock_migrated_from.contract.clone(),
         );
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[2].msg,
-            &contracts_to_notify[1].clone().into(),
-            &mock_migrated_from.contract.into(),
+            &contracts_to_notify[1].clone(),
+            &mock_migrated_from.contract,
         );
 
         Ok(())

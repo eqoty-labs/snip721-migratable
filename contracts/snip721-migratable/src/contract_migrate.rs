@@ -209,7 +209,7 @@ pub(crate) fn perform_token_migration(
         );
         let msg = to_binary(
             &MigrationListenerExecuteMsg::MigrationCompleteNotification {
-                from: migrated_from.contract.into(),
+                from: migrated_from.contract,
             },
         )?;
         let sub_msgs: Vec<SubMsg> = contracts
@@ -435,7 +435,7 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             match migrated_from {
                 None => to_binary(&MigrationInfo(None)),
                 Some(some_migrated_from) => {
-                    to_binary(&MigrationInfo(Some(some_migrated_from.contract.into())))
+                    to_binary(&MigrationInfo(Some(some_migrated_from.contract)))
                 }
             }
         }
@@ -444,7 +444,7 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             match migrated_to {
                 None => to_binary(&MigrationInfo(None)),
                 Some(some_migrated_to) => {
-                    to_binary(&MigrationInfo(Some(some_migrated_to.contract.into())))
+                    to_binary(&MigrationInfo(Some(some_migrated_to.contract)))
                 }
             }
         }

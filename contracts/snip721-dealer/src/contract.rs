@@ -5,14 +5,14 @@ use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, Mi
 use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg,
 };
+use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
-use cosmwasm_contract_migratable_std::msg_types::{ContractInfo, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, MigratedToState, MIGRATED_TO_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
 };
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg, Deps, DepsMut,
-    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+    entry_point, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin, ContractInfo, CosmosMsg,
+    Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
@@ -178,7 +178,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     message:
                         "This contract has been migrated. No further state changes are allowed!"
                             .to_string(),
-                    migrated_to: migrated_to.contract.into(),
+                    migrated_to: migrated_to.contract,
                 })
                 .unwrap(),
             ))

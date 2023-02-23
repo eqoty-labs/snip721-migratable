@@ -1,10 +1,8 @@
 use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
-use cosmwasm_contract_migratable_std::msg_types::{
-    ContractInfo, InstantiateByMigrationMsg, MigrateFrom,
-};
-use cosmwasm_std::{Binary, CanonicalAddr};
+use cosmwasm_contract_migratable_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
+use cosmwasm_std::{Binary, CanonicalAddr, ContractInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::BatchNftDossierElement;
