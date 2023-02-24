@@ -21,13 +21,13 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "55fbd90" }
+snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "8a6c1ca" }
 cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v0.3.0" }
 serde-cw-value = { version = "0.7.0" }
 serde = { version = "1.0.152", default-features = false, features = ["derive"] }
 schemars = "0.8.11"
-cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.0-secret" }
-cosmwasm-storage = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.0-secret" }
+cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.9-secret" }
+cosmwasm-storage = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.9-secret" }
 secret-toolkit = { git = "https://github.com/scrtlabs/secret-toolkit", tag = "v0.8.0", default-features = false, features = ["crypto"] }
 
 
