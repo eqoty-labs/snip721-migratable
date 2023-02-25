@@ -1,12 +1,20 @@
 #[cfg(test)]
 mod tests {
+    use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
+    use cosmwasm_contract_migratable_std::msg::{
+        MigratableExecuteMsg, MigrationListenerExecuteMsg,
+    };
+    use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
+    use cosmwasm_contract_migratable_std::state::{
+        ContractMode, MigratedFromState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
+        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    };
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
     use cosmwasm_std::{
         from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
-        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult,
+        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
         SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
     };
-    use schemars::_serde_json::to_string;
     use secret_toolkit::permit::{
         validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
     };
@@ -15,16 +23,6 @@ mod tests {
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
     use snip721_reference_impl::state::{load, may_load, save, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
-
-    use cosmwasm_contract_migratable_std::msg::{
-        MigratableExecuteMsg, MigrationListenerExecuteMsg,
-    };
-    use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
-    use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
-    use cosmwasm_contract_migratable_std::state::{
-        ContractMode, MigratedFromState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
-        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-    };
 
     use crate::contract::{execute, instantiate, query, reply};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
@@ -275,8 +273,7 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify
-                    .clone()]),
+                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone()]),
                 minters: expected_minters.clone(),
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -353,8 +350,7 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify
-                    .clone()]),
+                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone()]),
                 minters: vec![],
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -436,19 +432,14 @@ mod tests {
         );
         assert_eq!(false, migrate_1_result.is_ok());
         assert_eq!(
+            build_operation_unavailable_error(
+                &ContractMode::MigrateOutStarted,
+                Some(
+                    "This contract has been migrated. No further state changes are allowed!"
+                        .to_string()
+                )
+            ),
             migrate_1_result.err().unwrap(),
-            StdError::generic_err(
-                to_string(&StateChangesNotAllowed {
-                    message:
-                        "This contract has been migrated. No further state changes are allowed!"
-                            .to_string(),
-                    migrated_to: ContractInfo {
-                        address: migrate_to_addr_0,
-                        code_hash: migrate_to_code_hash_0.to_string(),
-                    },
-                })
-                .unwrap()
-            )
         );
     }
 

@@ -8,4 +8,5 @@ mod msg_external;
 mod test_execute;
 mod test_instantiate;
 mod test_migrate;
+mod test_query;
 mod test_utils;

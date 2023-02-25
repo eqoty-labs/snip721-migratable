@@ -1,8 +1,9 @@
+use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::msg::{MigratableQueryAnswer, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedFromState, MigratedToState, MIGRATED_FROM_KEY, MIGRATED_TO_KEY,
-    NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
+    MIGRATED_TO_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
 };
 use cosmwasm_std::{
     from_binary, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
@@ -16,7 +17,7 @@ use snip721_reference_impl::state::{load, may_load, save, PREFIX_REVOKED_PERMITS
 use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg};
 use crate::state::{
     PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-    CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+    PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
 };
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
@@ -84,9 +85,15 @@ pub(crate) fn migrate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    contract_mode: &ContractMode,
     admin_permit: Permit,
     migrate_to: MigrateTo,
 ) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let admin_addr = &deps
         .api
         .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
@@ -112,12 +119,6 @@ pub(crate) fn migrate(
             "Only the contract being migrated to can set the contract to migrate!",
         ));
     }
-    let mut migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
-    if migrated_to.is_some() {
-        return Err(StdError::generic_err(
-            "The contract has already been migrated!",
-        ));
-    }
     let entropy = migrate_to.entropy.as_str();
 
     // Generate the secret in some way
@@ -138,7 +139,7 @@ pub(crate) fn migrate(
 
     let secret = Binary::from(rng.rand_bytes());
 
-    migrated_to = Some(MigratedToState {
+    let migrated_to = Some(MigratedToState {
         contract: ContractInfo {
             address: migrate_to_address,
             code_hash: migrate_to.code_hash,

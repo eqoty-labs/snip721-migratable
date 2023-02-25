@@ -43,9 +43,6 @@ pub(crate) fn instantiate_with_migrated_config(
     msg: Reply,
 ) -> StdResult<Response> {
     let mut deps = deps;
-    deps.api
-        .debug(&*format!("msg.result: {:?}!", msg.result.clone().unwrap()));
-
     let reply_data: InstantiateByMigrationReplyDataMsg =
         from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
     // admin of the contract being migrated should always be the sender here

@@ -14,6 +14,7 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
 
     use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg;
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
     use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
     use crate::contract::{instantiate, reply};
@@ -109,6 +110,11 @@ mod tests {
         let saved_child_snip721_code_hash: String =
             load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
         assert_eq!(snip721_code_hash, saved_child_snip721_code_hash);
+
+        assert_eq!(
+            ContractMode::Running,
+            load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY).unwrap()
+        );
     }
 
     #[test]

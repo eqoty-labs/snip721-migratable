@@ -11,8 +11,6 @@ pub const CHILD_SNIP721_ADDRESS_KEY: &[u8] = b"childSnip721Addr";
 pub const PURCHASE_PRICES_KEY: &[u8] = b"prices";
 /// storage key for the PurchasableMetadata used for every purchased mint
 pub const PURCHASABLE_METADATA_KEY: &[u8] = b"purMetadata";
-/// storage key for current ContractMode
-pub const CONTRACT_MODE_KEY: &[u8] = b"purContractMode";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct PurchasableMetadata {

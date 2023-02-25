@@ -5,7 +5,7 @@ use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
-use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
+use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_TO_KEY,
 };
@@ -96,6 +96,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     config.admin,
                     address,
                     code_hash,
+                    Some(mode),
                 ),
             },
             ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
@@ -152,9 +153,8 @@ fn on_migration_complete(deps: DepsMut, info: MessageInfo) -> StdResult<Response
     let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
     return if migrated_to.contract.address != info.sender {
         Err(StdError::generic_err(
-            to_string(&StateChangesNotAllowed {
+            to_string(&OperationUnavailable {
                 message: "Only listening for migration complete notifications from the contract being migrated to".to_string(),
-                migrated_to: migrated_to.contract,
             }).unwrap()
         ))
     } else {
@@ -164,12 +164,10 @@ fn on_migration_complete(deps: DepsMut, info: MessageInfo) -> StdResult<Response
 }
 
 fn no_state_changes_allowed(deps: DepsMut) -> StdResult<Response> {
-    let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
     Err(StdError::generic_err(
-        to_string(&StateChangesNotAllowed {
+        to_string(&OperationUnavailable {
             message: "This contract has been migrated. No further state changes are allowed!"
                 .to_string(),
-            migrated_to: migrated_to.contract,
         })
         .unwrap(),
     ))

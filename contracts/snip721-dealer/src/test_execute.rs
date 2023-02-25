@@ -1,12 +1,16 @@
 #[cfg(test)]
 mod tests {
+    use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
-        from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, Uint128, WasmMsg,
+        from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, StdResult, Uint128,
+        WasmMsg,
     };
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
-    use snip721_reference_impl::state::load;
+    use snip721_reference_impl::state::{load, save};
     use snip721_reference_impl::token::Metadata;
+    use strum::IntoEnumIterator;
 
     use crate::contract::{execute, instantiate, reply};
     use crate::msg::{
@@ -613,5 +617,29 @@ mod tests {
                 invalid_funds.len()
             ),)
         );
+    }
+
+    #[test]
+    fn purchase_and_mint_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let minter_info = mock_info("minty", &vec![]);
+        let mut deps = mock_dependencies();
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                minter_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                res.err().unwrap(),
+                build_operation_unavailable_error(&invalid_mode, None)
+            );
+        }
+        Ok(())
     }
 }

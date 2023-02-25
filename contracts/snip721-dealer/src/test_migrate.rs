@@ -1,30 +1,31 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{
-        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
-        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult,
-        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+    use cosmwasm_contract_migratable_std::execute::{
+        build_operation_unavailable_error, register_to_notify_on_migration_complete,
     };
-    use schemars::_serde_json::to_string;
-    use secret_toolkit::permit::{
-        validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
-    };
-    use snip721_reference_impl::state::{load, may_load};
-    use snip721_reference_impl::token::Metadata;
-
-    use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
     use cosmwasm_contract_migratable_std::msg::{
         MigratableExecuteMsg, MigrationListenerExecuteMsg,
     };
-    use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
     use cosmwasm_contract_migratable_std::msg_types::{
         InstantiateByMigrationMsg, MigrateFrom, MigrateTo,
     };
     use cosmwasm_contract_migratable_std::state::{
-        ContractMode, MigratedFromState, MIGRATED_FROM_KEY, MIGRATED_TO_KEY,
+        ContractMode, MigratedFromState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY, MIGRATED_TO_KEY,
         NOTIFY_ON_MIGRATION_COMPLETE_KEY,
     };
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
+        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
+        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+    };
+    use secret_toolkit::permit::{
+        validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
+    };
+    use snip721_reference_impl::state::{load, may_load, save};
+    use snip721_reference_impl::token::Metadata;
+
+    use strum::IntoEnumIterator;
 
     use crate::contract::{execute, instantiate, reply};
     use crate::msg::{
@@ -33,7 +34,7 @@ mod tests {
     };
     use crate::state::{
         PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-        CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+        PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
     };
     use crate::test_utils::test_utils::{
         child_snip721_address, child_snip721_code_hash, successful_child_snip721_instantiate_reply,
@@ -127,8 +128,7 @@ mod tests {
             on_migration_complete_notify_receiver: vec![ContractInfo {
                 address: Addr::unchecked(child_snip721_address),
                 code_hash: child_snip721_code_hash.clone(),
-            }
-            ],
+            }],
             secret: secret.clone(),
         }
     }
@@ -560,6 +560,12 @@ mod tests {
             custom_mock_env_0(),
             successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
         )?;
+        // Force into Running mode for test
+        save(
+            deps.as_mut().storage,
+            CONTRACT_MODE_KEY,
+            &ContractMode::Running,
+        )?;
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
@@ -584,6 +590,7 @@ mod tests {
             admin_raw.clone(),
             contracts_to_notify[0].address.to_string(),
             contracts_to_notify[0].code_hash.clone(),
+            None,
         )?;
         register_to_notify_on_migration_complete(
             deps.as_mut(),
@@ -591,6 +598,7 @@ mod tests {
             admin_raw.clone(),
             contracts_to_notify[1].address.to_string(),
             contracts_to_notify[1].code_hash.clone(),
+            None,
         )?;
 
         let res = migrate(
@@ -686,24 +694,110 @@ mod tests {
         );
         assert_eq!(false, migrate_1_result.is_ok());
         assert_eq!(
+            build_operation_unavailable_error(&ContractMode::MigratedOut, None),
             migrate_1_result.err().unwrap(),
-            StdError::generic_err(
-                to_string(&StateChangesNotAllowed {
-                    message:
-                        "This contract has been migrated. No further state changes are allowed!"
-                            .to_string(),
-                    migrated_to: ContractInfo {
-                        address: migrate_to_addr_0,
-                        code_hash: migrate_to_code_hash_0.to_string(),
-                    },
-                })
-                .unwrap()
-            )
         );
     }
 
     #[test]
-    fn register_on_migration_complete_notify_receiver_saves_contract() {
+    fn register_to_notify_on_migration_complete_fails_when_in_invalid_contract_modes(
+    ) -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        let admin_raw = deps.api.addr_canonicalize(admin_info.sender.as_str())?;
+        save(deps.as_mut().storage, ADMIN_KEY, &admin_raw)?;
+        let exec_purchase_msg =
+            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+                address: "".to_string(),
+                code_hash: "".to_string(),
+            });
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        let admin_raw = deps.api.addr_canonicalize(admin_info.sender.as_str())?;
+        save(deps.as_mut().storage, ADMIN_KEY, &admin_raw)?;
+        let exec_purchase_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
+            admin_permit: get_admin_permit(),
+            migrate_to: MigrateTo {
+                address: Addr::unchecked(""),
+                code_hash: "".to_string(),
+                entropy: "".to_string(),
+            },
+        });
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn migration_complete_notification_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        let admin_raw = deps.api.addr_canonicalize(admin_info.sender.as_str())?;
+        save(deps.as_mut().storage, ADMIN_KEY, &admin_raw)?;
+        let exec_purchase_msg = ExecuteMsg::MigrateListener(
+            MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                from: ContractInfo {
+                    address: Addr::unchecked(""),
+                    code_hash: "".to_string(),
+                },
+            },
+        );
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn register_to_notify_on_migration_complete_saves_contract() {
         let prices = vec![Coin {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),

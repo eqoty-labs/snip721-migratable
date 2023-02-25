@@ -1,4 +1,6 @@
-use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
+use cosmwasm_contract_migratable_std::execute::{
+    check_contract_mode, register_to_notify_on_migration_complete,
+};
 use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
@@ -6,15 +8,13 @@ use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg,
 };
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
-use cosmwasm_contract_migratable_std::msg_types::ReplyError::StateChangesNotAllowed;
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedToState, MIGRATED_TO_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    ContractMode, CONTRACT_MODE_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
 };
 use cosmwasm_std::{
     entry_point, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin, ContractInfo, CosmosMsg,
     Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
-use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::state::{load, save};
@@ -29,7 +29,7 @@ use crate::msg::{
 use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{
     PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-    CONTRACT_MODE_KEY, PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+    PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
 };
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
@@ -141,52 +141,45 @@ fn init_snip721(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut deps = deps;
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
-    return match mode {
-        ContractMode::MigrateDataIn | ContractMode::MigrateOutStarted => {
-            Err(StdError::generic_err(format!(
-                "Illegal Contact Mode: {:?}. This shouldn't happen",
-                mode
-            )))
-        }
-        ContractMode::Running => match msg {
-            ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
-                DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info),
-            },
-            ExecuteMsg::Migrate(migrate_msg) => match migrate_msg {
-                MigratableExecuteMsg::Migrate {
-                    admin_permit,
-                    migrate_to,
-                } => migrate(deps, env, info, admin_permit, migrate_to),
-                MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+    return match msg {
+        ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
+            DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info, &mode),
+        },
+        ExecuteMsg::Migrate(migrate_msg) => match migrate_msg {
+            MigratableExecuteMsg::Migrate {
+                admin_permit,
+                migrate_to,
+            } => migrate(deps, env, info, &mode, admin_permit, migrate_to),
+            MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
+                let admin = load(deps.storage, ADMIN_KEY)?;
+                register_to_notify_on_migration_complete(
+                    deps,
+                    info,
+                    admin,
                     address,
                     code_hash,
-                } => {
-                    let admin = load(deps.storage, ADMIN_KEY)?;
-                    register_to_notify_on_migration_complete(deps, info, admin, address, code_hash)
-                }
-            },
-            ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
-                MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } => {
-                    update_child_snip721(deps, info)
-                }
-            },
+                    Some(mode),
+                )
+            }
         },
-        ContractMode::MigratedOut => {
-            let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
-            Err(StdError::generic_err(
-                to_string(&StateChangesNotAllowed {
-                    message:
-                        "This contract has been migrated. No further state changes are allowed!"
-                            .to_string(),
-                    migrated_to: migrated_to.contract,
-                })
-                .unwrap(),
-            ))
-        }
+        ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
+            MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } => {
+                update_child_snip721(deps, info, &mode)
+            }
+        },
     };
 }
 
-fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
+fn update_child_snip721(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_mode: &ContractMode,
+) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let current_child_snip721_address = deps
         .api
         .addr_humanize(&load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?;
@@ -240,7 +233,16 @@ fn update_child_snip721(deps: DepsMut, info: MessageInfo) -> StdResult<Response>
     }
 }
 
-fn purchase_and_mint(deps: &mut DepsMut, info: MessageInfo) -> StdResult<Response> {
+fn purchase_and_mint(
+    deps: &mut DepsMut,
+    info: MessageInfo,
+    contract_mode: &ContractMode,
+) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     if info.funds.len() != 1 {
         return Err(StdError::generic_err(format!(
             "Purchase requires one coin denom to be sent with transaction, {} were sent.",
@@ -368,35 +370,24 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
-    return match mode {
-        ContractMode::MigratedOut => {
-            let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
-            let migrated_error = Err(StdError::generic_err(format!(
-                "This contract has been migrated to {:?}. Only MigratedTo, MigratedFrom queries allowed!",
-                migrated_to.contract.address
-            )));
-            match msg {
-                QueryMsg::Migrate(migrate_msg) => match migrate_msg {
-                    MigratedTo {} => query_migrated_info(deps, false),
-                    MigratedFrom {} => query_migrated_info(deps, true),
-                },
-                _ => migrated_error,
-            }
-        }
-        _ => match msg {
-            QueryMsg::Dealer(dealer_msg) => match dealer_msg {
-                DealerQueryMsg::GetPrices {} => query_prices(deps),
-                DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
-            },
-            QueryMsg::Migrate(migrate_msg) => match migrate_msg {
-                MigratedTo {} => query_migrated_info(deps, false),
-                MigratedFrom {} => query_migrated_info(deps, true),
-            },
+    return match msg {
+        QueryMsg::Dealer(dealer_msg) => match dealer_msg {
+            DealerQueryMsg::GetPrices {} => query_prices(deps, &mode),
+            DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps, &mode),
+        },
+        QueryMsg::Migrate(migrate_msg) => match migrate_msg {
+            MigratedTo {} => query_migrated_info(deps, false),
+            MigratedFrom {} => query_migrated_info(deps, true),
         },
     };
 }
 
-fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
+fn query_child_snip721(deps: Deps, contract_mode: &ContractMode) -> StdResult<Binary> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     to_binary(&QueryAnswer::ContractInfo(ContractInfo {
         address: deps.api.addr_humanize(&load::<CanonicalAddr>(
             deps.storage,
@@ -411,7 +402,12 @@ fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
 /// # Arguments
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
-pub fn query_prices(deps: Deps) -> StdResult<Binary> {
+pub fn query_prices(deps: Deps, contract_mode: &ContractMode) -> StdResult<Binary> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     to_binary(&QueryAnswer::GetPrices {
         prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
     })
