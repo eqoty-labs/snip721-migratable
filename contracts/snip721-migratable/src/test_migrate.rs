@@ -9,7 +9,7 @@ mod tests {
         ContractMode, MigratedFromState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
         NOTIFY_ON_MIGRATION_COMPLETE_KEY,
     };
-    use cosmwasm_std::testing::{mock_dependencies, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
         from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
         CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
@@ -21,8 +21,9 @@ mod tests {
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-    use snip721_reference_impl::state::{load, may_load, save, MINTERS_KEY};
+    use snip721_reference_impl::state::{load, may_load, save, Config, CONFIG_KEY, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
+    use strum::IntoEnumIterator;
 
     use crate::contract::{execute, instantiate, query, reply};
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
@@ -432,13 +433,7 @@ mod tests {
         );
         assert_eq!(false, migrate_1_result.is_ok());
         assert_eq!(
-            build_operation_unavailable_error(
-                &ContractMode::MigrateOutStarted,
-                Some(
-                    "This contract has been migrated. No further state changes are allowed!"
-                        .to_string()
-                )
-            ),
+            build_operation_unavailable_error(&ContractMode::MigrateOutStarted, None),
             migrate_1_result.err().unwrap(),
         );
     }
@@ -768,6 +763,149 @@ mod tests {
             &mock_migrated_from.contract,
         );
 
+        Ok(())
+    }
+
+    fn save_a_config(deps: DepsMut) {
+        save(
+            deps.storage,
+            CONFIG_KEY,
+            &Config {
+                name: "".to_string(),
+                symbol: "".to_string(),
+                admin: CanonicalAddr(Binary::from(b"")),
+                mint_cnt: 0,
+                tx_cnt: 1,
+                token_cnt: 0,
+                status: 0,
+                token_supply_is_public: true,
+                owner_is_public: false,
+                sealed_metadata_is_enabled: false,
+                unwrap_to_private: false,
+                minter_may_update_metadata: false,
+                owner_may_update_metadata: false,
+                burn_is_enabled: false,
+            },
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn migrate_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        save_a_config(deps.as_mut());
+        let exec_purchase_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
+            admin_permit: get_admin_permit(),
+            migrate_to: MigrateTo {
+                address: Addr::unchecked(""),
+                code_hash: "".to_string(),
+                entropy: "".to_string(),
+            },
+        });
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn perform_token_migration_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        save_a_config(deps.as_mut());
+        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn {
+            pages: None,
+            page_size: None,
+        });
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::MigrateDataIn)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn register_to_notify_on_migration_complete_fails_when_in_invalid_contract_modes(
+    ) -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        save_a_config(deps.as_mut());
+        let exec_purchase_msg =
+            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+                address: "".to_string(),
+                code_hash: "".to_string(),
+            });
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn execute_snip721_base_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        save_a_config(deps.as_mut());
+        let exec_purchase_msg =
+            ExecuteMsg::Base(snip721_reference_impl::msg::ExecuteMsg::CreateViewingKey {
+                entropy: "".to_string(),
+                padding: None,
+            });
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                admin_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
         Ok(())
     }
 }

@@ -1,3 +1,4 @@
+use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
@@ -31,10 +32,7 @@ use snip721_reference_impl::token::Metadata;
 
 use crate::contract::init_snip721;
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::msg::{
-    ExecuteAnswer, ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer,
-    QueryMsgExt,
-};
+use crate::msg::{ExecuteAnswer, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
 use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS_KEY};
 
 pub(crate) fn instantiate_with_migrated_config(
@@ -117,9 +115,16 @@ pub(crate) fn perform_token_migration(
     deps: DepsMut,
     env: &Env,
     info: MessageInfo,
+    contract_mode: ContractMode,
     snip721_config: Config,
-    msg: ExecuteMsg,
+    pages: u32,
+    page_size: Option<u32>,
 ) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::MigrateDataIn], &contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let migrated_from: MigratedFromState = load(deps.storage, MIGRATED_FROM_KEY)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
@@ -128,20 +133,6 @@ pub(crate) fn perform_token_migration(
             migrated_from.contract.address
         )));
     }
-
-    let (pages, page_size) = match msg {
-        ExecuteMsg::Ext(ext_msg) => match ext_msg {
-            ExecuteMsgExt::MigrateTokensIn { pages, page_size } => {
-                (pages.unwrap_or(u32::MAX), page_size)
-            }
-        },
-        _ => {
-            return Err(StdError::generic_err(format!(
-                "This contract's admin must complete migrating contract data from {:?}",
-                migrated_from.contract.address
-            )));
-        }
-    };
     let mut deps = deps;
     let mut migrate_in_tokens_progress: MigrateInTokensProgress =
         load(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?;
@@ -306,10 +297,16 @@ pub(crate) fn migrate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
+    contract_mode: ContractMode,
     snip721config: &mut Config,
     admin_permit: Permit,
     migrate_to: MigrateTo,
 ) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let admin_addr = &deps.api.addr_humanize(&snip721config.admin).unwrap();
     let permit_creator = &deps
         .api
@@ -455,17 +452,23 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
 /// * `block` - a reference to the BlockInfo
-/// * `state` - a reference to this contracts persisted state
+/// * `contract_mode` - a reference to this contract's contract mode state
 /// * `start_index` - optionally only display token starting at this index
 /// * `max_count` - optional max number of tokens to display
 /// * `secret` - the migration secret
 pub(crate) fn migration_dossier_list(
     deps: Deps,
     block: &BlockInfo,
+    contract_mode: &ContractMode,
     start_index: Option<u32>,
     max_count: Option<u32>,
     secret: &Binary,
 ) -> StdResult<Binary> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::MigrateOutStarted], contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
     if migrated_to.is_none() {
         return Err(StdError::generic_err(
