@@ -48,6 +48,7 @@ kotlin {
                 implementation(libs.io.eqoty.secretk.client)
                 implementation(libs.io.eqoty.dapp.secret.contract.msgs)
                 implementation(libs.io.eqoty.dapp.secret.deploy.utils)
+                implementation(libs.io.github.luca992.getenv)
             }
         }
         val jvmMain by getting {

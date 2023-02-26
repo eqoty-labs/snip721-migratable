@@ -18,7 +18,7 @@ import io.eqoty.dapp.secret.types.contract.migratable.MigratableContractMsg
 import io.eqoty.dapp.secret.types.contract.migratable.MigratableContractTypes
 import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
-import io.eqoty.dapp.secret.utils.getEnv
+import io.getenv
 import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.extensions.accesscontrol.PermitFactory
 import io.eqoty.secretk.types.Coin
@@ -40,9 +40,9 @@ import kotlin.test.*
 class IntegrationTests {
 
     private val snip721DealerContractCodePath: Path =
-        "${getEnv(Constants.CONTRACT_PATH_ENV_NAME)}/snip721_dealer.wasm.gz".toPath()
+        "${getenv(Constants.CONTRACT_PATH_ENV_NAME)}/snip721_dealer.wasm.gz".toPath()
     private val snip721MigratableContractCodePath: Path =
-        "${getEnv(Constants.CONTRACT_PATH_ENV_NAME)}/snip721_migratable.wasm.gz".toPath()
+        "${getenv(Constants.CONTRACT_PATH_ENV_NAME)}/snip721_migratable.wasm.gz".toPath()
     private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure

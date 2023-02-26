@@ -25,6 +25,7 @@ bignum = "0.3.7"
 libsodium = "0.8.7"
 bip39 = "1.0.2-mpp"
 ripemd160 = "1.1.3-nativempp"
+getenv= "0.1.0"
 
 [libraries]
 
@@ -39,6 +40,7 @@ co-touchlab-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 io-eqoty-secretk-client = { module = "io.eqoty.secretk:client", version.ref = "secretk" }
 io-eqoty-dapp-secret-contract-msgs = { module = "io.eqoty.dapp.secret:contract-msgs", version.ref = "secret-contract-msgs" }
 io-eqoty-dapp-secret-deploy-utils = { module = "io.eqoty.dapp.secret:deploy-utils", version.ref = "secret-contract-msgs" }
+io-github-luca992-getenv = { module = "io.github.luca992.getenv-kt:getenv", version.ref = "getenv" }
 
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-json = { module = "io.ktor:ktor-client-json", version.ref = "ktor" }
