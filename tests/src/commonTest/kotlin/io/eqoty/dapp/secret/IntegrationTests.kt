@@ -787,5 +787,36 @@ class IntegrationTests {
 
     }
 
+    @Test
+    fun non_admin_permit_cannot_migrate_dealer() = runTest {
+        val dealerContract = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val errorMessage = try {
+            migrateSnip721Dealer(dealerContract)
+            ""
+        } catch (t: Throwable) {
+            t.message!!
+        }
+        assertContains(errorMessage, "Only the admins permit is allowed to initiate migration")
+    }
+
+    @Test
+    fun non_admin_permit_cannot_migrate_snip721() = runTest {
+        val dealerContract = with(initializeAndUploadDealerContract()) {
+            CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
+        }
+        val snip721Contract = getChildSnip721ContractInfo(dealerContract)
+        client.senderAddress = client.wallet.getAccounts()[1].address
+        val errorMessage = try {
+            migrateSnip721Contract(snip721Contract)
+            ""
+        } catch (t: Throwable) {
+            t.message!!
+        }
+        assertContains(errorMessage, "Only the admins permit is allowed to initiate migration")
+    }
+
 
 }
