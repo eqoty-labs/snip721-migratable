@@ -708,7 +708,7 @@ class IntegrationTests {
         } catch (t: Throwable) {
             t.message!!
         }
-        assertContains(purchaseError, "state_changes_not_allowed")
+        assertContains(purchaseError, "Not available in contact mode: MigrateOutStarted")
     }
 
     @Test
