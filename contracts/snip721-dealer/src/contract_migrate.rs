@@ -85,12 +85,12 @@ pub(crate) fn migrate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    contract_mode: &ContractMode,
+    contract_mode: ContractMode,
     admin_permit: Permit,
     migrate_to: MigrateTo,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
     {
         return Err(contract_mode_error);
     }

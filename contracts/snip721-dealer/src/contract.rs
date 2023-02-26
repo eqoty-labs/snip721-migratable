@@ -143,13 +143,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match msg {
         ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
-            DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info, &mode),
+            DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info, mode),
         },
         ExecuteMsg::Migrate(migrate_msg) => match migrate_msg {
             MigratableExecuteMsg::Migrate {
                 admin_permit,
                 migrate_to,
-            } => migrate(deps, env, info, &mode, admin_permit, migrate_to),
+            } => migrate(deps, env, info, mode, admin_permit, migrate_to),
             MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
                 let admin = load(deps.storage, ADMIN_KEY)?;
                 register_to_notify_on_migration_complete(
@@ -164,7 +164,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         },
         ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
             MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } => {
-                update_child_snip721(deps, info, &mode)
+                update_child_snip721(deps, info, mode)
             }
         },
     };
@@ -173,10 +173,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 fn update_child_snip721(
     deps: DepsMut,
     info: MessageInfo,
-    contract_mode: &ContractMode,
+    contract_mode: ContractMode,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
     {
         return Err(contract_mode_error);
     }
@@ -236,10 +236,10 @@ fn update_child_snip721(
 fn purchase_and_mint(
     deps: &mut DepsMut,
     info: MessageInfo,
-    contract_mode: &ContractMode,
+    contract_mode: ContractMode,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
     {
         return Err(contract_mode_error);
     }
@@ -372,8 +372,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
     return match msg {
         QueryMsg::Dealer(dealer_msg) => match dealer_msg {
-            DealerQueryMsg::GetPrices {} => query_prices(deps, &mode),
-            DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps, &mode),
+            DealerQueryMsg::GetPrices {} => query_prices(deps, mode),
+            DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps, mode),
         },
         QueryMsg::Migrate(migrate_msg) => match migrate_msg {
             MigratedTo {} => query_migrated_info(deps, false),
@@ -382,9 +382,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     };
 }
 
-fn query_child_snip721(deps: Deps, contract_mode: &ContractMode) -> StdResult<Binary> {
+fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {
     if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
     {
         return Err(contract_mode_error);
     }
@@ -402,9 +402,9 @@ fn query_child_snip721(deps: Deps, contract_mode: &ContractMode) -> StdResult<Bi
 /// # Arguments
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
-pub fn query_prices(deps: Deps, contract_mode: &ContractMode) -> StdResult<Binary> {
+pub fn query_prices(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {
     if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], contract_mode, None)
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
     {
         return Err(contract_mode_error);
     }
