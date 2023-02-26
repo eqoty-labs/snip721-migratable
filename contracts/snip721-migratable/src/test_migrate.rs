@@ -25,7 +25,9 @@ mod tests {
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
 
-    use crate::contract::{execute, instantiate, query, reply};
+    use crate::contract::{
+        execute, instantiate, on_migration_complete, query, reply, update_migrated_minter,
+    };
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
     use crate::msg::{
@@ -905,6 +907,70 @@ mod tests {
                 build_operation_unavailable_error(&invalid_mode, None),
                 res.err().unwrap(),
             );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn migration_complete_notification_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        save_a_config(deps.as_mut());
+        let msg = ExecuteMsg::MigrateListener(
+            MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                from: ContractInfo {
+                    address: Addr::unchecked("from_addr"),
+                    code_hash: "".to_string(),
+                },
+            },
+        );
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running && m != &ContractMode::MigrateOutStarted)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(deps.as_mut(), mock_env(), admin_info.clone(), msg.clone());
+            assert_eq!(
+                build_operation_unavailable_error(&invalid_mode, None),
+                res.err().unwrap(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn update_migrated_minter_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        save_a_config(deps.as_mut());
+        let from = ContractInfo {
+            address: Addr::unchecked("from_addr"),
+            code_hash: "".to_string(),
+        };
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let expected_error = build_operation_unavailable_error(&invalid_mode, None);
+            let res = update_migrated_minter(deps.as_mut(), invalid_mode, from.clone());
+            assert_eq!(expected_error, res.err().unwrap(),);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn on_migration_complete_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        let admin_info = mock_info("admin", &[]);
+        save_a_config(deps.as_mut());
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::MigrateOutStarted)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let expected_error = build_operation_unavailable_error(&invalid_mode, None);
+            let res = on_migration_complete(deps.as_mut(), invalid_mode, admin_info.clone());
+            assert_eq!(expected_error, res.err().unwrap(),);
         }
         Ok(())
     }

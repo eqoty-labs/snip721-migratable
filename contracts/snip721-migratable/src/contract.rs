@@ -90,14 +90,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 page_size,
             ),
         },
-        ExecuteMsg::Base(base_msg) => {
-            if let Some(contract_mode_error) =
-                check_contract_mode(vec![ContractMode::Running], &mode, None)
-            {
-                return Err(contract_mode_error);
-            }
-            snip721_reference_impl::contract::execute(deps, env, info, base_msg)
-        }
+        ExecuteMsg::Base(base_msg) => execute_base_snip721(deps, env, info, mode, base_msg),
         ExecuteMsg::Migrate(ext_msg) => match ext_msg {
             MigratableExecuteMsg::Migrate {
                 admin_permit,
@@ -116,18 +109,49 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         },
         ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
             MigrationListenerExecuteMsg::MigrationCompleteNotification { from } => {
-                // todo: mode tests
-                if mode == ContractMode::MigrateOutStarted {
-                    on_migration_complete(deps, info)
-                } else {
-                    update_migrated_minter(deps, from)
-                }
+                on_migration_notification(deps, info, mode, from)
             }
         },
     };
 }
 
-fn update_migrated_minter(deps: DepsMut, from: ContractInfo) -> StdResult<Response> {
+fn execute_base_snip721(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    contract_mode: ContractMode,
+    msg: snip721_reference_impl::msg::ExecuteMsg,
+) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
+    {
+        return Err(contract_mode_error);
+    }
+    snip721_reference_impl::contract::execute(deps, env, info, msg)
+}
+
+fn on_migration_notification(
+    deps: DepsMut,
+    info: MessageInfo,
+    mode: ContractMode,
+    from: ContractInfo,
+) -> StdResult<Response> {
+    match mode {
+        ContractMode::Running => update_migrated_minter(deps, mode, from),
+        ContractMode::MigrateOutStarted => on_migration_complete(deps, mode, info),
+        _ => Err(build_operation_unavailable_error(&mode, None)),
+    }
+}
+
+pub(crate) fn update_migrated_minter(
+    deps: DepsMut,
+    mode: ContractMode,
+    from: ContractInfo,
+) -> StdResult<Response> {
+    if let Some(contract_mode_error) = check_contract_mode(vec![ContractMode::Running], &mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let mut minters: Vec<CanonicalAddr> = may_load(deps.storage, MINTERS_KEY)?.unwrap_or_default();
     let mut update = false;
     let from_raw = deps.api.addr_canonicalize(from.address.as_str())?;
@@ -156,7 +180,16 @@ fn update_migrated_minter(deps: DepsMut, from: ContractInfo) -> StdResult<Respon
     Ok(Response::new())
 }
 
-fn on_migration_complete(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
+pub(crate) fn on_migration_complete(
+    deps: DepsMut,
+    mode: ContractMode,
+    info: MessageInfo,
+) -> StdResult<Response> {
+    if let Some(contract_mode_error) =
+        check_contract_mode(vec![ContractMode::MigrateOutStarted], &mode, None)
+    {
+        return Err(contract_mode_error);
+    }
     let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
     return if migrated_to.contract.address != info.sender {
         Err(StdError::generic_err(
