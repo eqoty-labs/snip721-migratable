@@ -743,7 +743,7 @@ class IntegrationTests {
         } catch (t: Throwable) {
             t.message!!
         }
-        assertContains(transferError, "state_changes_not_allowed")
+        assertContains(transferError, "Not available in contact mode: MigrateOutStarted")
 
         client.senderAddress = client.wallet.getAccounts()[1].address
         assertEquals(
@@ -783,7 +783,7 @@ class IntegrationTests {
         } catch (t: Throwable) {
             t.message!!
         }
-        assertContains(getNumTokensOfOwnerError, "contract has been migrated")
+        assertContains(getNumTokensOfOwnerError, "Not available in contact mode: MigratedOut")
 
     }
 
