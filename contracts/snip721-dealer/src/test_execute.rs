@@ -1,60 +1,27 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{BankMsg, Coin, CosmosMsg, Deps, DepsMut, from_binary, MessageInfo, StdError, StdResult, Uint128};
+    use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, StdResult, Uint128,
+        WasmMsg,
+    };
+    use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
+    use snip721_reference_impl::state::{load, save};
+    use snip721_reference_impl::token::Metadata;
+    use strum::IntoEnumIterator;
 
-    use crate::contract::{execute, instantiate, query};
-    use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, InstantiateNewMsg, QueryMsg};
-
-    pub fn instantiate_msg(prices: Vec<Coin>, admin_info: MessageInfo) -> InstantiateMsg {
-        InstantiateMsg::New {
-            config: InstantiateNewMsg {
-                prices: prices.clone(),
-                public_metadata: None,
-                private_metadata: None,
-                admin: Some(admin_info.sender.to_string()),
-                entropy: "".to_string(),
-                royalty_info: None,
-            }
-        }
-    }
-
-    pub fn set_viewing_key(deps: DepsMut, viewing_key: String, message_info: MessageInfo) {
-        let set_view_key_msg =
-            ExecuteMsg::Base(snip721_reference_impl::msg::ExecuteMsg::SetViewingKey {
-                key: viewing_key.clone(),
-                padding: None,
-            });
-        let res = execute(deps, mock_env(), message_info.clone(), set_view_key_msg);
-        assert!(res.is_ok(), "execute failed: {}", res.err().unwrap());
-    }
-
-    pub fn get_tokens(deps: Deps, viewing_key: String, message_info: MessageInfo) -> Vec<String> {
-        let query_msg = QueryMsg::Base(snip721_reference_impl::msg::QueryMsg::Tokens {
-            owner: message_info.sender.to_string(),
-            viewer: None,
-            viewing_key: Some(viewing_key.clone()),
-            start_after: None,
-            limit: None,
-        });
-        let query_res = query(deps, mock_env(), query_msg);
-
-        assert!(
-            query_res.is_ok(),
-            "query failed: {}",
-            query_res.err().unwrap()
-        );
-        let query_answer: StdResult<snip721_reference_impl::msg::QueryAnswer> =
-            from_binary(&query_res.unwrap());
-        if query_answer.is_ok() {
-            return match query_answer.unwrap() {
-                snip721_reference_impl::msg::QueryAnswer::TokenList { tokens } => tokens,
-                _ => panic!("unexpected"),
-            };
-        } else {
-            panic!("{}", query_answer.unwrap_err())
-        }
-    }
+    use crate::contract::{execute, instantiate, reply};
+    use crate::msg::{
+        DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg,
+    };
+    use crate::state::{
+        PurchasableMetadata, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
+    };
+    use crate::test_utils::test_utils::{
+        child_snip721_address, successful_child_snip721_instantiate_reply,
+    };
 
     #[test]
     fn purchase_and_mint_successfully_w_correct_denom_w_correct_amount() {
@@ -63,31 +30,55 @@ mod tests {
             denom: "`uscrt`".to_string(),
         }];
         let admin_info = mock_info("creator", &[]);
-        let minter_info = mock_info("minty", &prices.clone());
+        let mint_recipient_info = mock_info("minty", &prices.clone());
         let pay_to_addr = admin_info.sender.clone();
-
+        let purchasable_metadata = PurchasableMetadata {
+            public_metadata: Some(Metadata {
+                token_uri: Some("public_metadata_uri".to_string()),
+                extension: None,
+            }),
+            private_metadata: Some(Metadata {
+                token_uri: Some("private_metadata_uri".to_string()),
+                extension: None,
+            }),
+        };
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            private_metadata: purchasable_metadata.private_metadata.clone(),
+            public_metadata: purchasable_metadata.public_metadata.clone(),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        // fake a reply after successful instantiate of child snip721
+        let child_snip721_address = child_snip721_address();
+        reply(
+            deps.as_mut(),
+            mock_env(),
+            successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
+        )
+        .unwrap();
+
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
-            minter_info.clone(),
+            mint_recipient_info.clone(),
             exec_purchase_msg,
-        ).unwrap();
+        )
+        .unwrap();
 
         // there should be one message
-        assert_eq!(exec_purchase_res.messages.len(), 1);
-        // the message should be a Bank Send message
-        println!("{:#?}", exec_purchase_res.messages[0].msg);
+        assert_eq!(exec_purchase_res.messages.len(), 2);
+        // the first message should be a Bank Send message
         assert!(matches!(
             exec_purchase_res.messages[0].msg,
             CosmosMsg::Bank(BankMsg::Send { .. })
@@ -107,11 +98,62 @@ mod tests {
             },
             _ => panic!("unexpected"),
         }
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 1);
+        // the second message should be a Wasm Execute Mint message
+        assert!(matches!(
+            exec_purchase_res.messages[1].msg,
+            CosmosMsg::Wasm(WasmMsg::Execute { .. })
+        ));
+        match &exec_purchase_res.messages[1].msg {
+            CosmosMsg::Wasm(msg) => match msg {
+                WasmMsg::Execute {
+                    contract_addr,
+                    code_hash,
+                    msg,
+                    funds,
+                } => {
+                    let child_snip721_code_hash: String =
+                        load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+                    let child_snip721_address: CanonicalAddr =
+                        load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
+                    assert_eq!(
+                        &deps
+                            .api
+                            .addr_humanize(&child_snip721_address)
+                            .unwrap()
+                            .to_string(),
+                        contract_addr
+                    );
+                    assert_eq!(&child_snip721_code_hash.to_string(), code_hash);
+                    assert_eq!(&Vec::<Coin>::new(), funds);
+                    match from_binary(msg).unwrap() {
+                        Snip721ExecuteMsg::MintNft {
+                            token_id,
+                            owner,
+                            public_metadata,
+                            private_metadata,
+                            serial_number,
+                            royalty_info,
+                            transferable,
+                            memo,
+                            padding,
+                        } => {
+                            assert_eq!(None, token_id);
+                            assert_eq!(Some(mint_recipient_info.sender.to_string()), owner);
+                            assert_eq!(purchasable_metadata.public_metadata, public_metadata);
+                            assert_eq!(purchasable_metadata.private_metadata, private_metadata);
+                            assert_eq!(None, serial_number);
+                            assert_eq!(None, royalty_info);
+                            assert_eq!(None, transferable);
+                            assert_eq!(None, memo);
+                            assert_eq!(None, padding);
+                        }
+                        _ => panic!("unexpected"),
+                    }
+                }
+                _ => panic!("unexpected"),
+            },
+            _ => panic!("unexpected"),
+        }
     }
 
     #[test]
@@ -127,15 +169,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -149,13 +196,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -178,15 +220,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -200,13 +247,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase price in {} is {}, but {} was sent",
                 prices[0].denom, prices[0].amount, invalid_funds[0]
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -229,15 +271,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -251,13 +298,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase price in {} is {}, but {} was sent",
                 prices[0].denom, prices[0].amount, invalid_funds[0]
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -280,15 +322,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -302,13 +349,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -331,15 +373,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -353,13 +400,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -382,15 +424,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -404,13 +451,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchasing in denom:{} is not allowed",
                 invalid_funds[0].denom
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -432,15 +474,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -454,13 +501,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -489,15 +531,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -511,13 +558,8 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
-
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
     }
 
     #[test]
@@ -546,15 +588,20 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = instantiate_msg(prices.clone(), admin_info.clone());
+        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+            prices: prices.clone(),
+            admin: Some(admin_info.sender.to_string()),
+            ..InstantiateSelfAndChildSnip721Msg::default()
+        };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            instantiate_msg,
-        ).unwrap();
+            InstantiateMsg::New(instantiate_msg),
+        )
+        .unwrap();
 
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::PurchaseMint {});
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
         let exec_purchase_res = execute(
             deps.as_mut(),
             mock_env(),
@@ -568,12 +615,31 @@ mod tests {
             StdError::generic_err(format!(
                 "Purchase requires one coin denom to be sent with transaction, {} were sent.",
                 invalid_funds.len()
-            ), )
+            ),)
         );
+    }
 
-        let viewing_key = "key".to_string();
-        set_viewing_key(deps.as_mut(), viewing_key.clone(), minter_info.clone());
-        let tokens = get_tokens(deps.as_ref(), viewing_key.clone(), minter_info.clone());
-        assert_eq!(tokens.len(), 0);
+    #[test]
+    fn purchase_and_mint_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+        let minter_info = mock_info("minty", &vec![]);
+        let mut deps = mock_dependencies();
+        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
+        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
+            .filter(|m| m != &ContractMode::Running)
+            .collect();
+        for invalid_mode in invalid_modes {
+            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            let res = execute(
+                deps.as_mut(),
+                mock_env(),
+                minter_info.clone(),
+                exec_purchase_msg.clone(),
+            );
+            assert_eq!(
+                res.err().unwrap(),
+                build_operation_unavailable_error(&invalid_mode, None)
+            );
+        }
+        Ok(())
     }
 }

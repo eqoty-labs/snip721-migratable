@@ -11,6 +11,12 @@
       "chainId": "pulsar-2",
       "grpcGatewayEndpoint": "https://api.pulsar.scrttestnet.com",
       "faucetAddressEndpoint": "https://faucetbe.pulsar.scrttestnet.com/credit"
+    },
+    {
+      "type": "Custom",
+      "chainId": "secretdev-1",
+      "grpcGatewayEndpoint": "http://eqoty.duckdns.org:1317",
+      "faucetAddressEndpoint": "http://eqoty.duckdns.org:5000/faucet?address="
     }
   ]
 }

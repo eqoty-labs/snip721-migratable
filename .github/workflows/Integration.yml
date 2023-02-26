@@ -10,10 +10,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        rust: [1.67.0]
+        rust: [1.67.1]
         make:
           - name: Run integration tests # Integration tests
-            task: "(cd tests && TESTNET_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
+            task: "(cd tests && NODE_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
         include:
           - os: ubuntu-latest
             sccache-path: /home/runner/.cache/sccache
@@ -31,7 +31,7 @@ jobs:
       # Label used to access the service container
       secret:
         # Docker Hub image
-        image: ghcr.io/scrtlabs/localsecret:v1.6.0-patch.1
+        image: ghcr.io/scrtlabs/localsecret:v1.6.1
         ports:
           # Opens tcp port
           - 5000:5000
