@@ -419,7 +419,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_snip721_migrated_info() = runTest {
+    fun snip721_migrated_info() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -457,7 +457,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_migrated_info() = runTest {
+    fun dealer_migrated_info() = runTest {
         val dealerContractV1 = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -493,7 +493,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_can_mint_after_dealer_migrates() = runTest {
+    fun dealer_can_mint_after_dealer_migrates() = runTest {
         val dealerContractV1 = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -511,7 +511,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_can_mint_after_dealer_migrates_twice() = runTest {
+    fun dealer_can_mint_after_dealer_migrates_twice() = runTest {
         val dealerContractV1 = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -532,7 +532,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_purchase_one_and_migrate_snip721() = runTest {
+    fun purchase_one_and_migrate_snip721() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -582,7 +582,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_is_notified_of_migrated_child_snip721_address() = runTest {
+    fun dealer_is_notified_of_migrated_child_snip721_address() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -607,7 +607,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_minters_are_migrated() = runTest {
+    fun minters_are_migrated() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -622,7 +622,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_can_mint_after_snip721_migrates_tokens() = runTest {
+    fun dealer_can_mint_after_snip721_migrates_tokens() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -651,7 +651,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_can_mint_after_snip721_migrates_tokens_twice() = runTest {
+    fun dealer_can_mint_after_snip721_migrates_tokens_twice() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -683,7 +683,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_dealer_cannot_mint_before_snip721_migrates_tokens() = runTest {
+    fun dealer_cannot_mint_before_snip721_migrates_tokens() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -712,7 +712,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_snip721_contract_state_being_migrated_cannot_be_altered_but_can_be_queried() = runTest {
+    fun snip721_contract_state_being_migrated_cannot_be_altered_but_can_be_queried() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
@@ -754,7 +754,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun test_migrated_snip721_tokens_cannot_be_queried() = runTest {
+    fun migrated_snip721_tokens_cannot_be_queried() = runTest {
         val dealerContractInfo = with(initializeAndUploadDealerContract()) {
             CosmWasmStd.ContractInfo(address, codeInfo.codeHash)
         }
