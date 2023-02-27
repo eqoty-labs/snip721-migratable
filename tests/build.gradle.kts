@@ -46,8 +46,10 @@ kotlin {
                 implementation(libs.ktor.client.core)
                 implementation(libs.co.touchlab.kermit)
                 implementation(libs.io.eqoty.secretk.client)
-                implementation(libs.io.eqoty.dapp.secret.contract.msgs)
-                implementation(libs.io.eqoty.dapp.secret.deploy.utils)
+                implementation(libs.io.eqoty.secretk.secret.std.msgs)
+                implementation(libs.io.eqoty.secretk.secret.std.types)
+                implementation(libs.io.eqoty.secretk.cosmwasm.std.types)
+                implementation(libs.io.eqoty.secretk.deploy.utils)
                 implementation(libs.io.github.luca992.getenv)
             }
         }

@@ -18,14 +18,13 @@ okio = "3.3.0"
 
 kermit = "1.2.2"
 
-secretk = "1.3.0"
-secret-contract-msgs="0.1.3-SNAPSHOT"
+secretk = "2.0.0"
 
 bignum = "0.3.7"
 libsodium = "0.8.7"
 bip39 = "1.0.2-mpp"
 ripemd160 = "1.1.3-nativempp"
-getenv= "0.1.0"
+getenv = "0.1.0"
 
 [libraries]
 
@@ -38,8 +37,10 @@ com-squareup-okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 co-touchlab-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
 io-eqoty-secretk-client = { module = "io.eqoty.secretk:client", version.ref = "secretk" }
-io-eqoty-dapp-secret-contract-msgs = { module = "io.eqoty.dapp.secret:contract-msgs", version.ref = "secret-contract-msgs" }
-io-eqoty-dapp-secret-deploy-utils = { module = "io.eqoty.dapp.secret:deploy-utils", version.ref = "secret-contract-msgs" }
+io-eqoty-secretk-deploy-utils = { module = "io.eqoty.secretk:deploy-utils", version.ref = "secretk" }
+io-eqoty-secretk-cosmwasm-std-types = { module = "io.eqoty.secretk:cosmwasm-std-types", version.ref = "secretk" }
+io-eqoty-secretk-secret-std-types = { module = "io.eqoty.secretk:secret-std-types", version.ref = "secretk" }
+io-eqoty-secretk-secret-std-msgs = { module = "io.eqoty.secretk:secret-std-msgs", version.ref = "secretk" }
 io-github-luca992-getenv = { module = "io.github.luca992.getenv-kt:getenv", version.ref = "getenv" }
 
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

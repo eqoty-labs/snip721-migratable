@@ -1,6 +1,6 @@
 package io.eqoty.dapp.secret.types.contract.migratable
 
-import io.eqoty.secretk.types.extensions.Permit
+import io.eqoty.secret.std.types.Permit
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 

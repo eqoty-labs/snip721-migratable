@@ -1,7 +1,9 @@
 package io.eqoty.dapp.secret.types.contract
 
+import io.eqoty.cosmwasm.std.types.Coin
+import io.eqoty.cosmwasm.std.types.ContractInfo
 import io.eqoty.dapp.secret.types.contract.migratable.MigratableContractTypes
-import io.eqoty.secretk.types.Coin
+import io.eqoty.secret.std.contract.msg.Snip721Msgs
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -72,8 +74,8 @@ object Snip721DealerMsgs {
     @Serializable
     data class QueryAnswer(
         @SerialName("get_prices") val getPrices: GetPrices? = null,
-        @SerialName("migration_info") val migrationInfo: CosmWasmStd.ContractInfo? = null,
-        @SerialName("contract_info") val contractInfo: CosmWasmStd.ContractInfo? = null,
+        @SerialName("migration_info") val migrationInfo: ContractInfo? = null,
+        @SerialName("contract_info") val contractInfo: ContractInfo? = null,
     ) {
         @Serializable
         data class GetPrices(val prices: List<Coin>)

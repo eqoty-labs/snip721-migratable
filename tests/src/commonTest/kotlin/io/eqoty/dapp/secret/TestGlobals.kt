@@ -3,7 +3,7 @@
 package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger
-import io.eqoty.dapp.secret.types.ContractInfo
+import io.eqoty.cosmwasm.std.types.ContractInfo
 import io.eqoty.dapp.secret.types.contract.Snip721DealerMsgs
 import io.eqoty.dapp.secret.utils.NodeInfo
 import io.eqoty.dapp.secret.utils.getNode
@@ -32,6 +32,9 @@ object TestGlobals {
         (1 until numberOfWalletAccounts).forEach {
             wallet.addAccount()
         }
+        wallet.addressToAccountSigningData.values.forEach { a ->
+            Logger.i("Added random account to wallet w/ mnemonic: ${a.mnemonic?.map { it.concatToString() }}")
+        }
         val accAddress = wallet.accounts[0].address
         val client = SigningCosmWasmClient.init(
             endpoint,
@@ -57,7 +60,7 @@ object TestGlobals {
             MsgExecuteContract(
                 sender = senderAddress,
                 contractAddress = contractInfo.address,
-                codeHash = contractInfo.codeInfo.codeHash,
+                codeHash = contractInfo.codeHash,
                 msg = msg,
             )
         )

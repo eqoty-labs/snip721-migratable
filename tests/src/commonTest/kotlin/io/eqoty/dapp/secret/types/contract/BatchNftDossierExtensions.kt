@@ -1,5 +1,6 @@
 package io.eqoty.dapp.secret.types.contract
 
+import io.eqoty.secret.std.contract.msg.Snip721Msgs
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.encodeToJsonElement
