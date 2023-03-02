@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg;
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -12,10 +14,6 @@ mod tests {
     };
     use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
-
-    use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg;
-    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
-    use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
 
     use crate::contract::{instantiate, reply};
     use crate::msg::{InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
@@ -167,13 +165,12 @@ mod tests {
                     assert_eq!(&child_snip721_address, contract_addr);
                     assert_eq!(&instantiate_new_msg.snip721_code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
-                    let execute_msg: Snip721MigratableExecuteMsg = from_binary(msg).unwrap();
-                    let expected_execute_msg = Snip721MigratableExecuteMsg::Migrate(
+                    let execute_msg: MigratableExecuteMsg = from_binary(msg).unwrap();
+                    let expected_execute_msg =
                         MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
                             address: env.contract.address.to_string(),
                             code_hash: env.contract.code_hash,
-                        },
-                    );
+                        };
                     assert_eq!(expected_execute_msg, execute_msg);
                 }
                 _ => panic!("unexpected"),

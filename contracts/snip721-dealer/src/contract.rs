@@ -19,8 +19,6 @@ use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::state::{load, save};
 
-use snip721_migratable::msg::ExecuteMsg as Snip721MigratableExecuteMsg;
-
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
 use crate::msg::{
     DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg,
@@ -341,12 +339,10 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
     let reg_on_migration_complete_notify_receiver_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
         code_hash: child_snip721_code_hash.clone(),
-        msg: to_binary(&Snip721MigratableExecuteMsg::Migrate(
-            MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
-                address: env.contract.address.to_string(),
-                code_hash: env.contract.code_hash,
-            },
-        ))?,
+        msg: to_binary(&MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+            address: env.contract.address.to_string(),
+            code_hash: env.contract.code_hash,
+        })?,
         funds: vec![],
     };
 
