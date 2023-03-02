@@ -38,8 +38,6 @@ co-touchlab-kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
 io-eqoty-secretk-client = { module = "io.eqoty.secretk:client", version.ref = "secretk" }
 io-eqoty-secretk-deploy-utils = { module = "io.eqoty.secretk:deploy-utils", version.ref = "secretk" }
-io-eqoty-secretk-cosmwasm-std-types = { module = "io.eqoty.secretk:cosmwasm-std-types", version.ref = "secretk" }
-io-eqoty-secretk-secret-std-types = { module = "io.eqoty.secretk:secret-std-types", version.ref = "secretk" }
 io-eqoty-secretk-secret-std-msgs = { module = "io.eqoty.secretk:secret-std-msgs", version.ref = "secretk" }
 io-github-luca992-getenv = { module = "io.github.luca992.getenv-kt:getenv", version.ref = "getenv" }
 
