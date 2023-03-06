@@ -3,16 +3,14 @@
 package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger
+import io.eqoty.cosmwasm.std.types.Coin
 import io.eqoty.cosmwasm.std.types.ContractInfo
-import io.eqoty.dapp.secret.types.contract.Snip721DealerMsgs
 import io.eqoty.dapp.secret.utils.NodeInfo
 import io.eqoty.dapp.secret.utils.getNode
 import io.eqoty.secretk.client.SigningCosmWasmClient
-import io.eqoty.secretk.types.MsgExecuteContract
+import io.eqoty.secretk.types.MsgSend
 import io.eqoty.secretk.types.TxOptions
 import io.eqoty.secretk.wallet.DirectSigningWallet
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /***
  * IntegrationTests will be re-instantiated for each test.
@@ -47,21 +45,15 @@ object TestGlobals {
         clientBacking = client
     }
 
-    suspend fun intializeAccountBeforeExecuteWorkaround(contractInfo: ContractInfo, senderAddress: String) {
-        // workaround for weird issue where you need to call execute once (where it errors) before execute or
+    suspend fun intializeAccountBeforeExecuteWorkaround(senderAddress: String) {
+        // workaround for weird issue where you need to execute a tx once (where it errors) before execute or
         // simulate can be called successfully on a brand-new account:
         // https://discord.com/channels/360051864110235648/603225118545674241/1030724640315805716
-        val msg = Json.encodeToString(
-            Snip721DealerMsgs.Execute(
-                purchaseMint = Snip721DealerMsgs.Execute.PurchaseMint()
-            )
-        )
         val msgs = listOf(
-            MsgExecuteContract(
-                sender = senderAddress,
-                contractAddress = contractInfo.address,
-                codeHash = contractInfo.codeHash,
-                msg = msg,
+            MsgSend(
+                fromAddress = senderAddress,
+                toAddress = senderAddress,
+                amount = listOf(Coin(1, "usrct")),
             )
         )
         val originalSenderAddress = client.senderAddress
@@ -69,7 +61,7 @@ object TestGlobals {
             client.senderAddress = senderAddress
             client.execute(
                 msgs,
-                txOptions = TxOptions(gasLimit = 200000)
+                txOptions = TxOptions(gasLimit = 100000)
             )
         } catch (_: Throwable) {
         }

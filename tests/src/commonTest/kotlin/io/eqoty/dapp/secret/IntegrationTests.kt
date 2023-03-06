@@ -416,10 +416,9 @@ class IntegrationTests {
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[0].address)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[1].address)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[2].address)
-            val workaroundContract = initializeAndUploadDealerContract()
-            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[0].address)
-            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[1].address)
-            intializeAccountBeforeExecuteWorkaround(workaroundContract, client.wallet.getAccounts()[2].address)
+            intializeAccountBeforeExecuteWorkaround(client.wallet.getAccounts()[0].address)
+            intializeAccountBeforeExecuteWorkaround(client.wallet.getAccounts()[1].address)
+            intializeAccountBeforeExecuteWorkaround(client.wallet.getAccounts()[2].address)
         }
         client.senderAddress = client.wallet.getAccounts()[0].address
     }
