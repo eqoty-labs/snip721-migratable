@@ -18,7 +18,7 @@ okio = "3.3.0"
 
 kermit = "1.2.2"
 
-secretk = "2.1.0"
+secretk = "2.3.0"
 
 bignum = "0.3.7"
 libsodium = "0.8.7"

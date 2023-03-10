@@ -139,14 +139,14 @@ pub(crate) fn migrate(
 
     let secret = Binary::from(rng.rand_bytes());
 
-    let migrated_to = Some(MigratedToState {
+    let migrated_to = MigratedToState {
         contract: ContractInfo {
             address: migrate_to_address,
             code_hash: migrate_to.code_hash,
         },
         migration_secret: secret.clone(),
-    });
-    save(deps.storage, MIGRATED_TO_KEY, &migrated_to.unwrap())?;
+    };
+    save(deps.storage, MIGRATED_TO_KEY, &migrated_to.clone())?;
     save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
 
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
@@ -155,7 +155,8 @@ pub(crate) fn migrate(
     let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
     let msg = to_binary(
         &MigrationListenerExecuteMsg::MigrationCompleteNotification {
-            from: env.contract.clone(),
+            to: migrated_to.contract,
+            data: None,
         },
     )?;
     let sub_msgs: Vec<SubMsg> = contracts
