@@ -1,15 +1,14 @@
 use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
 use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
-use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
-use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::MigratedTo;
 use cosmwasm_contract_migratable_std::msg::{
-    MigratableExecuteMsg, MigratableQueryAnswer, MigratableQueryMsg, MigrationListenerExecuteMsg,
+    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_TO_KEY,
+    NOTIFY_ON_MIGRATION_COMPLETE_KEY,
 };
 use cosmwasm_std::{
     entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
@@ -108,8 +107,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             }
         },
         ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
-            MigrationListenerExecuteMsg::MigrationCompleteNotification { from } => {
-                on_migration_notification(deps, info, mode, from)
+            MigrationListenerExecuteMsg::MigrationCompleteNotification { to, .. } => {
+                on_migration_notification(deps, info, mode, to)
             }
         },
     };
@@ -134,19 +133,20 @@ fn on_migration_notification(
     deps: DepsMut,
     info: MessageInfo,
     mode: ContractMode,
-    from: ContractInfo,
+    to: ContractInfo,
 ) -> StdResult<Response> {
     match mode {
-        ContractMode::Running => update_migrated_minter(deps, mode, from),
-        ContractMode::MigrateOutStarted => on_migration_complete(deps, mode, info),
+        ContractMode::Running => update_migrated_minter(deps, info, mode, to),
+        ContractMode::MigrateOutStarted => on_migration_complete(deps, info, mode),
         _ => Err(build_operation_unavailable_error(&mode, None)),
     }
 }
 
 pub(crate) fn update_migrated_minter(
     deps: DepsMut,
+    info: MessageInfo,
     mode: ContractMode,
-    from: ContractInfo,
+    migrated_to: ContractInfo,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) = check_contract_mode(vec![ContractMode::Running], &mode, None)
     {
@@ -154,23 +154,12 @@ pub(crate) fn update_migrated_minter(
     }
     let mut minters: Vec<CanonicalAddr> = may_load(deps.storage, MINTERS_KEY)?.unwrap_or_default();
     let mut update = false;
-    let from_raw = deps.api.addr_canonicalize(from.address.as_str())?;
+    let from_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let minter_index_to_update = minters.iter().position(|minter| minter == &from_raw);
     if let Some(some_minter_index_to_update) = minter_index_to_update {
-        // Since anyone can execute a MigrationCompleteNotification. We do not include the migrated_to
-        // info in the message only migrated_from. As someone could potentially exploit that to set
-        // their own minter.
-        // To make sure that does not happen, query the contract that is being migrated from
-        // to find out where it is being migrated to.
-        let migrated_to: MigratableQueryAnswer = deps
-            .querier
-            .query_wasm_smart(from.code_hash, from.address, &MigratedTo {})
-            .unwrap();
-        if let MigrationInfo(Some(migrated_to)) = migrated_to {
-            minters[some_minter_index_to_update] =
-                deps.api.addr_canonicalize(migrated_to.address.as_str())?;
-            update = true;
-        }
+        minters[some_minter_index_to_update] =
+            deps.api.addr_canonicalize(migrated_to.address.as_str())?;
+        update = true;
     }
 
     // only save if the list changed
@@ -182,8 +171,8 @@ pub(crate) fn update_migrated_minter(
 
 pub(crate) fn on_migration_complete(
     deps: DepsMut,
-    mode: ContractMode,
     info: MessageInfo,
+    mode: ContractMode,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) =
         check_contract_mode(vec![ContractMode::MigrateOutStarted], &mode, None)
@@ -199,7 +188,30 @@ pub(crate) fn on_migration_complete(
         ))
     } else {
         save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
-        Ok(Response::new())
+        // notify the contracts registered to be notified on migration complete
+        let contracts =
+            may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?
+                .unwrap_or_default();
+        let msg = to_binary(
+            &MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                to: migrated_to.contract,
+                data: None,
+            },
+        )?;
+        let sub_msgs: Vec<SubMsg> = contracts
+            .iter()
+            .map(|contract| {
+                let execute = WasmMsg::Execute {
+                    msg: msg.clone(),
+                    contract_addr: contract.address.to_string(),
+                    code_hash: contract.code_hash.clone(),
+                    funds: vec![],
+                };
+                SubMsg::new(execute)
+            })
+            .collect();
+
+        Ok(Response::new().add_submessages(sub_msgs))
     };
 }
 

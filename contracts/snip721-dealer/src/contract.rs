@@ -2,11 +2,8 @@ use cosmwasm_contract_migratable_std::execute::{
     check_contract_mode, register_to_notify_on_migration_complete,
 };
 use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
-use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
-use cosmwasm_contract_migratable_std::msg::{
-    MigratableExecuteMsg, MigratableQueryAnswer, MigrationListenerExecuteMsg,
-};
+use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, CONTRACT_MODE_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
@@ -161,8 +158,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             }
         },
         ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
-            MigrationListenerExecuteMsg::MigrationCompleteNotification { from: _ } => {
-                update_child_snip721(deps, info, mode)
+            MigrationListenerExecuteMsg::MigrationCompleteNotification { to, .. } => {
+                update_child_snip721(deps, info, mode, to)
             }
         },
     };
@@ -172,6 +169,7 @@ fn update_child_snip721(
     deps: DepsMut,
     info: MessageInfo,
     contract_mode: ContractMode,
+    migrated_to: ContractInfo,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) =
         check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
@@ -181,54 +179,40 @@ fn update_child_snip721(
     let current_child_snip721_address = deps
         .api
         .addr_humanize(&load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?;
-    let current_child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let child_snip721_migrated_to: MigratableQueryAnswer = deps
-        .querier
-        .query_wasm_smart(
-            current_child_snip721_code_hash.clone(),
-            current_child_snip721_address.clone(),
-            &MigratedTo {},
-        )
-        .unwrap();
-    if let MigrationInfo(Some(migrated_to)) = child_snip721_migrated_to {
-        if info.sender != migrated_to.address {
-            // The newly migrated contract only calls this after all contracts have been migrated.
-            // This prevents someone from updating the child contract before all tokens have been migrated
-            return Err(StdError::generic_err(
-                "Only the migrated child snip721 is allowed to trigger an update",
-            ));
-        }
-        save(
-            deps.storage,
-            CHILD_SNIP721_ADDRESS_KEY,
-            &deps.api.addr_canonicalize(migrated_to.address.as_str())?,
-        )?;
-        save(
-            deps.storage,
-            CHILD_SNIP721_CODE_HASH_KEY,
-            &migrated_to.code_hash,
-        )?;
 
-        let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
-        let updated_contracts: Vec<ContractInfo> = contracts
-            .iter()
-            .map(|contract| {
-                if contract.address == current_child_snip721_address {
-                    migrated_to.clone()
-                } else {
-                    contract.clone()
-                }
-            })
-            .collect();
-        save(
-            deps.storage,
-            NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-            &updated_contracts,
-        )?;
-        Ok(Response::new())
-    } else {
-        Err(StdError::generic_err("Child snip721 has not been migrated"))
+    if info.sender != current_child_snip721_address {
+        return Err(StdError::generic_err(
+            "Only the migrated child snip721 is allowed to trigger an update",
+        ));
     }
+    save(
+        deps.storage,
+        CHILD_SNIP721_ADDRESS_KEY,
+        &deps.api.addr_canonicalize(migrated_to.address.as_str())?,
+    )?;
+    save(
+        deps.storage,
+        CHILD_SNIP721_CODE_HASH_KEY,
+        &migrated_to.code_hash,
+    )?;
+
+    let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
+    let updated_contracts: Vec<ContractInfo> = contracts
+        .iter()
+        .map(|contract| {
+            if contract.address == current_child_snip721_address {
+                migrated_to.clone()
+            } else {
+                contract.clone()
+            }
+        })
+        .collect();
+    save(
+        deps.storage,
+        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+        &updated_contracts,
+    )?;
+    Ok(Response::new())
 }
 
 fn purchase_and_mint(

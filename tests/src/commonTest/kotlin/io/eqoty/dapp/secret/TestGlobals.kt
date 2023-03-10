@@ -4,7 +4,6 @@ package io.eqoty.dapp.secret
 
 import co.touchlab.kermit.Logger
 import io.eqoty.cosmwasm.std.types.Coin
-import io.eqoty.cosmwasm.std.types.ContractInfo
 import io.eqoty.dapp.secret.utils.NodeInfo
 import io.eqoty.dapp.secret.utils.getNode
 import io.eqoty.secretk.client.SigningCosmWasmClient
