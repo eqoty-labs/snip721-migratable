@@ -3,8 +3,8 @@ use cosmwasm_contract_migratable_std::msg::MigratableQueryAnswer::MigrationInfo;
 use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
-    MIGRATED_TO_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
+    NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps,
@@ -78,7 +78,7 @@ pub(crate) fn instantiate_with_migrated_config(
         },
         migration_secret: reply_data.secret,
     };
-    save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
+    MIGRATED_FROM.save(deps.storage, &migrated_from)?;
     let migrate_in_tokens_progress = MigrateInTokensProgress {
         migrate_in_mint_cnt: reply_data.mint_count,
         migrate_in_next_mint_index: 0,
@@ -90,19 +90,11 @@ pub(crate) fn instantiate_with_migrated_config(
     )?;
     save(deps.storage, MINTERS_KEY, &reply_data.minters)?;
 
-    save(
-        deps.storage,
-        CONTRACT_MODE_KEY,
-        &ContractMode::MigrateDataIn,
-    )?;
+    CONTRACT_MODE.save(deps.storage, &ContractMode::MigrateDataIn)?;
     if let Some(on_migration_complete_notify_receiver) =
         reply_data.on_migration_complete_notify_receiver
     {
-        save(
-            deps.storage,
-            NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-            &on_migration_complete_notify_receiver,
-        )?;
+        NOTIFY_ON_MIGRATION_COMPLETE.save(deps.storage, &on_migration_complete_notify_receiver)?;
     }
 
     // clear the data (that contains the secret) which would be set when init_snip721 is called
@@ -125,7 +117,7 @@ pub(crate) fn perform_token_migration(
     {
         return Err(contract_mode_error);
     }
-    let migrated_from: MigratedFromState = load(deps.storage, MIGRATED_FROM_KEY)?;
+    let migrated_from = MIGRATED_FROM.load(deps.storage)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
         return Err(StdError::generic_err(format!(
@@ -188,7 +180,7 @@ pub(crate) fn perform_token_migration(
         )
     } else {
         // migration complete
-        save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
+        CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
         // notify the contract being migrated from so it can change its mode from MigrateOutStarted to MigratedOut
         let msg = to_binary(
             &MigrationListenerExecuteMsg::MigrationCompleteNotification {
@@ -319,7 +311,7 @@ pub(crate) fn migrate(
             "Only the contract being migrated to can set the contract to migrate!",
         ));
     }
-    let mut migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+    let mut migrated_to = MIGRATED_TO.may_load(deps.storage)?;
     if migrated_to.is_some() {
         return Err(StdError::generic_err(
             "The contract has already been migrated!",
@@ -352,12 +344,8 @@ pub(crate) fn migrate(
         },
         migration_secret: secret.clone(),
     });
-    save(deps.storage, MIGRATED_TO_KEY, &migrated_to.unwrap())?;
-    save(
-        deps.storage,
-        CONTRACT_MODE_KEY,
-        &ContractMode::MigrateOutStarted,
-    )?;
+    MIGRATED_TO.save(deps.storage, &migrated_to.unwrap())?;
+    CONTRACT_MODE.save(deps.storage, &ContractMode::MigrateOutStarted)?;
 
     let royalty_info: Option<RoyaltyInfo> =
         match may_load::<StoredRoyaltyInfo>(deps.storage, DEFAULT_ROYALTY_KEY)? {
@@ -391,10 +379,8 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
-            on_migration_complete_notify_receiver: may_load(
-                deps.storage,
-                NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-            )?,
+            on_migration_complete_notify_receiver: NOTIFY_ON_MIGRATION_COMPLETE
+                .may_load(deps.storage)?,
             minters: load(deps.storage, MINTERS_KEY)?,
             mint_count: snip721config.mint_cnt,
             secret,
@@ -413,8 +399,7 @@ pub(crate) fn migrate(
 pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<Binary> {
     return match migrated_from {
         true => {
-            let migrated_from: Option<MigratedFromState> =
-                may_load(deps.storage, MIGRATED_FROM_KEY)?;
+            let migrated_from = MIGRATED_FROM.may_load(deps.storage)?;
             match migrated_from {
                 None => to_binary(&MigrationInfo(None)),
                 Some(some_migrated_from) => {
@@ -423,7 +408,7 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             }
         }
         false => {
-            let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to = MIGRATED_TO.may_load(deps.storage)?;
             match migrated_to {
                 None => to_binary(&MigrationInfo(None)),
                 Some(some_migrated_to) => {
@@ -458,7 +443,7 @@ pub(crate) fn migration_dossier_list(
     {
         return Err(contract_mode_error);
     }
-    let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+    let migrated_to = MIGRATED_TO.may_load(deps.storage)?;
     if migrated_to.is_none() {
         return Err(StdError::generic_err(
             "This contract has not been migrated yet",

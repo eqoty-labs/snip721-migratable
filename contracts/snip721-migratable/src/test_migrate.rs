@@ -5,32 +5,35 @@ mod tests {
         MigratableExecuteMsg, MigrationListenerExecuteMsg,
     };
     use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
-    use cosmwasm_contract_migratable_std::state::{CONTRACT_MODE_KEY, ContractMode, MIGRATED_FROM_KEY, MIGRATED_TO_KEY, MigratedFromState, MigratedToState, NOTIFY_ON_MIGRATION_COMPLETE_KEY};
-    use cosmwasm_std::{
-        Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps,
-        DepsMut, Env, from_binary, MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsgResponse,
-        SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128, WasmMsg,
+    use cosmwasm_contract_migratable_std::state::{
+        ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM,
+        MIGRATED_TO, NOTIFY_ON_MIGRATION_COMPLETE,
     };
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
+        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
+        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+    };
     use secret_toolkit::permit::{
-        Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate,
+        validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
     };
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-    use snip721_reference_impl::state::{Config, CONFIG_KEY, load, may_load, MINTERS_KEY, save};
+    use snip721_reference_impl::state::{load, save, Config, CONFIG_KEY, MINTERS_KEY};
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
 
     use crate::contract::{
         execute, instantiate, on_migration_complete, query, reply, update_migrated_minter,
     };
+    use crate::msg::QueryAnswer::MigrationBatchNftDossier;
+    use crate::msg::QueryMsgExt::ExportMigrationData;
     use crate::msg::{
         ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg,
     };
-    use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-    use crate::msg::QueryMsgExt::ExportMigrationData;
-    use crate::state::{MIGRATE_IN_TOKENS_PROGRESS_KEY, MigrateInTokensProgress};
+    use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS_KEY};
     use crate::test_utils::test_utils::instantiate_msg;
 
     const CONTRACT_ADDRESS_0: &str = "secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq";
@@ -279,7 +282,7 @@ mod tests {
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
             })
-                .unwrap();
+            .unwrap();
         let reply_msg = Reply {
             id: 1u64,
             result: SubMsgResult::Ok(SubMsgResponse {
@@ -295,7 +298,7 @@ mod tests {
         };
         assert_eq!(
             expected_migrated_from,
-            load::<MigratedFromState>(deps.as_ref().storage, MIGRATED_FROM_KEY)?
+            MIGRATED_FROM.load(deps.as_ref().storage)?
         );
 
         let expected_migrate_in_tokens_progress = MigrateInTokensProgress {
@@ -308,11 +311,11 @@ mod tests {
         );
         assert_eq!(
             ContractMode::MigrateDataIn,
-            load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY)?
+            CONTRACT_MODE.load(deps.as_ref().storage)?
         );
         assert_eq!(
             vec![snip721_dealer_to_notify],
-            load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?
+            NOTIFY_ON_MIGRATION_COMPLETE.load(deps.as_ref().storage)?
         );
         assert_eq!(
             expected_minters,
@@ -356,7 +359,7 @@ mod tests {
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
             })
-                .unwrap();
+            .unwrap();
         let reply_msg = Reply {
             id: 1u64,
             result: SubMsgResult::Ok(SubMsgResponse {
@@ -384,7 +387,7 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )
-            .unwrap();
+        .unwrap();
 
         execute(
             deps.as_mut(),
@@ -392,7 +395,7 @@ mod tests {
             admin_info.clone(),
             build_mint_msg(mint_recipient_info.sender.to_string(), None, None).clone(),
         )
-            .unwrap();
+        .unwrap();
 
         let viewing_key = "key".to_string();
         set_viewing_key(
@@ -467,7 +470,7 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )
-            .unwrap();
+        .unwrap();
 
         execute(
             deps.as_mut(),
@@ -478,9 +481,9 @@ mod tests {
                 public_metadata.clone(),
                 private_metadata.clone(),
             )
-                .clone(),
+            .clone(),
         )
-            .unwrap();
+        .unwrap();
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
@@ -490,9 +493,9 @@ mod tests {
                 public_metadata.clone(),
                 private_metadata.clone(),
             )
-                .clone(),
+            .clone(),
         )
-            .unwrap();
+        .unwrap();
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
@@ -502,9 +505,9 @@ mod tests {
                 public_metadata.clone(),
                 private_metadata.clone(),
             )
-                .clone(),
+            .clone(),
         )
-            .unwrap();
+        .unwrap();
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
@@ -580,7 +583,7 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )
-            .unwrap();
+        .unwrap();
 
         let receiver = ContractInfo {
             address: Addr::unchecked("addr"),
@@ -595,10 +598,11 @@ mod tests {
                 code_hash: receiver.code_hash.to_string(),
             }),
         )
-            .unwrap();
+        .unwrap();
 
-        let saved_contract: Vec<ContractInfo> =
-            load(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY).unwrap();
+        let saved_contract: Vec<ContractInfo> = NOTIFY_ON_MIGRATION_COMPLETE
+            .load(deps.as_ref().storage)
+            .unwrap();
         assert_eq!(vec![receiver], saved_contract);
     }
 
@@ -617,21 +621,13 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )?;
-        save(
-            deps.as_mut().storage,
-            CONTRACT_MODE_KEY,
-            &ContractMode::MigrateDataIn,
-        )?;
+        CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::MigrateDataIn)?;
         let mock_secret = Binary::from(b"secret_to_migrate_data_in");
         let mock_migrated_from = MigratedFromState {
             contract: env_0.contract,
             migration_secret: mock_secret,
         };
-        save(
-            deps.as_mut().storage,
-            MIGRATED_FROM_KEY,
-            &mock_migrated_from,
-        )?;
+        MIGRATED_FROM.save(deps.as_mut().storage, &mock_migrated_from)?;
         let mock_migrate_in_tokens_progress = MigrateInTokensProgress {
             migrate_in_mint_cnt: 0,
             migrate_in_next_mint_index: 0,
@@ -652,15 +648,11 @@ mod tests {
                 code_hash: "notify_1_code_hash".to_string(),
             },
         ];
-        save(
-            deps.as_mut().storage,
-            NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-            &contracts_to_notify,
-        )?;
+        NOTIFY_ON_MIGRATION_COMPLETE.save(deps.as_mut().storage, &contracts_to_notify)?;
 
-        let contracts_that_should_not_be_notified_yet =
-            may_load::<Vec<ContractInfo>>(deps.as_ref().storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?
-                .unwrap_or_default();
+        let contracts_that_should_not_be_notified_yet = NOTIFY_ON_MIGRATION_COMPLETE
+            .may_load(deps.as_ref().storage)?
+            .unwrap_or_default();
         assert_eq!(2, contracts_that_should_not_be_notified_yet.len());
 
         let res = execute(
@@ -690,7 +682,8 @@ mod tests {
     }
 
     #[test]
-    fn on_migration_complete_notification_sets_submsgs_to_notify_other_registered_contracts() -> StdResult<()> {
+    fn on_migration_complete_notification_sets_submsgs_to_notify_other_registered_contracts(
+    ) -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
         let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
@@ -704,20 +697,18 @@ mod tests {
             admin_info.clone(),
             instantiate_msg,
         )?;
-        save(
-            deps.as_mut().storage,
-            CONTRACT_MODE_KEY,
-            &ContractMode::MigrateOutStarted,
-        )?;
+        CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::MigrateOutStarted)?;
         let migrated_to = ContractInfo {
             address: Addr::unchecked("new_address"),
             code_hash: "code_hash".to_string(),
         };
 
-        save(
+        MIGRATED_TO.save(
             deps.as_mut().storage,
-            MIGRATED_TO_KEY,
-            &MigratedToState { contract: migrated_to.clone(), migration_secret: Default::default() },
+            &MigratedToState {
+                contract: migrated_to.clone(),
+                migration_secret: Default::default(),
+            },
         )?;
 
         let contracts_to_notify = vec![
@@ -730,11 +721,7 @@ mod tests {
                 code_hash: "notify_1_code_hash".to_string(),
             },
         ];
-        save(
-            deps.as_mut().storage,
-            NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-            &contracts_to_notify,
-        )?;
+        NOTIFY_ON_MIGRATION_COMPLETE.save(deps.as_mut().storage, &contracts_to_notify)?;
 
         let migrated_to = ContractInfo {
             address: Addr::unchecked("new_address"),
@@ -745,10 +732,12 @@ mod tests {
             deps.as_mut(),
             custom_mock_env_0(),
             migrated_to_info.clone(),
-            ExecuteMsg::MigrateListener(MigrationListenerExecuteMsg::MigrationCompleteNotification {
-                to: migrated_to.clone(),
-                data: None,
-            }),
+            ExecuteMsg::MigrateListener(
+                MigrationListenerExecuteMsg::MigrationCompleteNotification {
+                    to: migrated_to.clone(),
+                    data: None,
+                },
+            ),
         )?;
 
         assert_eq!(2, res.messages.len());
@@ -791,7 +780,7 @@ mod tests {
                 burn_is_enabled: false,
             },
         )
-            .unwrap();
+        .unwrap();
     }
 
     #[test]
@@ -811,7 +800,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -839,7 +828,7 @@ mod tests {
             .filter(|m| m != &ContractMode::MigrateDataIn)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -855,7 +844,8 @@ mod tests {
     }
 
     #[test]
-    fn register_to_notify_on_migration_complete_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+    fn register_to_notify_on_migration_complete_fails_when_in_invalid_contract_modes(
+    ) -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_info = mock_info("admin", &[]);
         save_a_config(deps.as_mut());
@@ -868,7 +858,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -897,7 +887,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = execute(
                 deps.as_mut(),
                 mock_env(),
@@ -930,7 +920,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running && m != &ContractMode::MigrateOutStarted)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = execute(deps.as_mut(), mock_env(), admin_info.clone(), msg.clone());
             assert_eq!(
                 build_operation_unavailable_error(&invalid_mode, None),
@@ -954,10 +944,15 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let expected_error = build_operation_unavailable_error(&invalid_mode, None);
-            let res = update_migrated_minter(deps.as_mut(), migrated_from_info.clone(), invalid_mode, to.clone());
-            assert_eq!(expected_error, res.err().unwrap(), );
+            let res = update_migrated_minter(
+                deps.as_mut(),
+                migrated_from_info.clone(),
+                invalid_mode,
+                to.clone(),
+            );
+            assert_eq!(expected_error, res.err().unwrap(),);
         }
         Ok(())
     }
@@ -971,10 +966,10 @@ mod tests {
             .filter(|m| m != &ContractMode::MigrateOutStarted)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let expected_error = build_operation_unavailable_error(&invalid_mode, None);
             let res = on_migration_complete(deps.as_mut(), admin_info.clone(), invalid_mode);
-            assert_eq!(expected_error, res.err().unwrap(), );
+            assert_eq!(expected_error, res.err().unwrap(),);
         }
         Ok(())
     }

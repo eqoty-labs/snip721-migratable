@@ -7,8 +7,7 @@ use cosmwasm_contract_migratable_std::msg::{
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_TO_KEY,
-    NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    ContractMode, MigratedToState, CONTRACT_MODE, MIGRATED_TO, NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
     entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
@@ -66,7 +65,7 @@ pub(crate) fn init_snip721(
     info: MessageInfo,
     msg: Snip721InstantiateMsg,
 ) -> StdResult<Response> {
-    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
+    CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
     let snip721_response =
         snip721_reference_impl::contract::instantiate(deps, env, info.clone(), msg).unwrap();
 
@@ -76,7 +75,7 @@ pub(crate) fn init_snip721(
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
-    let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
+    let mode = CONTRACT_MODE.load(deps.storage)?;
     return match msg {
         ExecuteMsg::Ext(ext_msg) => match ext_msg {
             ExecuteMsgExt::MigrateTokensIn { pages, page_size } => perform_token_migration(
@@ -179,7 +178,7 @@ pub(crate) fn on_migration_complete(
     {
         return Err(contract_mode_error);
     }
-    let migrated_to: MigratedToState = load(deps.storage, MIGRATED_TO_KEY)?;
+    let migrated_to: MigratedToState = MIGRATED_TO.load(deps.storage)?;
     return if migrated_to.contract.address != info.sender {
         Err(StdError::generic_err(
             to_string(&OperationUnavailable {
@@ -187,11 +186,11 @@ pub(crate) fn on_migration_complete(
             }).unwrap()
         ))
     } else {
-        save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
+        CONTRACT_MODE.save(deps.storage, &ContractMode::MigratedOut)?;
         // notify the contracts registered to be notified on migration complete
-        let contracts =
-            may_load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?
-                .unwrap_or_default();
+        let contracts = NOTIFY_ON_MIGRATION_COMPLETE
+            .may_load(deps.storage)?
+            .unwrap_or_default();
         let msg = to_binary(
             &MigrationListenerExecuteMsg::MigrationCompleteNotification {
                 to: migrated_to.contract,
@@ -225,7 +224,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
+    let mode = CONTRACT_MODE.load(deps.storage)?;
     return match msg {
         QueryMsg::Base(base_msg) => {
             match mode {

@@ -2,8 +2,8 @@ use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::msg::{MigratableQueryAnswer, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE_KEY, MIGRATED_FROM_KEY,
-    MIGRATED_TO_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
+    NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
     from_binary, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{validate, Permit};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
-use snip721_reference_impl::state::{load, may_load, save, PREFIX_REVOKED_PERMITS};
+use snip721_reference_impl::state::{load, save, PREFIX_REVOKED_PERMITS};
 
 use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg};
 use crate::state::{
@@ -58,7 +58,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
             .api
             .addr_canonicalize(reply_data.dealer_state.child_snip721_address.as_str())?,
     )?;
-    save(deps.storage, MIGRATED_FROM_KEY, &migrated_from)?;
+    MIGRATED_FROM.save(deps.storage, &migrated_from)?;
     save(
         deps.storage,
         PURCHASABLE_METADATA_KEY,
@@ -67,13 +67,12 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
             private_metadata: reply_data.dealer_state.private_metadata,
         },
     )?;
-    save(
+    NOTIFY_ON_MIGRATION_COMPLETE.save(
         deps.storage,
-        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
         &reply_data.on_migration_complete_notify_receiver,
     )?;
 
-    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
+    CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
 
     // clear the data (that contains the secret) which would be set when init_snip721 is called
     // from reply as part of the migration process
@@ -146,13 +145,13 @@ pub(crate) fn migrate(
         },
         migration_secret: secret.clone(),
     };
-    save(deps.storage, MIGRATED_TO_KEY, &migrated_to.clone())?;
-    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::MigratedOut)?;
+    MIGRATED_TO.save(deps.storage, &migrated_to.clone())?;
+    CONTRACT_MODE.save(deps.storage, &ContractMode::MigratedOut)?;
 
     let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
     let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
     let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
-    let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
+    let contracts = NOTIFY_ON_MIGRATION_COMPLETE.load(deps.storage)?;
     let msg = to_binary(
         &MigrationListenerExecuteMsg::MigrationCompleteNotification {
             to: migrated_to.contract,
@@ -188,10 +187,8 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
-            on_migration_complete_notify_receiver: load(
-                deps.storage,
-                NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-            )?,
+            on_migration_complete_notify_receiver: NOTIFY_ON_MIGRATION_COMPLETE
+                .load(deps.storage)?,
             secret,
         })?))
 }
@@ -206,8 +203,7 @@ pub(crate) fn migrate(
 pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<Binary> {
     return match migrated_from {
         true => {
-            let migrated_from: Option<MigratedFromState> =
-                may_load(deps.storage, MIGRATED_FROM_KEY)?;
+            let migrated_from = MIGRATED_FROM.may_load(deps.storage)?;
             match migrated_from {
                 None => to_binary(&MigratableQueryAnswer::MigrationInfo(None)),
                 Some(some_migrated_from) => to_binary(&MigratableQueryAnswer::MigrationInfo(Some(
@@ -216,7 +212,7 @@ pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<
             }
         }
         false => {
-            let migrated_to: Option<MigratedToState> = may_load(deps.storage, MIGRATED_TO_KEY)?;
+            let migrated_to = MIGRATED_TO.may_load(deps.storage)?;
             match migrated_to {
                 None => to_binary(&MigratableQueryAnswer::MigrationInfo(None)),
                 Some(some_migrated_to) => to_binary(&MigratableQueryAnswer::MigrationInfo(Some(

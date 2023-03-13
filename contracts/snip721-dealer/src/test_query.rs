@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
-    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::StdResult;
     use snip721_reference_impl::state::save;
@@ -19,7 +19,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = query(deps.as_ref(), mock_env(), msg.clone());
             assert_eq!(
                 res.err().unwrap(),
@@ -37,7 +37,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = query(deps.as_ref(), mock_env(), msg.clone());
             assert_eq!(
                 res.err().unwrap(),

@@ -6,7 +6,7 @@ use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, Mi
 use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, CONTRACT_MODE_KEY, NOTIFY_ON_MIGRATION_COMPLETE_KEY,
+    ContractMode, CONTRACT_MODE, NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
     entry_point, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin, ContractInfo, CosmosMsg,
@@ -100,7 +100,7 @@ fn init_snip721(
             private_metadata: msg.private_metadata,
         },
     )?;
-    save(deps.storage, CONTRACT_MODE_KEY, &ContractMode::Running)?;
+    CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
     let instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
         name: "PurchasableSnip721".to_string(),
         symbol: "PUR721".to_string(),
@@ -135,7 +135,7 @@ fn init_snip721(
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut deps = deps;
-    let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
+    let mode = CONTRACT_MODE.load(deps.storage)?;
     return match msg {
         ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
             DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info, mode),
@@ -196,7 +196,7 @@ fn update_child_snip721(
         &migrated_to.code_hash,
     )?;
 
-    let contracts = load::<Vec<ContractInfo>>(deps.storage, NOTIFY_ON_MIGRATION_COMPLETE_KEY)?;
+    let contracts = NOTIFY_ON_MIGRATION_COMPLETE.load(deps.storage)?;
     let updated_contracts: Vec<ContractInfo> = contracts
         .iter()
         .map(|contract| {
@@ -207,11 +207,7 @@ fn update_child_snip721(
             }
         })
         .collect();
-    save(
-        deps.storage,
-        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
-        &updated_contracts,
-    )?;
+    NOTIFY_ON_MIGRATION_COMPLETE.save(deps.storage, &updated_contracts)?;
     Ok(Response::new())
 }
 
@@ -311,9 +307,8 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
     let admin: Addr = deps
         .api
         .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
-    save(
+    NOTIFY_ON_MIGRATION_COMPLETE.save(
         deps.storage,
-        NOTIFY_ON_MIGRATION_COMPLETE_KEY,
         &vec![ContractInfo {
             address: child_snip721_address.clone(),
             code_hash: child_snip721_code_hash.clone(),
@@ -349,7 +344,7 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
 
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let mode = load(deps.storage, CONTRACT_MODE_KEY)?;
+    let mode = CONTRACT_MODE.load(deps.storage)?;
     return match msg {
         QueryMsg::Dealer(dealer_msg) => match dealer_msg {
             DealerQueryMsg::GetPrices {} => query_prices(deps, mode),

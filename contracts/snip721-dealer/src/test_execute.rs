@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
     use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
-    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
         from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, StdResult, Uint128,
         WasmMsg,
     };
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
-    use snip721_reference_impl::state::{load, save};
+    use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
 
@@ -628,7 +628,7 @@ mod tests {
             .filter(|m| m != &ContractMode::Running)
             .collect();
         for invalid_mode in invalid_modes {
-            save(deps.as_mut().storage, CONTRACT_MODE_KEY, &invalid_mode)?;
+            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let res = execute(
                 deps.as_mut(),
                 mock_env(),

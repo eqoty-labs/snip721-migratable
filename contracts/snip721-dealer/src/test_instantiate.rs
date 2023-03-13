@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg;
-    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE_KEY};
+    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -111,7 +111,7 @@ mod tests {
 
         assert_eq!(
             ContractMode::Running,
-            load::<ContractMode>(deps.as_ref().storage, CONTRACT_MODE_KEY).unwrap()
+            CONTRACT_MODE.load(deps.as_ref().storage).unwrap()
         );
     }
 
