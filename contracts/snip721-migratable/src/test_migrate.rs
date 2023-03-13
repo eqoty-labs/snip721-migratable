@@ -33,7 +33,7 @@ mod tests {
     use crate::msg::{
         ExecuteMsg, ExecuteMsgExt, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsg,
     };
-    use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS_KEY};
+    use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS};
     use crate::test_utils::test_utils::instantiate_msg;
 
     const CONTRACT_ADDRESS_0: &str = "secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq";
@@ -307,7 +307,7 @@ mod tests {
         };
         assert_eq!(
             expected_migrate_in_tokens_progress,
-            load::<MigrateInTokensProgress>(deps.as_ref().storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?
+            MIGRATE_IN_TOKENS_PROGRESS.load(deps.as_ref().storage)?
         );
         assert_eq!(
             ContractMode::MigrateDataIn,
@@ -632,11 +632,7 @@ mod tests {
             migrate_in_mint_cnt: 0,
             migrate_in_next_mint_index: 0,
         };
-        save(
-            deps.as_mut().storage,
-            MIGRATE_IN_TOKENS_PROGRESS_KEY,
-            &mock_migrate_in_tokens_progress,
-        )?;
+        MIGRATE_IN_TOKENS_PROGRESS.save(deps.as_mut().storage, &mock_migrate_in_tokens_progress)?;
 
         let contracts_to_notify = vec![
             ContractInfo {

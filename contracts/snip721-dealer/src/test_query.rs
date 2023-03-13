@@ -4,8 +4,6 @@ mod tests {
     use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::StdResult;
-    use snip721_reference_impl::state::save;
-
     use strum::IntoEnumIterator;
 
     use crate::contract::query;

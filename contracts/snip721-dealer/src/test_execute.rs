@@ -8,7 +8,6 @@ mod tests {
         WasmMsg,
     };
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
-    use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
 
@@ -16,9 +15,7 @@ mod tests {
     use crate::msg::{
         DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg,
     };
-    use crate::state::{
-        PurchasableMetadata, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-    };
+    use crate::state::{PurchasableMetadata, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH};
     use crate::test_utils::test_utils::{
         child_snip721_address, successful_child_snip721_instantiate_reply,
     };
@@ -112,9 +109,9 @@ mod tests {
                     funds,
                 } => {
                     let child_snip721_code_hash: String =
-                        load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+                        CHILD_SNIP721_CODE_HASH.load(deps.as_ref().storage).unwrap();
                     let child_snip721_address: CanonicalAddr =
-                        load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
+                        CHILD_SNIP721_ADDRESS.load(deps.as_ref().storage).unwrap();
                     assert_eq!(
                         &deps
                             .api

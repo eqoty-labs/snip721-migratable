@@ -1,13 +1,14 @@
-use cosmwasm_std::{Addr, Binary, Coin, ContractInfo};
+use cosmwasm_contract_migratable_std::msg::{
+    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
+};
+use cosmwasm_contract_migratable_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
+use cosmwasm_std::{Binary, Coin, ContractInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;
 use snip721_reference_impl::token::Metadata;
 
-use cosmwasm_contract_migratable_std::msg::{
-    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
-};
-use cosmwasm_contract_migratable_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
+use crate::msg_types::DealerState;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -41,21 +42,6 @@ pub struct InstantiateSelfAndChildSnip721Msg {
     /// optional royalty information to use as default when RoyaltyInfo is not provided to a
     /// minting function
     pub royalty_info: Option<RoyaltyInfo>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DealerState {
-    pub admin: Addr,
-    /// Allowed Coin prices for purchasing a mint
-    pub prices: Vec<Coin>,
-    /// optional public metadata that can be seen by everyone
-    pub public_metadata: Option<Metadata>,
-    /// optional private metadata that can only be seen by the owner and whitelist
-    pub private_metadata: Option<Metadata>,
-    /// The snip721 contract's code info for the contract this dealer contract controls
-    pub child_snip721_code_hash: String,
-    /// The snip721 contract this dealer contract controls
-    pub child_snip721_address: Addr,
 }
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]

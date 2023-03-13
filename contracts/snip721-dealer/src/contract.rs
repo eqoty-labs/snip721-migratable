@@ -9,12 +9,11 @@ use cosmwasm_contract_migratable_std::state::{
     ContractMode, CONTRACT_MODE, NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, BankMsg, Binary, CanonicalAddr, Coin, ContractInfo, CosmosMsg,
-    Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+    entry_point, to_binary, Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
-use snip721_reference_impl::state::{load, save};
 
 use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
 use crate::msg::{
@@ -23,8 +22,8 @@ use crate::msg::{
 };
 use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{
-    PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-    PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+    PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+    PURCHASABLE_METADATA, PURCHASE_PRICES,
 };
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
@@ -81,20 +80,14 @@ fn init_snip721(
         Some(admin) => deps.api.addr_validate(admin.as_str())?,
         None => info.sender,
     };
-    save(
+    ADMIN.save(
         deps.storage,
-        ADMIN_KEY,
         &deps.api.addr_canonicalize(true_admin.as_str())?,
     )?;
-    save(deps.storage, PURCHASE_PRICES_KEY, &msg.prices)?;
-    save(
+    PURCHASE_PRICES.save(deps.storage, &msg.prices)?;
+    CHILD_SNIP721_CODE_HASH.save(deps.storage, &msg.snip721_code_hash)?;
+    PURCHASABLE_METADATA.save(
         deps.storage,
-        CHILD_SNIP721_CODE_HASH_KEY,
-        &msg.snip721_code_hash,
-    )?;
-    save(
-        deps.storage,
-        PURCHASABLE_METADATA_KEY,
         &PurchasableMetadata {
             public_metadata: msg.public_metadata,
             private_metadata: msg.private_metadata,
@@ -146,7 +139,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 migrate_to,
             } => migrate(deps, env, info, mode, admin_permit, migrate_to),
             MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
-                let admin = load(deps.storage, ADMIN_KEY)?;
+                let admin = ADMIN.load(deps.storage)?;
                 register_to_notify_on_migration_complete(
                     deps,
                     info,
@@ -178,23 +171,18 @@ fn update_child_snip721(
     }
     let current_child_snip721_address = deps
         .api
-        .addr_humanize(&load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?)?;
+        .addr_humanize(&CHILD_SNIP721_ADDRESS.load(deps.storage)?)?;
 
     if info.sender != current_child_snip721_address {
         return Err(StdError::generic_err(
             "Only the migrated child snip721 is allowed to trigger an update",
         ));
     }
-    save(
+    CHILD_SNIP721_ADDRESS.save(
         deps.storage,
-        CHILD_SNIP721_ADDRESS_KEY,
         &deps.api.addr_canonicalize(migrated_to.address.as_str())?,
     )?;
-    save(
-        deps.storage,
-        CHILD_SNIP721_CODE_HASH_KEY,
-        &migrated_to.code_hash,
-    )?;
+    CHILD_SNIP721_CODE_HASH.save(deps.storage, &migrated_to.code_hash)?;
 
     let contracts = NOTIFY_ON_MIGRATION_COMPLETE.load(deps.storage)?;
     let updated_contracts: Vec<ContractInfo> = contracts
@@ -228,7 +216,7 @@ fn purchase_and_mint(
         )));
     }
     let msg_fund = &info.funds[0];
-    let prices: Vec<Coin> = load(deps.storage, PURCHASE_PRICES_KEY)?;
+    let prices = PURCHASE_PRICES.load(deps.storage)?;
     let selected_coin_price = prices.iter().find(|c| c.denom == msg_fund.denom);
     if let Some(selected_coin_price) = selected_coin_price {
         if msg_fund.amount != selected_coin_price.amount {
@@ -244,14 +232,12 @@ fn purchase_and_mint(
         )));
     }
     let sender = info.clone().sender;
-    let admin_addr = &deps
-        .api
-        .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+    let admin_addr = &deps.api.addr_humanize(&ADMIN.load(deps.storage)?)?;
     let send_funds_bank_msg = CosmosMsg::Bank(BankMsg::Send {
         to_address: admin_addr.to_string(),
         amount: info.funds.clone(),
     });
-    let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
+    let purchasable_metadata: PurchasableMetadata = PURCHASABLE_METADATA.load(deps.storage)?;
     let mint_nft_msg = MintNft {
         token_id: None,
         owner: Some(sender.to_string()),
@@ -263,8 +249,8 @@ fn purchase_and_mint(
         memo: None,
         padding: None,
     };
-    let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
+    let child_snip721_code_hash = CHILD_SNIP721_CODE_HASH.load(deps.storage)?;
+    let child_snip721_address = CHILD_SNIP721_ADDRESS.load(deps.storage)?;
     let mint_wasm_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(&child_snip721_address)?.to_string(),
         code_hash: child_snip721_code_hash,
@@ -298,15 +284,12 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
         .unwrap()
         .value;
     let child_snip721_address = deps.api.addr_validate(contract_address.as_str())?;
-    save(
+    CHILD_SNIP721_ADDRESS.save(
         deps.storage,
-        CHILD_SNIP721_ADDRESS_KEY,
         &deps.api.addr_canonicalize(child_snip721_address.as_str())?,
     )?;
-    let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let admin: Addr = deps
-        .api
-        .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+    let child_snip721_code_hash: String = CHILD_SNIP721_CODE_HASH.load(deps.storage)?;
+    let admin: Addr = deps.api.addr_humanize(&ADMIN.load(deps.storage)?)?;
     NOTIFY_ON_MIGRATION_COMPLETE.save(
         deps.storage,
         &vec![ContractInfo {
@@ -364,11 +347,10 @@ fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Bin
         return Err(contract_mode_error);
     }
     to_binary(&QueryAnswer::ContractInfo(ContractInfo {
-        address: deps.api.addr_humanize(&load::<CanonicalAddr>(
-            deps.storage,
-            CHILD_SNIP721_ADDRESS_KEY,
-        )?)?,
-        code_hash: load::<String>(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?,
+        address: deps
+            .api
+            .addr_humanize(&CHILD_SNIP721_ADDRESS.load(deps.storage)?)?,
+        code_hash: CHILD_SNIP721_CODE_HASH.load(deps.storage)?,
     }))
 }
 
@@ -384,6 +366,6 @@ pub fn query_prices(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary
         return Err(contract_mode_error);
     }
     to_binary(&QueryAnswer::GetPrices {
-        prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
+        prices: PURCHASE_PRICES.load(deps.storage)?,
     })
 }

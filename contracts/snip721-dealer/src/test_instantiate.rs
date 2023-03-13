@@ -12,15 +12,14 @@ mod tests {
     use snip721_reference_impl::msg::{
         ExecuteMsg, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
     };
-    use snip721_reference_impl::state::load;
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{instantiate, reply};
     use crate::msg::{InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
     use crate::msg_external::MigratableSnip721InstantiateMsg;
     use crate::state::{
-        PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-        PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+        PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+        PURCHASABLE_METADATA, PURCHASE_PRICES,
     };
     use crate::test_utils::test_utils::{
         admin_msg_info, child_snip721_address, successful_child_snip721_instantiate_reply,
@@ -93,20 +92,19 @@ mod tests {
         );
         assert!(res.is_ok(),);
 
-        let saved_prices: Vec<Coin> = load(deps.as_ref().storage, PURCHASE_PRICES_KEY).unwrap();
+        let saved_prices = PURCHASE_PRICES.load(deps.as_ref().storage).unwrap();
         assert_eq!(prices, saved_prices);
-        let saved_purchasable_metadata: PurchasableMetadata =
-            load(deps.as_ref().storage, PURCHASABLE_METADATA_KEY).unwrap();
+        let saved_purchasable_metadata = PURCHASABLE_METADATA.load(deps.as_ref().storage).unwrap();
         assert_eq!(purchasable_metadata, saved_purchasable_metadata);
-        let saved_admin: CanonicalAddr = load(deps.as_ref().storage, ADMIN_KEY).unwrap();
+        let saved_admin: CanonicalAddr = ADMIN.load(deps.as_ref().storage).unwrap();
         assert_eq!(
             deps.api
                 .addr_canonicalize(admin_info.sender.as_str())
                 .unwrap(),
             saved_admin
         );
-        let saved_child_snip721_code_hash: String =
-            load(deps.as_ref().storage, CHILD_SNIP721_CODE_HASH_KEY).unwrap();
+        let saved_child_snip721_code_hash =
+            CHILD_SNIP721_CODE_HASH.load(deps.as_ref().storage).unwrap();
         assert_eq!(snip721_code_hash, saved_child_snip721_code_hash);
 
         assert_eq!(
@@ -125,8 +123,8 @@ mod tests {
             successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
         )
         .unwrap();
-        let saved_child_snip721_address: CanonicalAddr =
-            load(deps.as_ref().storage, CHILD_SNIP721_ADDRESS_KEY).unwrap();
+        let saved_child_snip721_address =
+            CHILD_SNIP721_ADDRESS.load(deps.as_ref().storage).unwrap();
 
         assert_eq!(
             child_snip721_address,
@@ -257,7 +255,7 @@ mod tests {
         )
         .unwrap();
 
-        let saved_admin: CanonicalAddr = load(deps.as_ref().storage, ADMIN_KEY).unwrap();
+        let saved_admin: CanonicalAddr = ADMIN.load(deps.as_ref().storage).unwrap();
         assert_eq!(
             deps.api
                 .addr_canonicalize(admin_info.sender.as_str())

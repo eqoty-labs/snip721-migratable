@@ -1,7 +1,9 @@
+use secret_toolkit::storage::Item;
 use serde::{Deserialize, Serialize};
 
-/// key for MigrateInTokensProgress singleton
-pub static MIGRATE_IN_TOKENS_PROGRESS_KEY: &[u8] = b"migrateintknsprogress";
+/// storage for MigrateInTokensProgress singleton
+pub static MIGRATE_IN_TOKENS_PROGRESS: Item<MigrateInTokensProgress> =
+    Item::new(b"migrateintknsprogress");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct MigrateInTokensProgress {
