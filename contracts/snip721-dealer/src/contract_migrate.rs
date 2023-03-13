@@ -6,18 +6,19 @@ use cosmwasm_contract_migratable_std::state::{
     NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+    from_binary, to_binary, Binary, ContractInfo, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    StdError, StdResult, SubMsg, WasmMsg,
 };
 use secret_toolkit::crypto::Prng;
 use secret_toolkit::permit::{validate, Permit};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
-use snip721_reference_impl::state::{load, save, PREFIX_REVOKED_PERMITS};
+use snip721_reference_impl::state::PREFIX_REVOKED_PERMITS;
 
-use crate::msg::{DealerState, InstantiateByMigrationReplyDataMsg};
+use crate::msg::InstantiateByMigrationReplyDataMsg;
+use crate::msg_types::DealerState;
 use crate::state::{
-    PurchasableMetadata, ADMIN_KEY, CHILD_SNIP721_ADDRESS_KEY, CHILD_SNIP721_CODE_HASH_KEY,
-    PURCHASABLE_METADATA_KEY, PURCHASE_PRICES_KEY,
+    PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+    PURCHASABLE_METADATA, PURCHASE_PRICES,
 };
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
@@ -34,34 +35,26 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
         },
         migration_secret: reply_data.secret,
     };
-    save(
+    ADMIN.save(
         deps.storage,
-        ADMIN_KEY,
         &deps
             .api
             .addr_canonicalize(&reply_data.dealer_state.admin.as_str())?,
     )?;
-    save(
+    PURCHASE_PRICES.save(deps.storage, &reply_data.dealer_state.prices)?;
+    CHILD_SNIP721_CODE_HASH.save(
         deps.storage,
-        PURCHASE_PRICES_KEY,
-        &reply_data.dealer_state.prices,
-    )?;
-    save(
-        deps.storage,
-        CHILD_SNIP721_CODE_HASH_KEY,
         &reply_data.dealer_state.child_snip721_code_hash,
     )?;
-    save(
+    CHILD_SNIP721_ADDRESS.save(
         deps.storage,
-        CHILD_SNIP721_ADDRESS_KEY,
         &deps
             .api
             .addr_canonicalize(reply_data.dealer_state.child_snip721_address.as_str())?,
     )?;
     MIGRATED_FROM.save(deps.storage, &migrated_from)?;
-    save(
+    PURCHASABLE_METADATA.save(
         deps.storage,
-        PURCHASABLE_METADATA_KEY,
         &PurchasableMetadata {
             public_metadata: reply_data.dealer_state.public_metadata,
             private_metadata: reply_data.dealer_state.private_metadata,
@@ -93,9 +86,7 @@ pub(crate) fn migrate(
     {
         return Err(contract_mode_error);
     }
-    let admin_addr = &deps
-        .api
-        .addr_humanize(&load::<CanonicalAddr>(deps.storage, ADMIN_KEY)?)?;
+    let admin_addr = &deps.api.addr_humanize(&ADMIN.load(deps.storage)?)?;
     let permit_creator = &deps
         .api
         .addr_validate(&validate(
@@ -148,9 +139,9 @@ pub(crate) fn migrate(
     MIGRATED_TO.save(deps.storage, &migrated_to.clone())?;
     CONTRACT_MODE.save(deps.storage, &ContractMode::MigratedOut)?;
 
-    let purchasable_metadata: PurchasableMetadata = load(deps.storage, PURCHASABLE_METADATA_KEY)?;
-    let child_snip721_code_hash: String = load(deps.storage, CHILD_SNIP721_CODE_HASH_KEY)?;
-    let child_snip721_address: CanonicalAddr = load(deps.storage, CHILD_SNIP721_ADDRESS_KEY)?;
+    let purchasable_metadata: PurchasableMetadata = PURCHASABLE_METADATA.load(deps.storage)?;
+    let child_snip721_code_hash: String = CHILD_SNIP721_CODE_HASH.load(deps.storage)?;
+    let child_snip721_address = CHILD_SNIP721_ADDRESS.load(deps.storage)?;
     let contracts = NOTIFY_ON_MIGRATION_COMPLETE.load(deps.storage)?;
     let msg = to_binary(
         &MigrationListenerExecuteMsg::MigrationCompleteNotification {
@@ -175,7 +166,7 @@ pub(crate) fn migrate(
         .add_submessages(sub_msgs)
         .set_data(to_binary(&InstantiateByMigrationReplyDataMsg {
             dealer_state: DealerState {
-                prices: load(deps.storage, PURCHASE_PRICES_KEY)?,
+                prices: PURCHASE_PRICES.load(deps.storage)?,
                 public_metadata: purchasable_metadata.public_metadata,
                 private_metadata: purchasable_metadata.private_metadata,
                 admin: admin_addr.clone(),
