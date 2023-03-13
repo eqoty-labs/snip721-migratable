@@ -54,7 +54,7 @@ compile-optimized-reproducible:
 		docker run --rm -v "$$(pwd)":/contract -v /contract/contracts/ -v "$$(pwd)"/contracts/$$(basename $$c):/contract/contracts/$$(basename $$c) \
 			--mount type=volume,source="$$(basename "$$(pwd)")_cache_$$(basename $$c)",target=/contract/target \
 			--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-			enigmampc/secret-contract-optimizer:1.0.9; \
+			enigmampc/secret-contract-optimizer:1.0.10; \
 		underscore_name=$$(tr '-' '_' <<< "$$c"); \
 		mv ./contract.wasm.gz ./optimized-binaries/$$(basename $$underscore_name).wasm.gz ; \
 	done \
