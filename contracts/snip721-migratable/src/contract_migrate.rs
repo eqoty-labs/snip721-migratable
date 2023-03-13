@@ -33,7 +33,7 @@ use snip721_reference_impl::token::Metadata;
 use crate::contract::init_snip721;
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
 use crate::msg::{ExecuteAnswer, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
-use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS_KEY};
+use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS};
 
 pub(crate) fn instantiate_with_migrated_config(
     deps: DepsMut,
@@ -83,11 +83,7 @@ pub(crate) fn instantiate_with_migrated_config(
         migrate_in_mint_cnt: reply_data.mint_count,
         migrate_in_next_mint_index: 0,
     };
-    save(
-        deps.storage,
-        MIGRATE_IN_TOKENS_PROGRESS_KEY,
-        &migrate_in_tokens_progress,
-    )?;
+    MIGRATE_IN_TOKENS_PROGRESS.save(deps.storage, &migrate_in_tokens_progress)?;
     save(deps.storage, MINTERS_KEY, &reply_data.minters)?;
 
     CONTRACT_MODE.save(deps.storage, &ContractMode::MigrateDataIn)?;
@@ -126,8 +122,7 @@ pub(crate) fn perform_token_migration(
         )));
     }
     let mut deps = deps;
-    let mut migrate_in_tokens_progress: MigrateInTokensProgress =
-        load(deps.storage, MIGRATE_IN_TOKENS_PROGRESS_KEY)?;
+    let mut migrate_in_tokens_progress = MIGRATE_IN_TOKENS_PROGRESS.load(deps.storage)?;
     let mut start_at_idx = migrate_in_tokens_progress.migrate_in_next_mint_index;
     let mint_count = migrate_in_tokens_progress.migrate_in_mint_cnt;
 
@@ -164,11 +159,7 @@ pub(crate) fn perform_token_migration(
         };
     }
     migrate_in_tokens_progress.migrate_in_next_mint_index = start_at_idx;
-    save(
-        deps.storage,
-        MIGRATE_IN_TOKENS_PROGRESS_KEY,
-        &migrate_in_tokens_progress,
-    )?;
+    MIGRATE_IN_TOKENS_PROGRESS.save(deps.storage, &migrate_in_tokens_progress)?;
 
     return if start_at_idx < mint_count {
         Ok(
