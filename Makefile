@@ -45,7 +45,7 @@ compress-wasm:
 		  wasm-opt -Oz $$w -o $$w ; \
 		done \
 	fi
-	(cd ./build && gzip -9 -k -f *)
+	(cd ./build && gzip -n -9 -k -f *)
 
 .PHONY: compile-optimized-reproducible
 compile-optimized-reproducible:
