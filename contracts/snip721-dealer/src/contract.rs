@@ -110,6 +110,7 @@ fn init_snip721(
             enable_burn: Some(false),
         }),
         post_init_callback: None,
+        post_init_data: None,
     });
     let instantiate_wasm_msg = WasmMsg::Instantiate {
         code_id: msg.snip721_code_id,

@@ -14,6 +14,7 @@ pub mod test_utils {
             config: None,
             symbol: "".to_string(),
             post_init_callback: None,
+            post_init_data: None,
         })
     }
 }

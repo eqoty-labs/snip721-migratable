@@ -364,6 +364,7 @@ pub(crate) fn migrate(
                     enable_burn: Some(snip721config.burn_is_enabled),
                 }),
                 post_init_callback: None,
+                post_init_data: None,
             },
             migrate_from: MigrateFrom {
                 address: env.contract.address,

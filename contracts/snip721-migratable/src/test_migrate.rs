@@ -271,6 +271,7 @@ mod tests {
                     config: None,
                     symbol: "".to_string(),
                     post_init_callback: None,
+                    post_init_data: None,
                 },
                 migrate_from: MigrateFrom {
                     address: env_0.contract.address.clone(),
@@ -348,6 +349,7 @@ mod tests {
                     config: None,
                     symbol: "".to_string(),
                     post_init_callback: None,
+                    post_init_data: None,
                 },
                 migrate_from: MigrateFrom {
                     address: env_0.contract.address.clone(),

@@ -360,6 +360,7 @@ mod tests {
                                 enable_burn: Some(false),
                             }),
                             post_init_callback: None,
+                            post_init_data: None,
                         });
                     assert_eq!(expected_snip721_instantiate_msg, snip721_instantiate_msg);
                 }
