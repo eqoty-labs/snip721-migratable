@@ -5,6 +5,7 @@ use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
 use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
+use cosmwasm_contract_migratable_std::query::query_migrated_info;
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, CONTRACT_MODE, NOTIFY_ON_MIGRATION_COMPLETE,
 };
@@ -15,7 +16,7 @@ use cosmwasm_std::{
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 
-use crate::contract_migrate::{instantiate_with_migrated_config, migrate, query_migrated_info};
+use crate::contract_migrate::{instantiate_with_migrated_config, migrate};
 use crate::msg::{
     DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg,
     InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg,

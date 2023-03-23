@@ -6,6 +6,7 @@ use cosmwasm_contract_migratable_std::msg::{
 };
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
+use cosmwasm_contract_migratable_std::query::query_migrated_info;
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, MigratedToState, CONTRACT_MODE, MIGRATED_TO, NOTIFY_ON_MIGRATION_COMPLETE,
 };
@@ -19,7 +20,6 @@ use snip721_reference_impl::state::{load, may_load, save, Config, CONFIG_KEY, MI
 
 use crate::contract_migrate::{
     instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration,
-    query_migrated_info,
 };
 use crate::msg::{ExecuteMsg, ExecuteMsgExt, InstantiateMsg, QueryMsg, QueryMsgExt};
 

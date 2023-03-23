@@ -1,12 +1,12 @@
 use cosmwasm_contract_migratable_std::execute::check_contract_mode;
-use cosmwasm_contract_migratable_std::msg::{MigratableQueryAnswer, MigrationListenerExecuteMsg};
+use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
     ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
     NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, ContractInfo, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    from_binary, to_binary, Binary, ContractInfo, DepsMut, Env, MessageInfo, Reply, Response,
     StdError, StdResult, SubMsg, WasmMsg,
 };
 use secret_toolkit::crypto::Prng;
@@ -182,34 +182,4 @@ pub(crate) fn migrate(
                 .load(deps.storage)?,
             secret,
         })?))
-}
-
-/// Returns StdResult<Binary> displaying the Migrated to/from contract info
-///
-/// # Arguments
-///
-/// * `deps` - a reference to Extern containing all the contract's external dependencies
-/// * `migrated_from` - if migrated_from is true query returns info about the contract it was migrated
-/// from otherwise if returns info about the info the contract was migrated to
-pub(crate) fn query_migrated_info(deps: Deps, migrated_from: bool) -> StdResult<Binary> {
-    return match migrated_from {
-        true => {
-            let migrated_from = MIGRATED_FROM.may_load(deps.storage)?;
-            match migrated_from {
-                None => to_binary(&MigratableQueryAnswer::MigrationInfo(None)),
-                Some(some_migrated_from) => to_binary(&MigratableQueryAnswer::MigrationInfo(Some(
-                    some_migrated_from.contract,
-                ))),
-            }
-        }
-        false => {
-            let migrated_to = MIGRATED_TO.may_load(deps.storage)?;
-            match migrated_to {
-                None => to_binary(&MigratableQueryAnswer::MigrationInfo(None)),
-                Some(some_migrated_to) => to_binary(&MigratableQueryAnswer::MigrationInfo(Some(
-                    some_migrated_to.contract,
-                ))),
-            }
-        }
-    };
 }
