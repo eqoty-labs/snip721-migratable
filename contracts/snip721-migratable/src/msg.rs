@@ -31,10 +31,8 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsgExt {
     MigrateTokensIn {
-        /// The number of queries to make from the contract being migrated from
-        pages: Option<u32>,
-        /// The number of tokens to request from the contract being migrated from in each query.
-        /// The number returned could be less.
+        /// The number of tokens to request from the contract being migrated from a query.
+        /// The number returned could be less. If not specified 300 will be used
         page_size: Option<u32>,
     },
 }

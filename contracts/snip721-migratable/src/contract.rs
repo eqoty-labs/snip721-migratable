@@ -78,15 +78,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     let mode = CONTRACT_MODE.load(deps.storage)?;
     return match msg {
         ExecuteMsg::Ext(ext_msg) => match ext_msg {
-            ExecuteMsgExt::MigrateTokensIn { pages, page_size } => perform_token_migration(
-                deps,
-                &env,
-                info,
-                mode,
-                config,
-                pages.unwrap_or(u32::MAX),
-                page_size,
-            ),
+            ExecuteMsgExt::MigrateTokensIn { page_size } => {
+                perform_token_migration(deps, &env, info, mode, config, page_size)
+            }
         },
         ExecuteMsg::Base(base_msg) => execute_base_snip721(deps, env, info, mode, base_msg),
         ExecuteMsg::Migrate(ext_msg) => match ext_msg {

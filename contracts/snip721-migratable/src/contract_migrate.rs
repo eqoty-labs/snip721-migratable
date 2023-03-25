@@ -2,37 +2,37 @@ use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
-    CONTRACT_MODE, ContractMode, MIGRATED_FROM, MIGRATED_TO, MigratedFromState, MigratedToState,
+    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
     NOTIFY_ON_MIGRATION_COMPLETE,
 };
 use cosmwasm_std::{
-    Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps, DepsMut, Env,
-    from_binary, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg,
+    from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps,
+    DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
-use secret_toolkit::permit::{Permit, validate};
+use secret_toolkit::permit::{validate, Permit};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::contract::{
     gen_snip721_approvals, get_token, mint_list, OwnerInfo, PermissionTypeInfo,
 };
 use snip721_reference_impl::expiration::Expiration;
 use snip721_reference_impl::mint_run::{SerialNumber, StoredMintRunInfo};
-use snip721_reference_impl::msg::{BatchNftDossierElement, InstantiateConfig, Mint};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
+use snip721_reference_impl::msg::{BatchNftDossierElement, InstantiateConfig, Mint};
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
 use snip721_reference_impl::state::{
-    Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY,
-    Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN,
-    PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO,
-    save,
+    json_may_load, load, may_load, save, Config, Permission, PermissionType, CONFIG_KEY,
+    CREATOR_KEY, DEFAULT_ROYALTY_KEY, MINTERS_KEY, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID,
+    PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS,
+    PREFIX_ROYALTY_INFO,
 };
 use snip721_reference_impl::token::Metadata;
 
 use crate::contract::init_snip721;
-use crate::msg::{ExecuteAnswer, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::state::{MIGRATE_IN_TOKENS_PROGRESS, MigrateInTokensProgress};
+use crate::msg::{ExecuteAnswer, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
+use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS};
 
 pub(crate) fn instantiate_with_migrated_config(
     deps: DepsMut,
@@ -65,7 +65,7 @@ pub(crate) fn instantiate_with_migrated_config(
         admin_info.clone(),
         reply_data.migrated_instantiate_msg,
     )
-        .unwrap();
+    .unwrap();
 
     let migrated_from = MigratedFromState {
         contract: ContractInfo {
@@ -104,7 +104,6 @@ pub(crate) fn perform_token_migration(
     info: MessageInfo,
     contract_mode: ContractMode,
     snip721_config: Config,
-    pages: u32,
     page_size: Option<u32>,
 ) -> StdResult<Response> {
     if let Some(contract_mode_error) =
@@ -125,8 +124,7 @@ pub(crate) fn perform_token_migration(
     let mut start_at_idx = migrate_in_tokens_progress.migrate_in_next_mint_index;
     let mint_count = migrate_in_tokens_progress.migrate_in_mint_cnt;
 
-    let mut pages_queried = 0;
-    while pages_queried < pages && start_at_idx < mint_count {
+    if start_at_idx < mint_count {
         let query_answer: QueryAnswer = deps
             .querier
             .query_wasm_smart(
@@ -139,7 +137,6 @@ pub(crate) fn perform_token_migration(
                 },
             )
             .unwrap();
-        pages_queried += 1;
         start_at_idx = match query_answer {
             MigrationBatchNftDossier {
                 last_mint_index,
@@ -152,7 +149,7 @@ pub(crate) fn perform_token_migration(
                     &admin_addr,
                     nft_dossiers,
                 )
-                    .unwrap();
+                .unwrap();
                 last_mint_index + 1
             }
         };
@@ -376,7 +373,7 @@ pub(crate) fn migrate(
             mint_count: snip721config.mint_cnt,
             secret,
         })
-            .unwrap(),
+        .unwrap(),
     ))
 }
 
