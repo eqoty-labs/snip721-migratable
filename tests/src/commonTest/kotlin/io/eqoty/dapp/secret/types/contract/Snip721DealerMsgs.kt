@@ -45,7 +45,6 @@ object Snip721DealerMsgs {
 
         @Serializable
         data class MigrateTokensIn(
-            val pages: UInt? = null,
             @SerialName("page_size")
             val pageSize: UInt? = null,
         )
