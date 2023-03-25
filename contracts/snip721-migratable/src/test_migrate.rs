@@ -657,10 +657,7 @@ mod tests {
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn {
-                pages: None,
-                page_size: None,
-            }),
+            ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn { page_size: None }),
         )?;
 
         assert_eq!(1, res.messages.len());
@@ -818,10 +815,7 @@ mod tests {
         let mut deps = mock_dependencies();
         let admin_info = mock_info("admin", &[]);
         save_a_config(deps.as_mut());
-        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn {
-            pages: None,
-            page_size: None,
-        });
+        let exec_purchase_msg = ExecuteMsg::Ext(ExecuteMsgExt::MigrateTokensIn { page_size: None });
         let invalid_modes: Vec<ContractMode> = ContractMode::iter()
             .filter(|m| m != &ContractMode::MigrateDataIn)
             .collect();
