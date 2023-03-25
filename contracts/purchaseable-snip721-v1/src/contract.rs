@@ -48,7 +48,7 @@ pub fn instantiate(
         }),
         post_init_callback: None,
     };
-    snip721_reference_impl::contract::instantiate(&mut deps, env, info.clone(), instantiate_msg)
+    snip721_reference_impl::contract::instantiate(&mut deps, &env, info.clone(), instantiate_msg)
         .unwrap();
 
     deps.api

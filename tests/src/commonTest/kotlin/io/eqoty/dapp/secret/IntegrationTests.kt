@@ -39,7 +39,7 @@ import kotlin.test.assertEquals
 
 class IntegrationTests {
 
-    private val contractCodePath: Path = getEnv(Constants.CONTRACT_PATH_ENV_NAME)!!.toPath()
+    private val contractCodePath: Path = "${getEnv(Constants.CONTRACT_PATH_ENV_NAME)!!}/purchaseable_snip721_v1.wasm.gz".toPath()
     private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure
@@ -66,7 +66,7 @@ class IntegrationTests {
                 codeHash = null // will be set later
             )
         )
-        contractInfo = DeployContractUtils.storeCodeAndInstantiate(
+        contractInfo = DeployContractUtils.getOrStoreCodeAndInstantiate(
             client,
             contractCodePath,
             instantiateMsgs,
