@@ -13,3 +13,8 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+
+
+
+[patch.crates-io]
+serde-json-wasm = { git = "https://github.com/chris-ricketts/serde-json-wasm", branch = "rm-err-fmt" }
