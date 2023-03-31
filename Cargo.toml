@@ -15,6 +15,11 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
+cosmwasm-std = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.9-secret" }
+cosmwasm-storage = { git = "https://github.com/scrtlabs/cosmwasm", tag = "v1.1.9-secret" }
+serde-cw-value = { version = "0.7.0" }
+schemars = "0.8.12"
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "5ae22b4" }
-cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v2.1.0" }
-serde = { version = "1.0.158", default-features = false, features = ["derive"] }
+secret-toolkit = { git = "https://github.com/scrtlabs/secret-toolkit", tag = "v0.8.0", features = ["crypto"] }
+cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v5.0.0" }
+serde = { version = "1.0.159", default-features = false, features = ["derive"] }

@@ -2,12 +2,12 @@ use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
-    NOTIFY_ON_MIGRATION_COMPLETE,
+    canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
+    CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, ContractInfo, Deps,
-    DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+    from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use secret_toolkit::crypto::Prng;
@@ -41,20 +41,17 @@ pub(crate) fn instantiate_with_migrated_config(
 ) -> StdResult<Response> {
     let mut deps = deps;
     let reply_data: InstantiateByMigrationReplyDataMsg =
-        from_binary(&msg.result.unwrap().data.unwrap()).unwrap();
+        from_binary(&msg.result.unwrap().data.unwrap())?;
     // admin of the contract being migrated should always be the sender here
     let admin_info = MessageInfo {
-        sender: deps
-            .api
-            .addr_validate(
-                reply_data
-                    .migrated_instantiate_msg
-                    .admin
-                    .clone()
-                    .unwrap()
-                    .as_str(),
-            )
-            .unwrap(),
+        sender: deps.api.addr_validate(
+            reply_data
+                .migrated_instantiate_msg
+                .admin
+                .clone()
+                .unwrap()
+                .as_str(),
+        )?,
         funds: vec![],
     };
 
@@ -68,11 +65,10 @@ pub(crate) fn instantiate_with_migrated_config(
     .unwrap();
 
     let migrated_from = MigratedFromState {
-        contract: ContractInfo {
+        contract: CanonicalContractInfo {
             address: deps
                 .api
-                .addr_validate(reply_data.migrate_from.address.as_str())
-                .unwrap(),
+                .addr_canonicalize(reply_data.migrate_from.address.as_str())?,
             code_hash: reply_data.migrate_from.code_hash,
         },
         migration_secret: reply_data.secret,
@@ -86,10 +82,16 @@ pub(crate) fn instantiate_with_migrated_config(
     save(deps.storage, MINTERS_KEY, &reply_data.minters)?;
 
     CONTRACT_MODE.save(deps.storage, &ContractMode::MigrateDataIn)?;
-    if let Some(on_migration_complete_notify_receiver) =
-        reply_data.on_migration_complete_notify_receiver
+    if let Some(migration_complete_event_subscribers) =
+        reply_data.migration_complete_event_subscribers
     {
-        NOTIFY_ON_MIGRATION_COMPLETE.save(deps.storage, &on_migration_complete_notify_receiver)?;
+        MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.save(
+            deps.storage,
+            &migration_complete_event_subscribers
+                .iter()
+                .map(|c| canonicalize(deps.api, c).unwrap())
+                .collect(),
+        )?;
     }
 
     // clear the data (that contains the secret) which would be set when init_snip721 is called
@@ -111,14 +113,15 @@ pub(crate) fn perform_token_migration(
     {
         return Err(contract_mode_error);
     }
-    let migrated_from = MIGRATED_FROM.load(deps.storage)?;
+    let migrated_from_state = MIGRATED_FROM.load(deps.storage)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
         return Err(StdError::generic_err(format!(
             "This contract's admin must complete migrating contract data from {:?}",
-            migrated_from.contract.address
+            migrated_from_state.contract.humanize(deps.api)?
         )));
     }
+    let migrated_from = migrated_from_state.contract.into_humanized(deps.api)?;
     let mut deps = deps;
     let mut migrate_in_tokens_progress = MIGRATE_IN_TOKENS_PROGRESS.load(deps.storage)?;
     let mut start_at_idx = migrate_in_tokens_progress.migrate_in_next_mint_index;
@@ -128,12 +131,12 @@ pub(crate) fn perform_token_migration(
         let query_answer: QueryAnswer = deps
             .querier
             .query_wasm_smart(
-                migrated_from.contract.code_hash.clone(),
-                migrated_from.contract.address.clone(),
+                migrated_from.code_hash.clone(),
+                migrated_from.address.clone(),
                 &QueryMsgExt::ExportMigrationData {
                     start_index: Some(start_at_idx),
                     max_count: page_size,
-                    secret: migrated_from.migration_secret.clone(),
+                    secret: migrated_from_state.migration_secret.clone(),
                 },
             )
             .unwrap();
@@ -145,7 +148,7 @@ pub(crate) fn perform_token_migration(
                 save_migration_dossier_list(
                     &mut deps,
                     env,
-                    &migrated_from.contract.address.clone(),
+                    &migrated_from.address.clone(),
                     &admin_addr,
                     nft_dossiers,
                 )
@@ -177,8 +180,8 @@ pub(crate) fn perform_token_migration(
         )?;
         let sub_msgs: Vec<SubMsg> = vec![SubMsg::new(WasmMsg::Execute {
             msg: msg.clone(),
-            contract_addr: migrated_from.contract.address.to_string(),
-            code_hash: migrated_from.contract.code_hash.clone(),
+            contract_addr: migrated_from.address.to_string(),
+            code_hash: migrated_from.code_hash.clone(),
             funds: vec![],
         })];
         Ok(Response::new()
@@ -252,7 +255,7 @@ fn save_migration_dossier_list(
                 serial_number,
                 royalty_info,
                 transferable: Some(nft.transferable.clone()),
-                memo: Some(format!("Migrated from: {}", migrated_from)),
+                memo: Some(format!("\"migrated_from\": \"{}\"", migrated_from)),
             }
         })
         .collect();
@@ -298,12 +301,6 @@ pub(crate) fn migrate(
             "Only the contract being migrated to can set the contract to migrate!",
         ));
     }
-    let mut migrated_to = MIGRATED_TO.may_load(deps.storage)?;
-    if migrated_to.is_some() {
-        return Err(StdError::generic_err(
-            "The contract has already been migrated!",
-        ));
-    }
     let entropy = migrate_to.entropy.as_str();
 
     // Generate the secret in some way
@@ -324,9 +321,9 @@ pub(crate) fn migrate(
 
     let secret = Binary::from(rng.rand_bytes());
 
-    migrated_to = Some(MigratedToState {
-        contract: ContractInfo {
-            address: migrate_to_address,
+    let migrated_to = Some(MigratedToState {
+        contract: CanonicalContractInfo {
+            address: deps.api.addr_canonicalize(migrate_to_address.as_str())?,
             code_hash: migrate_to.code_hash,
         },
         migration_secret: secret.clone(),
@@ -367,8 +364,16 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
-            on_migration_complete_notify_receiver: NOTIFY_ON_MIGRATION_COMPLETE
-                .may_load(deps.storage)?,
+            migration_complete_event_subscribers: MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
+                .may_load(deps.storage)?
+                .map_or(None, |contracts| {
+                    Some(
+                        contracts
+                            .into_iter()
+                            .map(|c| c.into_humanized(deps.api).unwrap())
+                            .collect(),
+                    )
+                }),
             minters: load(deps.storage, MINTERS_KEY)?,
             mint_count: snip721config.mint_cnt,
             secret,

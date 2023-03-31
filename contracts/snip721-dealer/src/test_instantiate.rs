@@ -165,7 +165,7 @@ mod tests {
                     assert_eq!(&Vec::<Coin>::new(), funds);
                     let execute_msg: MigratableExecuteMsg = from_binary(msg).unwrap();
                     let expected_execute_msg =
-                        MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+                        MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
                             address: env.contract.address.to_string(),
                             code_hash: env.contract.code_hash,
                         };

@@ -1,14 +1,13 @@
 use cosmwasm_contract_migratable_std::execute::{
-    check_contract_mode, register_to_notify_on_migration_complete,
+    add_migration_complete_event_subscriber, check_contract_mode,
+    register_to_notify_on_migration_complete, update_migrated_subscriber,
 };
 use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
 use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
 use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::query::query_migrated_info;
-use cosmwasm_contract_migratable_std::state::{
-    ContractMode, CONTRACT_MODE, NOTIFY_ON_MIGRATION_COMPLETE,
-};
+use cosmwasm_contract_migratable_std::state::{canonicalize, ContractMode, CONTRACT_MODE};
 use cosmwasm_std::{
     entry_point, to_binary, Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
@@ -140,16 +139,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 admin_permit,
                 migrate_to,
             } => migrate(deps, env, info, mode, admin_permit, migrate_to),
-            MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
-                let admin = ADMIN.load(deps.storage)?;
-                register_to_notify_on_migration_complete(
-                    deps,
-                    info,
-                    admin,
-                    address,
-                    code_hash,
-                    Some(mode),
-                )
+            MigratableExecuteMsg::SubscribeToMigrationCompleteEvent { address, code_hash } => {
+                register_to_notify_on_migration_complete(deps, mode, address, code_hash)
             }
         },
         ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
@@ -171,33 +162,18 @@ fn update_child_snip721(
     {
         return Err(contract_mode_error);
     }
-    let current_child_snip721_address = deps
-        .api
-        .addr_humanize(&CHILD_SNIP721_ADDRESS.load(deps.storage)?)?;
-
-    if info.sender != current_child_snip721_address {
+    let current_child_snip721_address = CHILD_SNIP721_ADDRESS.load(deps.storage)?;
+    let raw_sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+    if raw_sender != current_child_snip721_address {
         return Err(StdError::generic_err(
             "Only the migrated child snip721 is allowed to trigger an update",
         ));
     }
-    CHILD_SNIP721_ADDRESS.save(
-        deps.storage,
-        &deps.api.addr_canonicalize(migrated_to.address.as_str())?,
-    )?;
-    CHILD_SNIP721_CODE_HASH.save(deps.storage, &migrated_to.code_hash)?;
+    let raw_migrated_to = canonicalize(deps.api, &migrated_to)?;
+    CHILD_SNIP721_ADDRESS.save(deps.storage, &raw_migrated_to.address)?;
+    CHILD_SNIP721_CODE_HASH.save(deps.storage, &raw_migrated_to.code_hash)?;
 
-    let contracts = NOTIFY_ON_MIGRATION_COMPLETE.load(deps.storage)?;
-    let updated_contracts: Vec<ContractInfo> = contracts
-        .iter()
-        .map(|contract| {
-            if contract.address == current_child_snip721_address {
-                migrated_to.clone()
-            } else {
-                contract.clone()
-            }
-        })
-        .collect();
-    NOTIFY_ON_MIGRATION_COMPLETE.save(deps.storage, &updated_contracts)?;
+    update_migrated_subscriber(deps.storage, &raw_sender, &raw_migrated_to)?;
     Ok(Response::new())
 }
 
@@ -286,24 +262,20 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
         .unwrap()
         .value;
     let child_snip721_address = deps.api.addr_validate(contract_address.as_str())?;
-    CHILD_SNIP721_ADDRESS.save(
-        deps.storage,
-        &deps.api.addr_canonicalize(child_snip721_address.as_str())?,
-    )?;
+    let raw_child_snip721_address = deps.api.addr_canonicalize(child_snip721_address.as_str())?;
+    CHILD_SNIP721_ADDRESS.save(deps.storage, &raw_child_snip721_address)?;
     let child_snip721_code_hash: String = CHILD_SNIP721_CODE_HASH.load(deps.storage)?;
     let admin: Addr = deps.api.addr_humanize(&ADMIN.load(deps.storage)?)?;
-    NOTIFY_ON_MIGRATION_COMPLETE.save(
+    add_migration_complete_event_subscriber(
         deps.storage,
-        &vec![ContractInfo {
-            address: child_snip721_address.clone(),
-            code_hash: child_snip721_code_hash.clone(),
-        }],
+        &raw_child_snip721_address,
+        &child_snip721_code_hash,
     )?;
 
-    let reg_on_migration_complete_notify_receiver_wasm_msg = WasmMsg::Execute {
+    let subscribe_to_migration_complete_event_wasm_msg = WasmMsg::Execute {
         contract_addr: child_snip721_address.to_string(),
         code_hash: child_snip721_code_hash.clone(),
-        msg: to_binary(&MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+        msg: to_binary(&MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
             address: env.contract.address.to_string(),
             code_hash: env.contract.code_hash,
         })?,
@@ -322,7 +294,7 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
     };
 
     Ok(Response::new().add_submessages([
-        SubMsg::new(reg_on_migration_complete_notify_receiver_wasm_msg),
+        SubMsg::new(subscribe_to_migration_complete_event_wasm_msg),
         SubMsg::new(change_admin_to_true_admin_wasm_msg),
     ]))
 }
