@@ -21,5 +21,5 @@ serde-cw-value = { version = "0.7.0" }
 schemars = "0.8.12"
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "5ae22b4" }
 secret-toolkit = { git = "https://github.com/scrtlabs/secret-toolkit", tag = "v0.8.0", features = ["crypto"] }
-cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v5.0.0" }
+cosmwasm-contract-migratable-std = { git = "https://github.com/eqoty-labs/cosmwasm-contract-migratable-std", tag = "v5.0.1" }
 serde = { version = "1.0.159", default-features = false, features = ["derive"] }
