@@ -94,24 +94,27 @@ fn init_snip721(
         },
     )?;
     CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
-    let instantiate_msg = MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
-        name: "PurchasableSnip721".to_string(),
-        symbol: "PUR721".to_string(),
-        admin: Some(temp_snip721_admin.to_string()),
-        entropy: msg.entropy,
-        royalty_info: msg.royalty_info,
-        config: Some(InstantiateConfig {
-            public_token_supply: Some(true),
-            public_owner: Some(true),
-            enable_sealed_metadata: None,
-            unwrapped_metadata_is_private: None,
-            minter_may_update_metadata: None,
-            owner_may_update_metadata: None,
-            enable_burn: Some(false),
-        }),
-        post_init_callback: None,
-        post_init_data: None,
-    });
+    let instantiate_msg = MigratableSnip721InstantiateMsg::New {
+        instantiate: Snip721InstantiateMsg {
+            name: "PurchasableSnip721".to_string(),
+            symbol: "PUR721".to_string(),
+            admin: Some(temp_snip721_admin.to_string()),
+            entropy: msg.entropy,
+            royalty_info: msg.royalty_info,
+            config: Some(InstantiateConfig {
+                public_token_supply: Some(true),
+                public_owner: Some(true),
+                enable_sealed_metadata: None,
+                unwrapped_metadata_is_private: None,
+                minter_may_update_metadata: None,
+                owner_may_update_metadata: None,
+                enable_burn: Some(false),
+            }),
+            post_init_callback: None,
+            post_init_data: None,
+        },
+        max_migration_complete_event_subscribers: 1,
+    };
     let instantiate_wasm_msg = WasmMsg::Instantiate {
         code_id: msg.snip721_code_id,
         code_hash: msg.snip721_code_hash,

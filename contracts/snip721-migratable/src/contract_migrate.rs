@@ -4,6 +4,7 @@ use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
     canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
     CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
 };
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Deps, DepsMut, Env,
@@ -82,6 +83,10 @@ pub(crate) fn instantiate_with_migrated_config(
     save(deps.storage, MINTERS_KEY, &reply_data.minters)?;
 
     CONTRACT_MODE.save(deps.storage, &ContractMode::MigrateDataIn)?;
+    REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS.save(
+        deps.storage,
+        &reply_data.remaining_migration_complete_event_sub_slots,
+    )?;
     if let Some(migration_complete_event_subscribers) =
         reply_data.migration_complete_event_subscribers
     {
@@ -364,6 +369,8 @@ pub(crate) fn migrate(
                 code_hash: env.contract.code_hash,
                 admin_permit,
             },
+            remaining_migration_complete_event_sub_slots:
+                REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS.load(deps.storage)?,
             migration_complete_event_subscribers: MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
                 .may_load(deps.storage)?
                 .map_or(None, |contracts| {

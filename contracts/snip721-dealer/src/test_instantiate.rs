@@ -293,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn instantiate_new_adds_submessage_to_instantiate_child_snip721() {
+    fn instantiate_new_adds_submessage_to_instantiate_child_snip721() -> StdResult<()> {
         let prices = vec![Coin {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),
@@ -312,8 +312,7 @@ mod tests {
             env.clone(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg.clone()),
-        )
-        .unwrap();
+        )?;
 
         assert_eq!(1, res.messages.len());
         assert_eq!(1u64, res.messages[0].id);
@@ -343,8 +342,8 @@ mod tests {
                     // Then a second tx msg in Reply is sent to change the admin to the dealer's admin
                     // So we should make sure the contract address != admins address
                     assert_ne!(env.contract.address, admin_info.sender);
-                    let expected_snip721_instantiate_msg =
-                        MigratableSnip721InstantiateMsg::New(Snip721InstantiateMsg {
+                    let expected_snip721_instantiate_msg = MigratableSnip721InstantiateMsg::New {
+                        instantiate: Snip721InstantiateMsg {
                             name: "PurchasableSnip721".to_string(),
                             symbol: "PUR721".to_string(),
                             admin: Some(env.contract.address.to_string()),
@@ -361,12 +360,15 @@ mod tests {
                             }),
                             post_init_callback: None,
                             post_init_data: None,
-                        });
+                        },
+                        max_migration_complete_event_subscribers: 1,
+                    };
                     assert_eq!(expected_snip721_instantiate_msg, snip721_instantiate_msg);
                 }
                 _ => panic!("unexpected"),
             },
             _ => panic!("unexpected"),
         }
+        Ok(())
     }
 }

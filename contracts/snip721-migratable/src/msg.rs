@@ -14,7 +14,11 @@ pub enum InstantiateMsg {
     /// initialize using data from another contract
     Migrate(InstantiateByMigrationMsg),
     /// initialize fresh
-    New(Snip721InstantiateMsg),
+    New {
+        instantiate: Snip721InstantiateMsg,
+        // the number of contracts that can be registered to be notified of migration
+        max_migration_complete_event_subscribers: u8,
+    },
 }
 
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
@@ -42,6 +46,7 @@ pub enum ExecuteMsgExt {
 pub struct InstantiateByMigrationReplyDataMsg {
     pub migrated_instantiate_msg: Snip721InstantiateMsg,
     pub migrate_from: MigrateFrom,
+    pub remaining_migration_complete_event_sub_slots: u8,
     pub migration_complete_event_subscribers: Option<Vec<ContractInfo>>,
     pub minters: Vec<CanonicalAddr>,
     pub mint_count: u32,

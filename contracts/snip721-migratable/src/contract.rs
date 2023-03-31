@@ -8,17 +8,18 @@ use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
 use cosmwasm_contract_migratable_std::query::query_migrated_info;
 use cosmwasm_contract_migratable_std::state::{
-    CONTRACT_MODE, ContractMode, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
 };
 use cosmwasm_std::{
-    Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, entry_point, Env, MessageInfo, Reply,
-    Response, StdError, StdResult, SubMsg, to_binary, WasmMsg,
+    entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 use snip721_reference_impl::royalties::StoredRoyaltyInfo;
 use snip721_reference_impl::state::{
-    Config, CONFIG_KEY, DEFAULT_ROYALTY_KEY, load, may_load, MINTERS_KEY, save,
+    load, may_load, save, Config, CONFIG_KEY, DEFAULT_ROYALTY_KEY, MINTERS_KEY,
 };
 
 use crate::contract_migrate::{
@@ -37,7 +38,14 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let mut deps = deps;
     return match msg {
-        InstantiateMsg::New(init) => init_snip721(&mut deps, &env, info, init),
+        InstantiateMsg::New {
+            instantiate,
+            max_migration_complete_event_subscribers,
+        } => {
+            REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS
+                .save(deps.storage, &max_migration_complete_event_subscribers)?;
+            init_snip721(&mut deps, &env, info, instantiate)
+        }
         InstantiateMsg::Migrate(init) => {
             let migrate_from = init.migrate_from;
             let migrate_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {

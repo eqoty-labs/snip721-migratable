@@ -10,17 +10,17 @@ mod tests {
         InstantiateByMigrationMsg, MigrateFrom, MigrateTo,
     };
     use cosmwasm_contract_migratable_std::state::{
-        canonicalize, CONTRACT_MODE, ContractMode, MIGRATED_FROM, MIGRATED_TO, MigratedFromState,
+        canonicalize, ContractMode, MigratedFromState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
         MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     };
-    use cosmwasm_std::{
-        Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps,
-        DepsMut, Env, from_binary, MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsgResponse,
-        SubMsgResult, Timestamp, to_binary, TransactionInfo, Uint128, WasmMsg,
-    };
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
+        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
+        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+    };
     use secret_toolkit::permit::{
-        Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate,
+        validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
     };
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
@@ -32,8 +32,8 @@ mod tests {
     };
     use crate::msg_types::DealerState;
     use crate::state::{
-        ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH, PURCHASABLE_METADATA,
-        PurchasableMetadata, PURCHASE_PRICES,
+        PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+        PURCHASABLE_METADATA, PURCHASE_PRICES,
     };
     use crate::test_utils::test_utils::{
         child_snip721_address, child_snip721_code_hash, successful_child_snip721_instantiate_reply,
@@ -631,7 +631,7 @@ mod tests {
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
         )
-            .unwrap();
+        .unwrap();
         // fake a reply after successful instantiate of child snip721
         let child_snip721_address = child_snip721_address();
         reply(
@@ -639,7 +639,7 @@ mod tests {
             custom_mock_env_0(),
             successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
         )
-            .unwrap();
+        .unwrap();
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
@@ -673,7 +673,8 @@ mod tests {
     }
 
     #[test]
-    fn register_to_notify_on_migration_complete_fails_when_in_invalid_contract_modes() -> StdResult<()> {
+    fn register_to_notify_on_migration_complete_fails_when_in_invalid_contract_modes(
+    ) -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_info = mock_info("admin", &[]);
         let admin_raw = deps.api.addr_canonicalize(admin_info.sender.as_str())?;
@@ -806,9 +807,11 @@ mod tests {
             }),
         )?;
 
-        let saved_contract = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
-            .load(deps.as_ref().storage)?;
-        assert_eq!(vec![canonicalize(deps.as_ref().api, &receiver)?], saved_contract);
+        let saved_contract = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?;
+        assert_eq!(
+            vec![canonicalize(deps.as_ref().api, &receiver)?],
+            saved_contract
+        );
         Ok(())
     }
 }

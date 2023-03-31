@@ -2,23 +2,23 @@ use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
 use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
 use cosmwasm_contract_migratable_std::state::{
-    CanonicalContractInfo, canonicalize, CONTRACT_MODE, ContractMode, MIGRATED_FROM,
-    MIGRATED_TO, MigratedFromState, MigratedToState, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
+    CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
 };
 use cosmwasm_std::{
-    Binary, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult,
-    SubMsg, to_binary, WasmMsg,
+    from_binary, to_binary, Binary, DepsMut, Env, MessageInfo, Reply, Response, StdError,
+    StdResult, SubMsg, WasmMsg,
 };
 use secret_toolkit::crypto::Prng;
-use secret_toolkit::permit::{Permit, validate};
+use secret_toolkit::permit::{validate, Permit};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::PREFIX_REVOKED_PERMITS;
 
 use crate::msg::InstantiateByMigrationReplyDataMsg;
 use crate::msg_types::DealerState;
 use crate::state::{
-    ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH, PURCHASABLE_METADATA,
-    PurchasableMetadata, PURCHASE_PRICES,
+    PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+    PURCHASABLE_METADATA, PURCHASE_PRICES,
 };
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
@@ -157,7 +157,11 @@ pub(crate) fn migrate(
         .map(|contract| {
             let execute = WasmMsg::Execute {
                 msg: msg.clone(),
-                contract_addr: deps.api.addr_humanize(&contract.address).unwrap().into_string(),
+                contract_addr: deps
+                    .api
+                    .addr_humanize(&contract.address)
+                    .unwrap()
+                    .into_string(),
                 code_hash: contract.code_hash.clone(),
                 funds: vec![],
             };
