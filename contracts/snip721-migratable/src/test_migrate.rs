@@ -6,8 +6,9 @@ mod tests {
     };
     use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
     use cosmwasm_contract_migratable_std::state::{
-        ContractMode, MigratedFromState, MigratedToState, CONTRACT_MODE, MIGRATED_FROM,
-        MIGRATED_TO, NOTIFY_ON_MIGRATION_COMPLETE,
+        canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
+        CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+        REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
     };
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
@@ -21,7 +22,10 @@ mod tests {
     use snip721_reference_impl::msg::BatchNftDossierElement;
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-    use snip721_reference_impl::state::{load, save, Config, CONFIG_KEY, MINTERS_KEY};
+    use snip721_reference_impl::royalties::{StoredRoyalty, StoredRoyaltyInfo};
+    use snip721_reference_impl::state::{
+        load, save, Config, CONFIG_KEY, DEFAULT_ROYALTY_KEY, MINTERS_KEY,
+    };
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
 
@@ -258,6 +262,7 @@ mod tests {
         };
         let expected_mint_count = 3;
         let expected_secret = Binary::from(b"secret_to_migrate_data_in");
+        let expected_remaining_migration_complete_event_sub_slots = 2;
         let expected_minters = vec![deps
             .api
             .addr_canonicalize(snip721_dealer_to_notify.address.as_str())?];
@@ -278,7 +283,9 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone()]),
+                remaining_migration_complete_event_sub_slots:
+                    expected_remaining_migration_complete_event_sub_slots.clone(),
+                migration_complete_event_subscribers: Some(vec![snip721_dealer_to_notify.clone()]),
                 minters: expected_minters.clone(),
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -294,7 +301,7 @@ mod tests {
         reply(deps.as_mut(), env_1, reply_msg)?;
 
         let expected_migrated_from = MigratedFromState {
-            contract: env_0.contract,
+            contract: canonicalize(deps.as_ref().api, &env_0.contract)?,
             migration_secret: expected_secret,
         };
         assert_eq!(
@@ -315,8 +322,12 @@ mod tests {
             CONTRACT_MODE.load(deps.as_ref().storage)?
         );
         assert_eq!(
-            vec![snip721_dealer_to_notify],
-            NOTIFY_ON_MIGRATION_COMPLETE.load(deps.as_ref().storage)?
+            expected_remaining_migration_complete_event_sub_slots,
+            REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS.load(deps.as_ref().storage)?
+        );
+        assert_eq!(
+            vec![canonicalize(deps.as_ref().api, &snip721_dealer_to_notify)?],
+            MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?
         );
         assert_eq!(
             expected_minters,
@@ -356,7 +367,8 @@ mod tests {
                     code_hash: env_0.contract.code_hash.clone(),
                     admin_permit: admin_permit.clone(),
                 },
-                on_migration_complete_notify_receiver: Some(vec![snip721_dealer_to_notify.clone()]),
+                remaining_migration_complete_event_sub_slots: 0,
+                migration_complete_event_subscribers: Some(vec![snip721_dealer_to_notify.clone()]),
                 minters: vec![],
                 mint_count: expected_mint_count,
                 secret: expected_secret.clone(),
@@ -444,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn export_migration_data_three_tokens() {
+    fn export_migration_data_three_tokens() -> StdResult<()> {
         let prices = vec![Coin {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),
@@ -484,8 +496,7 @@ mod tests {
                 private_metadata.clone(),
             )
             .clone(),
-        )
-        .unwrap();
+        )?;
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
@@ -496,8 +507,7 @@ mod tests {
                 private_metadata.clone(),
             )
             .clone(),
-        )
-        .unwrap();
+        )?;
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
@@ -508,8 +518,7 @@ mod tests {
                 private_metadata.clone(),
             )
             .clone(),
-        )
-        .unwrap();
+        )?;
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
@@ -528,7 +537,7 @@ mod tests {
         );
 
         let migrate_data: InstantiateByMigrationReplyDataMsg =
-            from_binary(&migrate_0_result.unwrap().data.unwrap()).unwrap();
+            from_binary(&migrate_0_result.unwrap().data.unwrap())?;
 
         let secret: Binary = migrate_data.secret;
 
@@ -569,13 +578,14 @@ mod tests {
             third_token.private_metadata.unwrap()
         );
         assert_eq!(mint_recipient_2_info.sender, third_token.owner.unwrap());
+        Ok(())
     }
 
     #[test]
-    fn register_on_migration_complete_notify_receiver_saves_contract() {
+    fn register_on_migration_complete_notify_receiver_saves_contract() -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
-        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
         let instantiate_msg = instantiate_msg(admin_info.clone());
@@ -584,8 +594,7 @@ mod tests {
             custom_mock_env_0(),
             admin_info.clone(),
             instantiate_msg,
-        )
-        .unwrap();
+        )?;
 
         let receiver = ContractInfo {
             address: Addr::unchecked("addr"),
@@ -595,17 +604,18 @@ mod tests {
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
                 address: receiver.address.to_string(),
                 code_hash: receiver.code_hash.to_string(),
             }),
-        )
-        .unwrap();
+        )?;
 
-        let saved_contract: Vec<ContractInfo> = NOTIFY_ON_MIGRATION_COMPLETE
-            .load(deps.as_ref().storage)
-            .unwrap();
-        assert_eq!(vec![receiver], saved_contract);
+        let saved_contract = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?;
+        assert_eq!(
+            vec![canonicalize(deps.as_ref().api, &receiver)?],
+            saved_contract
+        );
+        Ok(())
     }
 
     #[test]
@@ -626,7 +636,7 @@ mod tests {
         CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::MigrateDataIn)?;
         let mock_secret = Binary::from(b"secret_to_migrate_data_in");
         let mock_migrated_from = MigratedFromState {
-            contract: env_0.contract,
+            contract: canonicalize(deps.as_ref().api, &env_0.contract)?,
             migration_secret: mock_secret,
         };
         MIGRATED_FROM.save(deps.as_mut().storage, &mock_migrated_from)?;
@@ -637,18 +647,22 @@ mod tests {
         MIGRATE_IN_TOKENS_PROGRESS.save(deps.as_mut().storage, &mock_migrate_in_tokens_progress)?;
 
         let contracts_to_notify = vec![
-            ContractInfo {
-                address: Addr::unchecked("notify_0_address"),
+            CanonicalContractInfo {
+                address: deps
+                    .api
+                    .addr_canonicalize(Addr::unchecked("notify_0_address").as_str())?,
                 code_hash: "notify_0_code_hash".to_string(),
             },
-            ContractInfo {
-                address: Addr::unchecked("notify_1_address"),
+            CanonicalContractInfo {
+                address: deps
+                    .api
+                    .addr_canonicalize(Addr::unchecked("notify_1_address").as_str())?,
                 code_hash: "notify_1_code_hash".to_string(),
             },
         ];
-        NOTIFY_ON_MIGRATION_COMPLETE.save(deps.as_mut().storage, &contracts_to_notify)?;
+        MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.save(deps.as_mut().storage, &contracts_to_notify)?;
 
-        let contracts_that_should_not_be_notified_yet = NOTIFY_ON_MIGRATION_COMPLETE
+        let contracts_that_should_not_be_notified_yet = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
             .may_load(deps.as_ref().storage)?
             .unwrap_or_default();
         assert_eq!(2, contracts_that_should_not_be_notified_yet.len());
@@ -669,8 +683,8 @@ mod tests {
         ));
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[0].msg,
-            &mock_migrated_from.contract.clone(),
-            &mock_migrated_from.contract,
+            &mock_migrated_from.contract.humanize(deps.as_ref().api)?,
+            &mock_migrated_from.contract.humanize(deps.as_ref().api)?,
         );
 
         Ok(())
@@ -693,8 +707,11 @@ mod tests {
             instantiate_msg,
         )?;
         CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::MigrateOutStarted)?;
-        let migrated_to = ContractInfo {
-            address: Addr::unchecked("new_address"),
+        let migrated_to = CanonicalContractInfo {
+            address: deps
+                .as_ref()
+                .api
+                .addr_canonicalize(&Addr::unchecked("new_address").as_str())?,
             code_hash: "code_hash".to_string(),
         };
 
@@ -707,16 +724,20 @@ mod tests {
         )?;
 
         let contracts_to_notify = vec![
-            ContractInfo {
-                address: Addr::unchecked("notify_0_address"),
+            CanonicalContractInfo {
+                address: deps
+                    .api
+                    .addr_canonicalize(Addr::unchecked("notify_0_address").as_str())?,
                 code_hash: "notify_0_code_hash".to_string(),
             },
-            ContractInfo {
-                address: Addr::unchecked("notify_1_address"),
+            CanonicalContractInfo {
+                address: deps
+                    .api
+                    .addr_canonicalize(Addr::unchecked("notify_1_address").as_str())?,
                 code_hash: "notify_1_code_hash".to_string(),
             },
         ];
-        NOTIFY_ON_MIGRATION_COMPLETE.save(deps.as_mut().storage, &contracts_to_notify)?;
+        MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.save(deps.as_mut().storage, &contracts_to_notify)?;
 
         let migrated_to = ContractInfo {
             address: Addr::unchecked("new_address"),
@@ -742,12 +763,12 @@ mod tests {
         }
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[0].msg,
-            &contracts_to_notify[0].clone(),
+            &contracts_to_notify[0].humanize(deps.as_ref().api)?,
             &migrated_to.clone(),
         );
         assert_is_migration_complete_notification_msg_to_contract(
             &res.messages[1].msg,
-            &contracts_to_notify[1].clone(),
+            &contracts_to_notify[1].humanize(deps.as_ref().api)?,
             &migrated_to,
         );
 
@@ -842,7 +863,7 @@ mod tests {
         let admin_info = mock_info("admin", &[]);
         save_a_config(deps.as_mut());
         let exec_purchase_msg =
-            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
                 address: "".to_string(),
                 code_hash: "".to_string(),
             });
@@ -963,6 +984,54 @@ mod tests {
             let res = on_migration_complete(deps.as_mut(), admin_info.clone(), invalid_mode);
             assert_eq!(expected_error, res.err().unwrap(),);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn update_migrated_minter_succedes_when_royalty_info_set() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        save_a_config(deps.as_mut());
+        let to = ContractInfo {
+            address: Addr::unchecked("to_addr"),
+            code_hash: "".to_string(),
+        };
+        let migrated_from_info = mock_info("migrated_from_addr", &[]);
+
+        let raw_from_address = deps
+            .as_ref()
+            .api
+            .addr_canonicalize(migrated_from_info.sender.as_str())?;
+        save(
+            deps.as_mut().storage,
+            DEFAULT_ROYALTY_KEY,
+            &StoredRoyaltyInfo {
+                decimal_places_in_rates: 2,
+                royalties: vec![StoredRoyalty {
+                    recipient: raw_from_address,
+                    rate: 5,
+                }],
+            },
+        )?;
+        CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::Running)?;
+        update_migrated_minter(
+            deps.as_mut(),
+            migrated_from_info.clone(),
+            ContractMode::Running,
+            to.clone(),
+        )?;
+        let raw_to_address = deps.as_ref().api.addr_canonicalize(to.address.as_str())?;
+        let stored_default_royalty_info: StoredRoyaltyInfo =
+            load(deps.as_ref().storage, DEFAULT_ROYALTY_KEY)?;
+        assert_eq!(
+            StoredRoyaltyInfo {
+                decimal_places_in_rates: 2,
+                royalties: vec![StoredRoyalty {
+                    recipient: raw_to_address,
+                    rate: 5,
+                }],
+            },
+            stored_default_royalty_info
+        );
         Ok(())
     }
 }

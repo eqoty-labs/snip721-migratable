@@ -10,8 +10,8 @@ mod tests {
         InstantiateByMigrationMsg, MigrateFrom, MigrateTo,
     };
     use cosmwasm_contract_migratable_std::state::{
-        ContractMode, MigratedFromState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
-        NOTIFY_ON_MIGRATION_COMPLETE,
+        canonicalize, ContractMode, MigratedFromState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
+        MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     };
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
@@ -124,7 +124,7 @@ mod tests {
                 code_hash: env.contract.code_hash.clone(),
                 admin_permit: admin_permit.clone(),
             },
-            on_migration_complete_notify_receiver: vec![ContractInfo {
+            migration_complete_event_subscribers: vec![ContractInfo {
                 address: Addr::unchecked(child_snip721_address),
                 code_hash: child_snip721_code_hash.clone(),
             }],
@@ -190,10 +190,10 @@ mod tests {
     }
 
     #[test]
-    fn instantiate_by_migration_correctly_migrates_dealer_state() {
+    fn instantiate_by_migration_correctly_migrates_dealer_state() -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
-        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
         let migrate_from = MigrateFrom {
@@ -221,8 +221,7 @@ mod tests {
             migrate_to_env.clone(),
             admin_info.clone(),
             InstantiateMsg::Migrate(instantiate_msg.clone()),
-        )
-        .unwrap();
+        )?;
         assert_eq!(1, res.messages.len());
         assert_eq!(2u64, res.messages[0].id);
         assert_eq!(ReplyOn::Success, res.messages[0].reply_on);
@@ -242,7 +241,7 @@ mod tests {
                     assert_eq!(&migrate_from.address, contract_addr);
                     assert_eq!(&migrate_from.code_hash, code_hash);
                     assert_eq!(&Vec::<Coin>::new(), funds);
-                    let execute_msg: ExecuteMsg = from_binary(msg).unwrap();
+                    let execute_msg: ExecuteMsg = from_binary(msg)?;
                     let expected_execute_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
                         admin_permit: admin_permit.clone(),
                         migrate_to: MigrateTo {
@@ -259,32 +258,23 @@ mod tests {
         }
 
         // none of the dealer state should be set before reply is called
-        let saved_prices = PURCHASE_PRICES.may_load(deps.as_ref().storage).unwrap();
+        let saved_prices = PURCHASE_PRICES.may_load(deps.as_ref().storage)?;
         assert_eq!(None, saved_prices);
-        let saved_purchasable_metadata = PURCHASABLE_METADATA
-            .may_load(deps.as_ref().storage)
-            .unwrap();
+        let saved_purchasable_metadata = PURCHASABLE_METADATA.may_load(deps.as_ref().storage)?;
         assert_eq!(None, saved_purchasable_metadata);
-        let saved_admin = ADMIN.may_load(deps.as_ref().storage).unwrap();
+        let saved_admin = ADMIN.may_load(deps.as_ref().storage)?;
         assert_eq!(None, saved_admin);
-        let saved_child_snip721_code_hash = CHILD_SNIP721_CODE_HASH
-            .may_load(deps.as_ref().storage)
-            .unwrap();
+        let saved_child_snip721_code_hash =
+            CHILD_SNIP721_CODE_HASH.may_load(deps.as_ref().storage)?;
         assert_eq!(None, saved_child_snip721_code_hash);
-        let saved_child_snip721_address = CHILD_SNIP721_ADDRESS
-            .may_load(deps.as_ref().storage)
-            .unwrap();
+        let saved_child_snip721_address = CHILD_SNIP721_ADDRESS.may_load(deps.as_ref().storage)?;
         if let Some(some_saved_child_snip721_address) = saved_child_snip721_address {
             assert_eq!(
                 None,
-                Some(
-                    deps.api
-                        .addr_humanize(&some_saved_child_snip721_address)
-                        .unwrap()
-                )
+                Some(deps.api.addr_humanize(&some_saved_child_snip721_address)?)
             );
         }
-        let saved_contract_mode = CONTRACT_MODE.may_load(deps.as_ref().storage).unwrap();
+        let saved_contract_mode = CONTRACT_MODE.may_load(deps.as_ref().storage)?;
         assert_eq!(None, saved_contract_mode);
 
         let migrated_prices = vec![Coin {
@@ -313,8 +303,7 @@ mod tests {
             &migrated_snip721_code_hash,
             &Addr::unchecked(migrated_child_snip721_address.clone()),
             migrate_from_secret,
-        ))
-        .unwrap();
+        ))?;
 
         // fake a reply after successful execution of migrate from old version of dealer
         reply(
@@ -327,63 +316,53 @@ mod tests {
                     events: Vec::new(),
                 }),
             },
-        )
-        .unwrap();
+        )?;
 
         // dealer state should be saved using data from migration
-        let saved_prices = PURCHASE_PRICES.may_load(deps.as_ref().storage).unwrap();
+        let saved_prices = PURCHASE_PRICES.may_load(deps.as_ref().storage)?;
         assert_eq!(Some(migrated_prices), saved_prices);
-        let saved_purchasable_metadata = PURCHASABLE_METADATA
-            .may_load(deps.as_ref().storage)
-            .unwrap();
+        let saved_purchasable_metadata = PURCHASABLE_METADATA.may_load(deps.as_ref().storage)?;
         assert_eq!(
             Some(migrated_purchasable_metadata),
             saved_purchasable_metadata
         );
-        let saved_admin: CanonicalAddr = ADMIN.load(deps.as_ref().storage).unwrap();
+        let saved_admin: CanonicalAddr = ADMIN.load(deps.as_ref().storage)?;
         assert_eq!(
-            deps.api
-                .addr_canonicalize(admin_info.sender.as_str())
-                .unwrap(),
+            deps.api.addr_canonicalize(admin_info.sender.as_str())?,
             saved_admin
         );
-        let saved_child_snip721_code_hash = CHILD_SNIP721_CODE_HASH
-            .may_load(deps.as_ref().storage)
-            .unwrap();
+        let saved_child_snip721_code_hash =
+            CHILD_SNIP721_CODE_HASH.may_load(deps.as_ref().storage)?;
         assert_eq!(
             Some(migrated_snip721_code_hash),
             saved_child_snip721_code_hash
         );
         let saved_child_snip721_address: CanonicalAddr =
-            CHILD_SNIP721_ADDRESS.load(deps.as_ref().storage).unwrap();
+            CHILD_SNIP721_ADDRESS.load(deps.as_ref().storage)?;
         assert_eq!(
             migrated_child_snip721_address,
-            deps.api
-                .addr_humanize(&saved_child_snip721_address)
-                .unwrap()
+            deps.api.addr_humanize(&saved_child_snip721_address)?
         );
         let expected_migrated_from = MigratedFromState {
-            contract: ContractInfo {
-                address: migrate_from_env.contract.address.clone(),
-                code_hash: migrate_from_env.contract.code_hash.clone(),
-            },
+            contract: canonicalize(deps.as_ref().api, &migrate_from_env.contract)?,
             migration_secret: migrate_from_secret.clone(),
         };
-        let migrated_from = MIGRATED_FROM.may_load(deps.as_ref().storage).unwrap();
+        let migrated_from = MIGRATED_FROM.may_load(deps.as_ref().storage)?;
         assert_eq!(Some(expected_migrated_from), migrated_from);
-        let saved_contract_mode = CONTRACT_MODE.may_load(deps.as_ref().storage).unwrap();
+        let saved_contract_mode = CONTRACT_MODE.may_load(deps.as_ref().storage)?;
         assert_eq!(Some(ContractMode::Running), saved_contract_mode);
+        Ok(())
     }
 
     #[test]
-    fn migrate_updates_contract_mode_and_migrated_to_state() {
+    fn migrate_updates_contract_mode_and_migrated_to_state() -> StdResult<()> {
         let prices = vec![Coin {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),
         }];
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
-        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
         let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
@@ -396,16 +375,14 @@ mod tests {
             custom_mock_env_0(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        )
-        .unwrap();
+        )?;
         // fake a reply after successful instantiate of child snip721
         let child_snip721_address = child_snip721_address();
         reply(
             deps.as_mut(),
             custom_mock_env_0(),
             successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
-        )
-        .unwrap();
+        )?;
 
         let migrate_to_addr_0 = Addr::unchecked("new_address");
         let migrate_to_code_hash_0 = "code_hash";
@@ -415,31 +392,34 @@ mod tests {
             admin_permit,
             &migrate_to_addr_0,
             migrate_to_code_hash_0,
-        )
-        .unwrap();
+        )?;
 
         assert_eq!(
             ContractMode::MigratedOut,
-            CONTRACT_MODE.load(deps.as_ref().storage).unwrap()
+            CONTRACT_MODE.load(deps.as_ref().storage)?
         );
         assert_eq!(
             ContractInfo {
                 address: migrate_to_addr_0,
                 code_hash: migrate_to_code_hash_0.to_string(),
             },
-            MIGRATED_TO.load(deps.as_ref().storage).unwrap().contract
+            MIGRATED_TO
+                .load(deps.as_ref().storage)?
+                .contract
+                .humanize(deps.as_ref().api)?
         );
+        Ok(())
     }
 
     #[test]
-    fn migrate_sets_response_data_and_notifies_child_snip721_of_migration() {
+    fn migrate_sets_response_data_and_notifies_child_snip721_of_migration() -> StdResult<()> {
         let prices = vec![Coin {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),
         }];
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
-        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
         let purchasable_metadata = PurchasableMetadata {
@@ -468,16 +448,14 @@ mod tests {
             env.clone(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        )
-        .unwrap();
+        )?;
         // fake a reply after successful instantiate of child snip721
         let child_snip721_address = child_snip721_address();
         reply(
             deps.as_mut(),
             custom_mock_env_0(),
             successful_child_snip721_instantiate_reply(child_snip721_address.as_str()),
-        )
-        .unwrap();
+        )?;
 
         let migrate_to_0 = ContractInfo {
             address: Addr::unchecked("new_address"),
@@ -489,11 +467,9 @@ mod tests {
             admin_permit,
             &migrate_to_0.address.clone(),
             migrate_to_0.code_hash.as_str(),
-        )
-        .unwrap();
+        )?;
 
-        let data: InstantiateByMigrationReplyDataMsg =
-            from_binary(&res.data.clone().unwrap()).unwrap();
+        let data: InstantiateByMigrationReplyDataMsg = from_binary(&res.data.clone().unwrap())?;
 
         let expected_data = valid_execute_migrate_reply(
             env.clone(),
@@ -503,10 +479,7 @@ mod tests {
             &admin_permit.clone(),
             &snip721_code_hash,
             &Addr::unchecked(child_snip721_address.clone()),
-            &MIGRATED_TO
-                .load(deps.as_ref().storage)
-                .unwrap()
-                .migration_secret,
+            &MIGRATED_TO.load(deps.as_ref().storage)?.migration_secret,
         );
         assert_eq!(expected_data, data);
 
@@ -522,6 +495,7 @@ mod tests {
             },
             &migrate_to_0,
         );
+        Ok(())
     }
 
     #[test]
@@ -587,25 +561,17 @@ mod tests {
                 code_hash: "notify_1_code_hash".to_string(),
             },
         ];
-        let admin_raw = deps
-            .as_ref()
-            .api
-            .addr_canonicalize(admin_info.sender.as_str())?;
         register_to_notify_on_migration_complete(
             deps.as_mut(),
-            admin_info.clone(),
-            admin_raw.clone(),
+            ContractMode::Running,
             contracts_to_notify[0].address.to_string(),
             contracts_to_notify[0].code_hash.clone(),
-            None,
         )?;
         register_to_notify_on_migration_complete(
             deps.as_mut(),
-            admin_info.clone(),
-            admin_raw.clone(),
+            ContractMode::Running,
             contracts_to_notify[1].address.to_string(),
             contracts_to_notify[1].code_hash.clone(),
-            None,
         )?;
 
         let res = migrate(
@@ -714,7 +680,7 @@ mod tests {
         let admin_raw = deps.api.addr_canonicalize(admin_info.sender.as_str())?;
         ADMIN.save(deps.as_mut().storage, &admin_raw)?;
         let exec_purchase_msg =
-            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
                 address: "".to_string(),
                 code_hash: "".to_string(),
             });
@@ -805,14 +771,14 @@ mod tests {
     }
 
     #[test]
-    fn register_to_notify_on_migration_complete_saves_contract() {
+    fn register_to_notify_on_migration_complete_saves_contract() -> StdResult<()> {
         let prices = vec![Coin {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),
         }];
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
-        let admin_addr = get_secret_address(deps.as_ref(), admin_permit).unwrap();
+        let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
         let admin_info = mock_info(admin_addr.as_str(), &[]);
 
         let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
@@ -825,8 +791,7 @@ mod tests {
             custom_mock_env_0(),
             admin_info.clone(),
             InstantiateMsg::New(instantiate_msg),
-        )
-        .unwrap();
+        )?;
 
         let receiver = ContractInfo {
             address: Addr::unchecked("addr"),
@@ -836,16 +801,17 @@ mod tests {
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            ExecuteMsg::Migrate(MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete {
+            ExecuteMsg::Migrate(MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
                 address: receiver.address.to_string(),
                 code_hash: receiver.code_hash.to_string(),
             }),
-        )
-        .unwrap();
+        )?;
 
-        let saved_contract = NOTIFY_ON_MIGRATION_COMPLETE
-            .load(deps.as_ref().storage)
-            .unwrap();
-        assert_eq!(vec![receiver], saved_contract);
+        let saved_contract = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?;
+        assert_eq!(
+            vec![canonicalize(deps.as_ref().api, &receiver)?],
+            saved_contract
+        );
+        Ok(())
     }
 }

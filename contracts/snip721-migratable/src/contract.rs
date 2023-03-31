@@ -8,7 +8,8 @@ use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
 use cosmwasm_contract_migratable_std::query::query_migrated_info;
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, MigratedToState, CONTRACT_MODE, MIGRATED_TO, NOTIFY_ON_MIGRATION_COMPLETE,
+    ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
 };
 use cosmwasm_std::{
     entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
@@ -16,7 +17,10 @@ use cosmwasm_std::{
 };
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
-use snip721_reference_impl::state::{load, may_load, save, Config, CONFIG_KEY, MINTERS_KEY};
+use snip721_reference_impl::royalties::StoredRoyaltyInfo;
+use snip721_reference_impl::state::{
+    load, may_load, save, Config, CONFIG_KEY, DEFAULT_ROYALTY_KEY, MINTERS_KEY,
+};
 
 use crate::contract_migrate::{
     instantiate_with_migrated_config, migrate, migration_dossier_list, perform_token_migration,
@@ -34,7 +38,14 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let mut deps = deps;
     return match msg {
-        InstantiateMsg::New(init) => init_snip721(&mut deps, &env, info, init),
+        InstantiateMsg::New {
+            instantiate,
+            max_migration_complete_event_subscribers,
+        } => {
+            REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS
+                .save(deps.storage, &max_migration_complete_event_subscribers)?;
+            init_snip721(&mut deps, &env, info, instantiate)
+        }
         InstantiateMsg::Migrate(init) => {
             let migrate_from = init.migrate_from;
             let migrate_msg = ExecuteMsg::Migrate(MigratableExecuteMsg::Migrate {
@@ -88,15 +99,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 admin_permit,
                 migrate_to,
             } => migrate(deps, env, info, mode, &mut config, admin_permit, migrate_to),
-            MigratableExecuteMsg::RegisterToNotifyOnMigrationComplete { address, code_hash } => {
-                register_to_notify_on_migration_complete(
-                    deps,
-                    info,
-                    config.admin,
-                    address,
-                    code_hash,
-                    Some(mode),
-                )
+            MigratableExecuteMsg::SubscribeToMigrationCompleteEvent { address, code_hash } => {
+                register_to_notify_on_migration_complete(deps, mode, address, code_hash)
             }
         },
         ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
@@ -159,6 +163,27 @@ pub(crate) fn update_migrated_minter(
     if update {
         save(deps.storage, MINTERS_KEY, &minters)?;
     }
+
+    // check if the royalty info is set to a minter. If so update it.
+    match may_load::<StoredRoyaltyInfo>(deps.storage, DEFAULT_ROYALTY_KEY)? {
+        Some(mut stored_royalty_info) => {
+            let mut royalties = stored_royalty_info.royalties;
+            let royalty_index_to_update = royalties
+                .iter()
+                .position(|royalty| royalty.recipient == from_raw);
+            if let Some(some_royalty_index_to_update) = royalty_index_to_update {
+                royalties[some_royalty_index_to_update].recipient =
+                    deps.api.addr_canonicalize(migrated_to.address.as_str())?;
+                update = true;
+            }
+            if update {
+                stored_royalty_info.royalties = royalties;
+                save(deps.storage, DEFAULT_ROYALTY_KEY, &stored_royalty_info)?
+            }
+        }
+        None => {}
+    };
+
     Ok(Response::new())
 }
 
@@ -172,8 +197,11 @@ pub(crate) fn on_migration_complete(
     {
         return Err(contract_mode_error);
     }
-    let migrated_to: MigratedToState = MIGRATED_TO.load(deps.storage)?;
-    return if migrated_to.contract.address != info.sender {
+    let migrated_to = MIGRATED_TO
+        .load(deps.storage)?
+        .contract
+        .into_humanized(deps.api)?;
+    return if migrated_to.address != info.sender {
         Err(StdError::generic_err(
             to_string(&OperationUnavailable {
                 message: "Only listening for migration complete notifications from the contract being migrated to".to_string(),
@@ -182,17 +210,18 @@ pub(crate) fn on_migration_complete(
     } else {
         CONTRACT_MODE.save(deps.storage, &ContractMode::MigratedOut)?;
         // notify the contracts registered to be notified on migration complete
-        let contracts = NOTIFY_ON_MIGRATION_COMPLETE
+        let contracts = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
             .may_load(deps.storage)?
             .unwrap_or_default();
         let msg = to_binary(
             &MigrationListenerExecuteMsg::MigrationCompleteNotification {
-                to: migrated_to.contract,
+                to: migrated_to,
                 data: None,
             },
         )?;
         let sub_msgs: Vec<SubMsg> = contracts
-            .iter()
+            .into_iter()
+            .map(|contract| contract.into_humanized(deps.api).unwrap())
             .map(|contract| {
                 let execute = WasmMsg::Execute {
                     msg: msg.clone(),

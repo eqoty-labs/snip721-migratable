@@ -27,6 +27,8 @@ import io.eqoty.secretk.types.MsgInstantiateContract
 import io.eqoty.secretk.types.TxOptions
 import io.getenv
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -769,6 +771,5 @@ class IntegrationTests {
         }
         assertContains(errorMessage, "Only the admins permit is allowed to initiate migration")
     }
-
 
 }

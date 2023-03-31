@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        rust: [1.68.0]
+        rust: [1.68.2]
         make:
           - name: Run integration tests # Integration tests
             task: "(cd tests && NODE_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
