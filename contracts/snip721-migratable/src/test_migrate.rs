@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
+    use cosmwasm_contract_migratable_std::execute::{
+        add_migration_complete_event_subscriber, build_operation_unavailable_error,
+    };
     use cosmwasm_contract_migratable_std::msg::{
         MigratableExecuteMsg, MigrationListenerExecuteMsg,
     };
@@ -30,7 +32,7 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use crate::contract::{
-        execute, instantiate, on_migration_complete, query, reply, update_migrated_minter,
+        execute, instantiate, on_migration_complete, query, reply, update_migrated_dependency,
     };
     use crate::msg::QueryAnswer::MigrationBatchNftDossier;
     use crate::msg::QueryMsgExt::ExportMigrationData;
@@ -959,7 +961,7 @@ mod tests {
         for invalid_mode in invalid_modes {
             CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
             let expected_error = build_operation_unavailable_error(&invalid_mode, None);
-            let res = update_migrated_minter(
+            let res = update_migrated_dependency(
                 deps.as_mut(),
                 migrated_from_info.clone(),
                 invalid_mode,
@@ -988,7 +990,7 @@ mod tests {
     }
 
     #[test]
-    fn update_migrated_minter_succedes_when_royalty_info_set() -> StdResult<()> {
+    fn update_migrated_minter_succeeds_when_royalty_info_set() -> StdResult<()> {
         let mut deps = mock_dependencies();
         save_a_config(deps.as_mut());
         let to = ContractInfo {
@@ -1013,7 +1015,7 @@ mod tests {
             },
         )?;
         CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::Running)?;
-        update_migrated_minter(
+        update_migrated_dependency(
             deps.as_mut(),
             migrated_from_info.clone(),
             ContractMode::Running,
@@ -1031,6 +1033,43 @@ mod tests {
                 }],
             },
             stored_default_royalty_info
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn update_migrated_subscriber_succeeds() -> StdResult<()> {
+        let mut deps = mock_dependencies();
+        save_a_config(deps.as_mut());
+        let to = ContractInfo {
+            address: Addr::unchecked("to_addr"),
+            code_hash: "to_code_hash".to_string(),
+        };
+        let migrated_from_info = mock_info("migrated_from_addr", &[]);
+        let migrated_from_code_hash = "migrated_from_code_hash".to_string();
+        let raw_from_address = deps
+            .as_ref()
+            .api
+            .addr_canonicalize(migrated_from_info.sender.as_str())?;
+        add_migration_complete_event_subscriber(
+            deps.as_mut().storage,
+            &raw_from_address,
+            &migrated_from_code_hash,
+        )?;
+
+        CONTRACT_MODE.save(deps.as_mut().storage, &ContractMode::Running)?;
+
+        update_migrated_dependency(
+            deps.as_mut(),
+            migrated_from_info.clone(),
+            ContractMode::Running,
+            to.clone(),
+        )?;
+        let stored_migration_complete_event_subscribers =
+            MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?;
+        assert_eq!(
+            vec![canonicalize(deps.as_ref().api, &to)?],
+            stored_migration_complete_event_subscribers
         );
         Ok(())
     }

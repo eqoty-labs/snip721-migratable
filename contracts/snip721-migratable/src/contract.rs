@@ -1,6 +1,8 @@
-use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
 use cosmwasm_contract_migratable_std::execute::check_contract_mode;
 use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
+use cosmwasm_contract_migratable_std::execute::{
+    build_operation_unavailable_error, update_migrated_subscriber,
+};
 use cosmwasm_contract_migratable_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
@@ -8,7 +10,7 @@ use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
 use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
 use cosmwasm_contract_migratable_std::query::query_migrated_info;
 use cosmwasm_contract_migratable_std::state::{
-    ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    canonicalize, ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
 };
 use cosmwasm_std::{
@@ -133,13 +135,13 @@ fn on_migration_notification(
     to: ContractInfo,
 ) -> StdResult<Response> {
     match mode {
-        ContractMode::Running => update_migrated_minter(deps, info, mode, to),
+        ContractMode::Running => update_migrated_dependency(deps, info, mode, to),
         ContractMode::MigrateOutStarted => on_migration_complete(deps, info, mode),
         _ => Err(build_operation_unavailable_error(&mode, None)),
     }
 }
 
-pub(crate) fn update_migrated_minter(
+pub(crate) fn update_migrated_dependency(
     deps: DepsMut,
     info: MessageInfo,
     mode: ContractMode,
@@ -152,10 +154,10 @@ pub(crate) fn update_migrated_minter(
     let mut minters: Vec<CanonicalAddr> = may_load(deps.storage, MINTERS_KEY)?.unwrap_or_default();
     let mut update = false;
     let from_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let migrated_to_raw = canonicalize(deps.api, &migrated_to)?;
     let minter_index_to_update = minters.iter().position(|minter| minter == &from_raw);
     if let Some(some_minter_index_to_update) = minter_index_to_update {
-        minters[some_minter_index_to_update] =
-            deps.api.addr_canonicalize(migrated_to.address.as_str())?;
+        minters[some_minter_index_to_update] = migrated_to_raw.address.clone();
         update = true;
     }
 
@@ -172,8 +174,7 @@ pub(crate) fn update_migrated_minter(
                 .iter()
                 .position(|royalty| royalty.recipient == from_raw);
             if let Some(some_royalty_index_to_update) = royalty_index_to_update {
-                royalties[some_royalty_index_to_update].recipient =
-                    deps.api.addr_canonicalize(migrated_to.address.as_str())?;
+                royalties[some_royalty_index_to_update].recipient = migrated_to_raw.address.clone();
                 update = true;
             }
             if update {
@@ -183,6 +184,8 @@ pub(crate) fn update_migrated_minter(
         }
         None => {}
     };
+    // update any matching subscribers
+    update_migrated_subscriber(deps.storage, &from_raw, &migrated_to_raw)?;
 
     Ok(Response::new())
 }
