@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
 
     use crate::contract::instantiate;
     use crate::test_utils::test_utils::instantiate_msg;

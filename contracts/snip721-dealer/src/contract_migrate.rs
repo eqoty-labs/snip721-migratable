@@ -1,24 +1,24 @@
 use cosmwasm_std::{
-    Binary, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult,
-    SubMsg, to_binary, WasmMsg,
+    from_binary, to_binary, Binary, DepsMut, Env, MessageInfo, Reply, Response, StdError,
+    StdResult, SubMsg, WasmMsg,
 };
 use cw_migratable_contract_std::execute::check_contract_mode;
 use cw_migratable_contract_std::msg::MigrationListenerExecuteMsg;
 use cw_migratable_contract_std::msg_types::{MigrateFrom, MigrateTo};
 use cw_migratable_contract_std::state::{
-    CanonicalContractInfo, canonicalize, CONTRACT_MODE, ContractMode, MIGRATED_FROM,
-    MIGRATED_TO, MigratedFromState, MigratedToState, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
+    CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
 };
 use secret_toolkit::crypto::ContractPrng;
-use secret_toolkit::permit::{Permit, validate};
+use secret_toolkit::permit::{validate, Permit};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::PREFIX_REVOKED_PERMITS;
 
 use crate::msg::InstantiateByMigrationReplyDataMsg;
 use crate::msg_types::DealerState;
 use crate::state::{
-    ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH, PURCHASABLE_METADATA,
-    PurchasableMetadata, PURCHASE_PRICES,
+    PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+    PURCHASABLE_METADATA, PURCHASE_PRICES,
 };
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
@@ -38,7 +38,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
         deps.storage,
         &deps
             .api
-            .addr_canonicalize(&reply_data.dealer_state.admin.as_str())?,
+            .addr_canonicalize(reply_data.dealer_state.admin.as_str())?,
     )?;
     PURCHASE_PRICES.save(deps.storage, &reply_data.dealer_state.prices)?;
     CHILD_SNIP721_CODE_HASH.save(
@@ -73,7 +73,7 @@ pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> Std
     // clear the data (that contains the secret) which would be set when init_snip721 is called
     // from reply as part of the migration process
     // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
-    return Ok(Response::default().set_data(b""));
+    Ok(Response::default().set_data(b""))
 }
 
 pub(crate) fn migrate(
@@ -139,7 +139,7 @@ pub(crate) fn migrate(
         },
         migration_secret: secret.clone(),
     };
-    MIGRATED_TO.save(deps.storage, &migrated_to.clone())?;
+    MIGRATED_TO.save(deps.storage, &migrated_to)?;
     CONTRACT_MODE.save(deps.storage, &ContractMode::MigratedOut)?;
 
     let purchasable_metadata: PurchasableMetadata = PURCHASABLE_METADATA.load(deps.storage)?;
@@ -148,7 +148,7 @@ pub(crate) fn migrate(
     let contracts = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.storage)?;
     let msg = to_binary(
         &MigrationListenerExecuteMsg::MigrationCompleteNotification {
-            to: migrated_to.clone().contract.into_humanized(deps.api)?,
+            to: migrated_to.contract.into_humanized(deps.api)?,
             data: None,
         },
     )?;

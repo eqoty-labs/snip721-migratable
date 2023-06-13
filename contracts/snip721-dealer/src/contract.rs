@@ -1,3 +1,7 @@
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+};
 use cw_migratable_contract_std::execute::{
     add_migration_complete_event_subscriber, check_contract_mode,
     register_to_notify_on_migration_complete, update_migrated_subscriber,
@@ -8,10 +12,6 @@ use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExe
 use cw_migratable_contract_std::msg_types::MigrateTo;
 use cw_migratable_contract_std::query::query_migrated_info;
 use cw_migratable_contract_std::state::{canonicalize, ContractMode, CONTRACT_MODE};
-use cosmwasm_std::{
-    entry_point, to_binary, Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
-};
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 
@@ -37,7 +37,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let mut deps = deps;
-    return match msg {
+    match msg {
         InstantiateMsg::New(init) => init_snip721(&mut deps, env, info, init),
         InstantiateMsg::Migrate(init) => {
             let migrate_from = init.migrate_from;
@@ -59,7 +59,7 @@ pub fn instantiate(
             Ok(Response::new()
                 .add_submessages([SubMsg::reply_on_success(migrate_wasm_msg, MIGRATE_REPLY_ID)]))
         }
-    };
+    }
 }
 
 fn init_snip721(
@@ -68,10 +68,8 @@ fn init_snip721(
     info: MessageInfo,
     msg: InstantiateSelfAndChildSnip721Msg,
 ) -> StdResult<Response> {
-    if msg.prices.len() == 0 {
-        return Err(StdError::generic_err(format!(
-            "No purchase prices were specified"
-        )));
+    if msg.prices.is_empty() {
+        return Err(StdError::generic_err("No purchase prices were specified"));
     }
     // instantiate the child snip721 w/ this contract as admin to add this contract to its list of
     // minters. Then set a second msg in Reply to change the admin to true_admin
@@ -123,17 +121,17 @@ fn init_snip721(
         label: msg.snip721_label,
     };
 
-    return Ok(Response::new().add_submessages([SubMsg::reply_on_success(
+    Ok(Response::new().add_submessages([SubMsg::reply_on_success(
         instantiate_wasm_msg,
         INSTANTIATE_SNIP721_REPLY_ID,
-    )]));
+    )]))
 }
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut deps = deps;
     let mode = CONTRACT_MODE.load(deps.storage)?;
-    return match msg {
+    match msg {
         ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
             DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info, mode),
         },
@@ -151,7 +149,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 update_child_snip721(deps, info, mode, to)
             }
         },
-    };
+    }
 }
 
 fn update_child_snip721(
@@ -305,7 +303,7 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mode = CONTRACT_MODE.load(deps.storage)?;
-    return match msg {
+    match msg {
         QueryMsg::Dealer(dealer_msg) => match dealer_msg {
             DealerQueryMsg::GetPrices {} => query_prices(deps, mode),
             DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps, mode),
@@ -314,7 +312,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             MigratedTo {} => query_migrated_info(deps, false),
             MigratedFrom {} => query_migrated_info(deps, true),
         },
-    };
+    }
 }
 
 fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {

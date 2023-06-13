@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use cw_migratable_contract_std::msg::MigratableExecuteMsg;
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
@@ -9,6 +7,8 @@ mod tests {
         from_binary, Api, CanonicalAddr, Coin, CosmosMsg, Env, OwnedDeps, ReplyOn, StdError,
         StdResult, Uint128, WasmMsg,
     };
+    use cw_migratable_contract_std::msg::MigratableExecuteMsg;
+    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use snip721_reference_impl::msg::{
         ExecuteMsg, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
     };

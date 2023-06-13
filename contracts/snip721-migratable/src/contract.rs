@@ -1,3 +1,7 @@
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
+};
 use cw_migratable_contract_std::execute::check_contract_mode;
 use cw_migratable_contract_std::execute::register_to_notify_on_migration_complete;
 use cw_migratable_contract_std::execute::{
@@ -12,10 +16,6 @@ use cw_migratable_contract_std::query::query_migrated_info;
 use cw_migratable_contract_std::state::{
     canonicalize, ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
-};
-use cosmwasm_std::{
-    entry_point, to_binary, Binary, CanonicalAddr, ContractInfo, Deps, DepsMut, Env, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use schemars::_serde_json::to_string;
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
@@ -39,7 +39,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let mut deps = deps;
-    return match msg {
+    match msg {
         InstantiateMsg::New {
             instantiate,
             max_migration_complete_event_subscribers,
@@ -69,7 +69,7 @@ pub fn instantiate(
 
             Ok(Response::new().add_submessages([migrate_submessage]))
         }
-    };
+    }
 }
 
 pub(crate) fn init_snip721(
@@ -80,16 +80,16 @@ pub(crate) fn init_snip721(
 ) -> StdResult<Response> {
     CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
     let snip721_response =
-        snip721_reference_impl::contract::instantiate(deps, env, info.clone(), msg).unwrap();
+        snip721_reference_impl::contract::instantiate(deps, env, info, msg).unwrap();
 
-    return Ok(snip721_response);
+    Ok(snip721_response)
 }
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut config: Config = load(deps.storage, CONFIG_KEY)?;
     let mode = CONTRACT_MODE.load(deps.storage)?;
-    return match msg {
+    match msg {
         ExecuteMsg::Ext(ext_msg) => match ext_msg {
             ExecuteMsgExt::MigrateTokensIn { page_size } => {
                 perform_token_migration(deps, &env, info, mode, config, page_size)
@@ -110,7 +110,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                 on_migration_notification(deps, info, mode, to)
             }
         },
-    };
+    }
 }
 
 fn execute_base_snip721(
@@ -167,22 +167,21 @@ pub(crate) fn update_migrated_dependency(
     }
 
     // check if the royalty info is set to a minter. If so update it.
-    match may_load::<StoredRoyaltyInfo>(deps.storage, DEFAULT_ROYALTY_KEY)? {
-        Some(mut stored_royalty_info) => {
-            let mut royalties = stored_royalty_info.royalties;
-            let royalty_index_to_update = royalties
-                .iter()
-                .position(|royalty| royalty.recipient == from_raw);
-            if let Some(some_royalty_index_to_update) = royalty_index_to_update {
-                royalties[some_royalty_index_to_update].recipient = migrated_to_raw.address.clone();
-                update = true;
-            }
-            if update {
-                stored_royalty_info.royalties = royalties;
-                save(deps.storage, DEFAULT_ROYALTY_KEY, &stored_royalty_info)?
-            }
+    if let Some(mut stored_royalty_info) =
+        may_load::<StoredRoyaltyInfo>(deps.storage, DEFAULT_ROYALTY_KEY)?
+    {
+        let mut royalties = stored_royalty_info.royalties;
+        let royalty_index_to_update = royalties
+            .iter()
+            .position(|royalty| royalty.recipient == from_raw);
+        if let Some(some_royalty_index_to_update) = royalty_index_to_update {
+            royalties[some_royalty_index_to_update].recipient = migrated_to_raw.address.clone();
+            update = true;
         }
-        None => {}
+        if update {
+            stored_royalty_info.royalties = royalties;
+            save(deps.storage, DEFAULT_ROYALTY_KEY, &stored_royalty_info)?
+        }
     };
     // update any matching subscribers
     update_migrated_subscriber(deps.storage, &from_raw, &migrated_to_raw)?;
@@ -204,7 +203,7 @@ pub(crate) fn on_migration_complete(
         .load(deps.storage)?
         .contract
         .into_humanized(deps.api)?;
-    return if migrated_to.address != info.sender {
+    if migrated_to.address != info.sender {
         Err(StdError::generic_err(
             to_string(&OperationUnavailable {
                 message: "Only listening for migration complete notifications from the contract being migrated to".to_string(),
@@ -229,7 +228,7 @@ pub(crate) fn on_migration_complete(
                 let execute = WasmMsg::Execute {
                     msg: msg.clone(),
                     contract_addr: contract.address.to_string(),
-                    code_hash: contract.code_hash.clone(),
+                    code_hash: contract.code_hash,
                     funds: vec![],
                 };
                 SubMsg::new(execute)
@@ -237,7 +236,7 @@ pub(crate) fn on_migration_complete(
             .collect();
 
         Ok(Response::new().add_submessages(sub_msgs))
-    };
+    }
 }
 
 #[entry_point]
@@ -251,7 +250,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let mode = CONTRACT_MODE.load(deps.storage)?;
-    return match msg {
+    match msg {
         QueryMsg::Base(base_msg) => {
             match mode {
                 ContractMode::MigratedOut => {
@@ -286,5 +285,5 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             MigratableQueryMsg::MigratedTo {} => query_migrated_info(deps, false),
             MigratableQueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
         },
-    };
+    }
 }

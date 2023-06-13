@@ -1,8 +1,8 @@
+use cosmwasm_std::{Binary, Coin, ContractInfo};
 use cw_migratable_contract_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
 use cw_migratable_contract_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
-use cosmwasm_std::{Binary, Coin, ContractInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::royalties::RoyaltyInfo;

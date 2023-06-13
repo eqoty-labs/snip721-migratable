@@ -1,39 +1,39 @@
 use cosmwasm_std::{
-    Addr, Api, Binary, BlockInfo, CanonicalAddr, Deps, DepsMut, Env, from_binary, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg,
+    from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use cosmwasm_storage::ReadonlyPrefixedStorage;
 use cw_migratable_contract_std::execute::check_contract_mode;
 use cw_migratable_contract_std::msg::MigrationListenerExecuteMsg;
 use cw_migratable_contract_std::msg_types::{MigrateFrom, MigrateTo};
 use cw_migratable_contract_std::state::{
-    CanonicalContractInfo, canonicalize, CONTRACT_MODE, ContractMode, MIGRATED_FROM,
-    MIGRATED_TO, MigratedFromState, MigratedToState, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+    canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
+    CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
 };
 use secret_toolkit::crypto::ContractPrng;
-use secret_toolkit::permit::{Permit, validate};
+use secret_toolkit::permit::{validate, Permit};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::contract::{
     gen_snip721_approvals, get_token, mint_list, OwnerInfo, PermissionTypeInfo,
 };
 use snip721_reference_impl::expiration::Expiration;
 use snip721_reference_impl::mint_run::{SerialNumber, StoredMintRunInfo};
-use snip721_reference_impl::msg::{BatchNftDossierElement, InstantiateConfig, Mint};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
+use snip721_reference_impl::msg::{BatchNftDossierElement, InstantiateConfig, Mint};
 use snip721_reference_impl::royalties::{Royalty, RoyaltyInfo, StoredRoyaltyInfo};
 use snip721_reference_impl::state::{
-    Config, CONFIG_KEY, CREATOR_KEY, DEFAULT_ROYALTY_KEY, json_may_load, load, may_load, MINTERS_KEY,
-    Permission, PermissionType, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID, PREFIX_MINT_RUN,
-    PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS, PREFIX_ROYALTY_INFO,
-    save,
+    json_may_load, load, may_load, save, Config, Permission, PermissionType, CONFIG_KEY,
+    CREATOR_KEY, DEFAULT_ROYALTY_KEY, MINTERS_KEY, PREFIX_ALL_PERMISSIONS, PREFIX_MAP_TO_ID,
+    PREFIX_MINT_RUN, PREFIX_OWNER_PRIV, PREFIX_PRIV_META, PREFIX_PUB_META, PREFIX_REVOKED_PERMITS,
+    PREFIX_ROYALTY_INFO,
 };
 use snip721_reference_impl::token::Metadata;
 
 use crate::contract::init_snip721;
-use crate::msg::{ExecuteAnswer, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
 use crate::msg::QueryAnswer::MigrationBatchNftDossier;
-use crate::state::{MIGRATE_IN_TOKENS_PROGRESS, MigrateInTokensProgress};
+use crate::msg::{ExecuteAnswer, InstantiateByMigrationReplyDataMsg, QueryAnswer, QueryMsgExt};
+use crate::state::{MigrateInTokensProgress, MIGRATE_IN_TOKENS_PROGRESS};
 
 pub(crate) fn instantiate_with_migrated_config(
     deps: DepsMut,
@@ -60,10 +60,10 @@ pub(crate) fn instantiate_with_migrated_config(
     let snip721_response = init_snip721(
         &mut deps,
         env,
-        admin_info.clone(),
+        admin_info,
         reply_data.migrated_instantiate_msg,
     )
-        .unwrap();
+    .unwrap();
 
     let migrated_from = MigratedFromState {
         contract: CanonicalContractInfo {
@@ -102,7 +102,7 @@ pub(crate) fn instantiate_with_migrated_config(
     // clear the data (that contains the secret) which would be set when init_snip721 is called
     // from reply as part of the migration process
     // https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#handling-the-reply
-    return Ok(snip721_response.set_data(b""));
+    Ok(snip721_response.set_data(b""))
 }
 
 pub(crate) fn perform_token_migration(
@@ -141,7 +141,7 @@ pub(crate) fn perform_token_migration(
                 &QueryMsgExt::ExportMigrationData {
                     start_index: Some(start_at_idx),
                     max_count: page_size,
-                    secret: migrated_from_state.migration_secret.clone(),
+                    secret: migrated_from_state.migration_secret,
                 },
             )
             .unwrap();
@@ -153,11 +153,11 @@ pub(crate) fn perform_token_migration(
                 save_migration_dossier_list(
                     &mut deps,
                     env,
-                    &migrated_from.address.clone(),
+                    &migrated_from.address,
                     &admin_addr,
                     nft_dossiers,
                 )
-                    .unwrap();
+                .unwrap();
                 last_mint_index + 1
             }
         };
@@ -165,7 +165,7 @@ pub(crate) fn perform_token_migration(
     migrate_in_tokens_progress.migrate_in_next_mint_index = start_at_idx;
     MIGRATE_IN_TOKENS_PROGRESS.save(deps.storage, &migrate_in_tokens_progress)?;
 
-    return if start_at_idx < mint_count {
+    if start_at_idx < mint_count {
         Ok(
             Response::new().set_data(to_binary(&ExecuteAnswer::MigrateTokensIn {
                 complete: false,
@@ -184,7 +184,7 @@ pub(crate) fn perform_token_migration(
             },
         )?;
         let sub_msgs: Vec<SubMsg> = vec![SubMsg::new(WasmMsg::Execute {
-            msg: msg.clone(),
+            msg,
             contract_addr: migrated_from.address.to_string(),
             code_hash: migrated_from.code_hash.clone(),
             funds: vec![],
@@ -196,7 +196,7 @@ pub(crate) fn perform_token_migration(
                 next_mint_index: None,
                 total: None,
             })?))
-    };
+    }
 }
 
 fn stored_to_msg_royalty_info(stored: StoredRoyaltyInfo, api: &dyn Api) -> RoyaltyInfo {
@@ -259,7 +259,7 @@ fn save_migration_dossier_list(
                 private_metadata: nft.private_metadata.clone(),
                 serial_number,
                 royalty_info,
-                transferable: Some(nft.transferable.clone()),
+                transferable: Some(nft.transferable),
                 memo: Some(format!("\"migrated_from\": \"{}\"", migrated_from)),
             }
         })
@@ -370,22 +370,20 @@ pub(crate) fn migrate(
                 admin_permit,
             },
             remaining_migration_complete_event_sub_slots:
-            REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS.load(deps.storage)?,
+                REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS.load(deps.storage)?,
             migration_complete_event_subscribers: MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
                 .may_load(deps.storage)?
-                .map_or(None, |contracts| {
-                    Some(
-                        contracts
-                            .into_iter()
-                            .map(|c| c.into_humanized(deps.api).unwrap())
-                            .collect(),
-                    )
+                .map(|contracts| {
+                    contracts
+                        .into_iter()
+                        .map(|c| c.into_humanized(deps.api).unwrap())
+                        .collect()
                 }),
             minters: load(deps.storage, MINTERS_KEY)?,
             mint_count: snip721config.mint_cnt,
             secret,
         })
-            .unwrap(),
+        .unwrap(),
     ))
 }
 

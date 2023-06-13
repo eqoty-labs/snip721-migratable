@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use cw_migratable_contract_std::execute::build_operation_unavailable_error;
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::StdResult;
+    use cw_migratable_contract_std::execute::build_operation_unavailable_error;
+    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use strum::IntoEnumIterator;
 
     use crate::contract::query;

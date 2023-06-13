@@ -1,23 +1,21 @@
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
+        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
+        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+    };
     use cw_migratable_contract_std::execute::{
         build_operation_unavailable_error, register_to_notify_on_migration_complete,
     };
-    use cw_migratable_contract_std::msg::{
-        MigratableExecuteMsg, MigrationListenerExecuteMsg,
-    };
+    use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
     use cw_migratable_contract_std::msg_types::{
         InstantiateByMigrationMsg, MigrateFrom, MigrateTo,
     };
     use cw_migratable_contract_std::state::{
         canonicalize, ContractMode, MigratedFromState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
         MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
-    };
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{
-        from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo,
-        CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
-        SubMsgResponse, SubMsgResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
     };
     use secret_toolkit::permit::{
         validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,

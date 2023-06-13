@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use cw_migratable_contract_std::execute::build_operation_unavailable_error;
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
         from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, StdResult, Uint128,
         WasmMsg,
     };
+    use cw_migratable_contract_std::execute::build_operation_unavailable_error;
+    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::token::Metadata;
     use strum::IntoEnumIterator;
