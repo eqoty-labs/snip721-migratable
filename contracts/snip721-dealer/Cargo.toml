@@ -22,7 +22,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 snip721-reference-impl = { workspace = true }
-cosmwasm-contract-migratable-std = { workspace = true }
+cw-migratable-contract-std = { workspace = true }
 serde = { workspace = true }
 serde-cw-value = { workspace = true }
 schemars = { workspace = true }
@@ -31,5 +31,5 @@ cosmwasm-storage = { workspace = true }
 secret-toolkit = { workspace = true }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.2.1"}
+cosmwasm-schema = { version = "1.2.6"}
 strum = { version = "0.24.1", features = ["derive"] }

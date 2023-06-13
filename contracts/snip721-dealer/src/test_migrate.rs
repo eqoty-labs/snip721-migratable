@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_contract_migratable_std::execute::{
+    use cw_migratable_contract_std::execute::{
         build_operation_unavailable_error, register_to_notify_on_migration_complete,
     };
-    use cosmwasm_contract_migratable_std::msg::{
+    use cw_migratable_contract_std::msg::{
         MigratableExecuteMsg, MigrationListenerExecuteMsg,
     };
-    use cosmwasm_contract_migratable_std::msg_types::{
+    use cw_migratable_contract_std::msg_types::{
         InstantiateByMigrationMsg, MigrateFrom, MigrateTo,
     };
-    use cosmwasm_contract_migratable_std::state::{
+    use cw_migratable_contract_std::state::{
         canonicalize, ContractMode, MigratedFromState, CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO,
         MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     };
@@ -48,6 +48,9 @@ mod tests {
                 height: 12_345,
                 time: Timestamp::from_nanos(1_571_797_419_879_305_533),
                 chain_id: "cosmos-testnet-14002".to_string(),
+                random: Some(
+                    Binary::from_base64("wLsKdf/sYqvSMI0G0aWRjob25mrIB0VQVjTjDXnDafk=").unwrap(),
+                ),
             },
             transaction: Some(TransactionInfo { index: 3 }),
             contract: ContractInfo {
@@ -63,6 +66,7 @@ mod tests {
                 height: 12_345,
                 time: Timestamp::from_nanos(1_571_797_419_879_305_533),
                 chain_id: "cosmos-testnet-14002".to_string(),
+                random: Some(Binary::from_base64("dGhlIGNha2UgaXMgYSBsaWU=").unwrap()),
             },
             transaction: Some(TransactionInfo { index: 3 }),
             contract: ContractInfo {

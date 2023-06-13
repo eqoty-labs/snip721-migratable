@@ -1,4 +1,4 @@
-use cosmwasm_contract_migratable_std::msg_types::InstantiateByMigrationMsg;
+use cw_migratable_contract_std::msg_types::InstantiateByMigrationMsg;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 

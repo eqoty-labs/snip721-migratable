@@ -1,4 +1,4 @@
-use cosmwasm_contract_migratable_std::msg::{
+use cw_migratable_contract_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
 

@@ -1,7 +1,7 @@
-use cosmwasm_contract_migratable_std::msg::{
+use cw_migratable_contract_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
-use cosmwasm_contract_migratable_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
+use cw_migratable_contract_std::msg_types::{InstantiateByMigrationMsg, MigrateFrom};
 use cosmwasm_std::{Binary, CanonicalAddr, ContractInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

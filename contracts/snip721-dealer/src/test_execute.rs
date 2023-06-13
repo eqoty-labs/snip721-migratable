@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_contract_migratable_std::execute::build_operation_unavailable_error;
-    use cosmwasm_contract_migratable_std::state::{ContractMode, CONTRACT_MODE};
+    use cw_migratable_contract_std::execute::build_operation_unavailable_error;
+    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
         from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, StdResult, Uint128,

@@ -1,15 +1,15 @@
-use cosmwasm_contract_migratable_std::execute::check_contract_mode;
-use cosmwasm_contract_migratable_std::execute::register_to_notify_on_migration_complete;
-use cosmwasm_contract_migratable_std::execute::{
+use cw_migratable_contract_std::execute::check_contract_mode;
+use cw_migratable_contract_std::execute::register_to_notify_on_migration_complete;
+use cw_migratable_contract_std::execute::{
     build_operation_unavailable_error, update_migrated_subscriber,
 };
-use cosmwasm_contract_migratable_std::msg::{
+use cw_migratable_contract_std::msg::{
     MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
 };
-use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
-use cosmwasm_contract_migratable_std::msg_types::ReplyError::OperationUnavailable;
-use cosmwasm_contract_migratable_std::query::query_migrated_info;
-use cosmwasm_contract_migratable_std::state::{
+use cw_migratable_contract_std::msg_types::MigrateTo;
+use cw_migratable_contract_std::msg_types::ReplyError::OperationUnavailable;
+use cw_migratable_contract_std::query::query_migrated_info;
+use cw_migratable_contract_std::state::{
     canonicalize, ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
 };

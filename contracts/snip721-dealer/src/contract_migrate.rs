@@ -1,24 +1,24 @@
-use cosmwasm_contract_migratable_std::execute::check_contract_mode;
-use cosmwasm_contract_migratable_std::msg::MigrationListenerExecuteMsg;
-use cosmwasm_contract_migratable_std::msg_types::{MigrateFrom, MigrateTo};
-use cosmwasm_contract_migratable_std::state::{
-    canonicalize, CanonicalContractInfo, ContractMode, MigratedFromState, MigratedToState,
-    CONTRACT_MODE, MIGRATED_FROM, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
-};
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, DepsMut, Env, MessageInfo, Reply, Response, StdError,
-    StdResult, SubMsg, WasmMsg,
+    Binary, DepsMut, Env, from_binary, MessageInfo, Reply, Response, StdError, StdResult,
+    SubMsg, to_binary, WasmMsg,
 };
-use secret_toolkit::crypto::Prng;
-use secret_toolkit::permit::{validate, Permit};
+use cw_migratable_contract_std::execute::check_contract_mode;
+use cw_migratable_contract_std::msg::MigrationListenerExecuteMsg;
+use cw_migratable_contract_std::msg_types::{MigrateFrom, MigrateTo};
+use cw_migratable_contract_std::state::{
+    CanonicalContractInfo, canonicalize, CONTRACT_MODE, ContractMode, MIGRATED_FROM,
+    MIGRATED_TO, MigratedFromState, MigratedToState, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+};
+use secret_toolkit::crypto::ContractPrng;
+use secret_toolkit::permit::{Permit, validate};
 use secret_toolkit::viewing_key::{ViewingKey, ViewingKeyStore};
 use snip721_reference_impl::state::PREFIX_REVOKED_PERMITS;
 
 use crate::msg::InstantiateByMigrationReplyDataMsg;
 use crate::msg_types::DealerState;
 use crate::state::{
-    PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
-    PURCHASABLE_METADATA, PURCHASE_PRICES,
+    ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH, PURCHASABLE_METADATA,
+    PurchasableMetadata, PURCHASE_PRICES,
 };
 
 pub(crate) fn instantiate_with_migrated_config(deps: DepsMut, msg: Reply) -> StdResult<Response> {
@@ -128,7 +128,7 @@ pub(crate) fn migrate(
     seed_key.extend_from_slice(SEED_KEY);
     let seed = &deps.storage.get(&seed_key).unwrap_or_default();
 
-    let mut rng = Prng::new(seed, &rng_entropy);
+    let mut rng = ContractPrng::new(seed, &rng_entropy);
 
     let secret = Binary::from(rng.rand_bytes());
 

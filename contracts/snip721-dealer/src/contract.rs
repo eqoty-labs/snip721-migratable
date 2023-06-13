@@ -1,13 +1,13 @@
-use cosmwasm_contract_migratable_std::execute::{
+use cw_migratable_contract_std::execute::{
     add_migration_complete_event_subscriber, check_contract_mode,
     register_to_notify_on_migration_complete, update_migrated_subscriber,
 };
-use cosmwasm_contract_migratable_std::msg::MigratableExecuteMsg::Migrate;
-use cosmwasm_contract_migratable_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
-use cosmwasm_contract_migratable_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
-use cosmwasm_contract_migratable_std::msg_types::MigrateTo;
-use cosmwasm_contract_migratable_std::query::query_migrated_info;
-use cosmwasm_contract_migratable_std::state::{canonicalize, ContractMode, CONTRACT_MODE};
+use cw_migratable_contract_std::msg::MigratableExecuteMsg::Migrate;
+use cw_migratable_contract_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
+use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
+use cw_migratable_contract_std::msg_types::MigrateTo;
+use cw_migratable_contract_std::query::query_migrated_info;
+use cw_migratable_contract_std::state::{canonicalize, ContractMode, CONTRACT_MODE};
 use cosmwasm_std::{
     entry_point, to_binary, Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
