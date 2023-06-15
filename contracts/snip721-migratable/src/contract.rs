@@ -12,7 +12,7 @@ use cw_migratable_contract_std::msg::{
 };
 use cw_migratable_contract_std::msg_types::MigrateTo;
 use cw_migratable_contract_std::msg_types::ReplyError::OperationUnavailable;
-use cw_migratable_contract_std::query::query_migrated_info;
+use cw_migratable_contract_std::query::{query_migrated_info, MigrationDirection};
 use cw_migratable_contract_std::state::{
     canonicalize, ContractMode, CONTRACT_MODE, MIGRATED_TO, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,
@@ -282,8 +282,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } => migration_dossier_list(deps, &env.block, &mode, start_index, max_count, &secret),
         },
         QueryMsg::Migrate(migrate_msg) => match migrate_msg {
-            MigratableQueryMsg::MigratedTo {} => query_migrated_info(deps, false),
-            MigratableQueryMsg::MigratedFrom {} => query_migrated_info(deps, true),
+            MigratableQueryMsg::MigratedTo {} => query_migrated_info(deps, MigrationDirection::To),
+            MigratableQueryMsg::MigratedFrom {} => {
+                query_migrated_info(deps, MigrationDirection::From)
+            }
         },
     }
 }

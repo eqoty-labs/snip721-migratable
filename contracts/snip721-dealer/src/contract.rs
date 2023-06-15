@@ -10,7 +10,7 @@ use cw_migratable_contract_std::msg::MigratableExecuteMsg::Migrate;
 use cw_migratable_contract_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
 use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cw_migratable_contract_std::msg_types::MigrateTo;
-use cw_migratable_contract_std::query::query_migrated_info;
+use cw_migratable_contract_std::query::{query_migrated_info, MigrationDirection};
 use cw_migratable_contract_std::state::{canonicalize, ContractMode, CONTRACT_MODE};
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
@@ -309,8 +309,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps, mode),
         },
         QueryMsg::Migrate(migrate_msg) => match migrate_msg {
-            MigratedTo {} => query_migrated_info(deps, false),
-            MigratedFrom {} => query_migrated_info(deps, true),
+            MigratedTo {} => query_migrated_info(deps, MigrationDirection::To),
+            MigratedFrom {} => query_migrated_info(deps, MigrationDirection::From),
         },
     }
 }
