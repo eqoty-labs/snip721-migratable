@@ -101,6 +101,7 @@ tasks.withType<Test> {
     environment = createEnvVariables(environment)
     testLogging {
         showStandardStreams = true
+        exceptionFormat = TestExceptionFormat.FULL
     }
 }
 
