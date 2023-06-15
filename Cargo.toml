@@ -15,11 +15,11 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
-cosmwasm-std = { package = "secret-cosmwasm-std", version = "1.0.10", default-features = false }
-cosmwasm-storage = { package = "secret-cosmwasm-storage", version = "1.0.10", default-features = false }
+cosmwasm-std = { package = "secret-cosmwasm-std", version = "1.1.10", default-features = false }
+cosmwasm-storage = { package = "secret-cosmwasm-storage", version = "1.1.10", default-features = false }
 serde-cw-value = { version = "0.7.0" }
 schemars = "0.8.12"
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "ca567c6" }
 secret-toolkit = { version = "0.9.0", features = ["crypto"] }
-cw-migratable-contract-std = "7.0.0"
+cw-migratable-contract-std = "8.0.0"
 serde = { version = "1.0.164", default-features = false, features = ["derive"] }

@@ -37,6 +37,7 @@ import okio.Path.Companion.toPath
 import kotlin.math.ceil
 import kotlin.random.Random
 import kotlin.test.*
+import kotlin.time.Duration.Companion.seconds
 
 class IntegrationTests {
 
@@ -410,8 +411,8 @@ class IntegrationTests {
     }
 
     @BeforeTest
-    fun beforeEach() = runTest {
-        Logger.setTag("dapp")
+    fun beforeEach() = runTest(timeout = 60.seconds) {
+        Logger.setTag("tests")
         if (!clientInitialized) {
             val endpoint = testnetInfo.grpcGatewayEndpoint
             initializeClient(endpoint, testnetInfo.chainId, 3)
@@ -426,7 +427,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun snip721_migrated_info() = runTest {
+    fun snip721_migrated_info() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         val dealerQueriedSnip721V1 = getChildSnip721ContractInfo(dealerContractInfo)
         val migratedFromInfoV1 = getMigratedFromContractInfo(dealerQueriedSnip721V1)
@@ -461,7 +462,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_migrated_info() = runTest {
+    fun dealer_migrated_info() = runTest(timeout = 60.seconds) {
         val dealerContractV1 = initializeAndUploadDealerContract()
         val migratedFromInfoV1 = getMigratedFromContractInfo(dealerContractV1)
         assertEquals(null, migratedFromInfoV1)
@@ -494,7 +495,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_can_mint_after_dealer_migrates() = runTest {
+    fun dealer_can_mint_after_dealer_migrates() = runTest(timeout = 60.seconds) {
         val dealerContractV1 = initializeAndUploadDealerContract()
         val dealerContractV2 = migrateSnip721Dealer(dealerContractV1)
         val snip721Contract = getChildSnip721ContractInfo(dealerContractV2)
@@ -508,7 +509,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_can_mint_after_dealer_migrates_twice() = runTest {
+    fun dealer_can_mint_after_dealer_migrates_twice() = runTest(timeout = 60.seconds) {
         val dealerContractV1 = initializeAndUploadDealerContract()
         val dealerContractV2 = migrateSnip721Dealer(dealerContractV1)
         val dealerContractV3 = migrateSnip721Dealer(dealerContractV2)
@@ -524,7 +525,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun purchase_one_and_migrate_snip721() = runTest {
+    fun purchase_one_and_migrate_snip721() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -570,7 +571,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_is_notified_of_migrated_child_snip721_address() = runTest {
+    fun dealer_is_notified_of_migrated_child_snip721_address() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -591,7 +592,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun minters_are_migrated() = runTest {
+    fun minters_are_migrated() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
         val mintersV1 = getMinters(snip721ContractV1)
@@ -602,7 +603,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_can_mint_after_snip721_migrates_tokens() = runTest {
+    fun dealer_can_mint_after_snip721_migrates_tokens() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -627,7 +628,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_can_mint_after_snip721_migrates_tokens_twice() = runTest {
+    fun dealer_can_mint_after_snip721_migrates_tokens_twice() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -653,7 +654,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun dealer_cannot_mint_before_snip721_migrates_tokens() = runTest {
+    fun dealer_cannot_mint_before_snip721_migrates_tokens() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -678,7 +679,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun snip721_contract_state_being_migrated_cannot_be_altered_but_can_be_queried() = runTest {
+    fun snip721_contract_state_being_migrated_cannot_be_altered_but_can_be_queried() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -716,7 +717,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun migrated_snip721_tokens_cannot_be_queried() = runTest {
+    fun migrated_snip721_tokens_cannot_be_queried() = runTest(timeout = 60.seconds) {
         val dealerContractInfo = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
@@ -746,7 +747,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun non_admin_permit_cannot_migrate_dealer() = runTest {
+    fun non_admin_permit_cannot_migrate_dealer() = runTest(timeout = 60.seconds) {
         val dealerContract = initializeAndUploadDealerContract()
         client.senderAddress = client.wallet.getAccounts()[1].address
         val errorMessage = try {
@@ -759,7 +760,7 @@ class IntegrationTests {
     }
 
     @Test
-    fun non_admin_permit_cannot_migrate_snip721() = runTest {
+    fun non_admin_permit_cannot_migrate_snip721() = runTest(timeout = 60.seconds) {
         val dealerContract = initializeAndUploadDealerContract()
         val snip721Contract = getChildSnip721ContractInfo(dealerContract)
         client.senderAddress = client.wallet.getAccounts()[1].address

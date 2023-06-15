@@ -1,9 +1,8 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 import java.util.*
 
 plugins {
-    @Suppress("DSL_SCOPE_VIOLATION")
-    val libs = libs
     alias(libs.plugins.org.jetbrains.kotlin.multiplatform)
     alias(libs.plugins.org.jetbrains.kotlin.plugin.serialization)
 }
@@ -102,6 +101,7 @@ tasks.withType<Test> {
     environment = createEnvVariables(environment)
     testLogging {
         showStandardStreams = true
+        exceptionFormat = TestExceptionFormat.FULL
     }
 }
 
@@ -109,5 +109,6 @@ tasks.withType<KotlinNativeTest> {
     environment = createEnvVariables(environment)
     testLogging {
         showStandardStreams = true
+        exceptionFormat = TestExceptionFormat.FULL
     }
 }
