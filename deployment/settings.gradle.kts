@@ -37,3 +37,4 @@ refreshVersions { // Optional: configure the plugin
 
 rootProject.name = "tests"
 
+include(":integration-tests")

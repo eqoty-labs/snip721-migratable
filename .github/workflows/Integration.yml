@@ -13,7 +13,7 @@ jobs:
         rust: [1.69.0]
         make:
           - name: Run integration tests # Integration tests
-            task: "(cd tests && NODE_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
+            task: "(cd deployment && NODE_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
         include:
           - os: ubuntu-latest
             sccache-path: /home/runner/.cache/sccache
