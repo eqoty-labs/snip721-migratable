@@ -32,10 +32,8 @@ object TestGlobals {
         wallet.addressToAccountSigningData.values.forEach { a ->
             Logger.i("Added random account to wallet w/ mnemonic: ${a.mnemonic?.map { it.concatToString() }}")
         }
-        val accAddress = wallet.accounts[0].address
         val client = SigningCosmWasmClient.init(
             endpoint,
-            accAddress,
             wallet,
             chainId = chainId
         )
@@ -55,15 +53,12 @@ object TestGlobals {
                 amount = listOf(Coin(1, "usrct")),
             )
         )
-        val originalSenderAddress = client.senderAddress
         try {
-            client.senderAddress = senderAddress
             client.execute(
                 msgs,
                 txOptions = TxOptions(gasLimit = 100000)
             )
         } catch (_: Throwable) {
         }
-        client.senderAddress = originalSenderAddress
     }
 }
