@@ -45,8 +45,11 @@ class IntegrationTests {
     private val purchasePrices = listOf(Coin(amount = 2000000, denom = "uscrt"))
 
     // Initialization procedure
-    private suspend fun initializeAndUploadDealerContract(migrateFrom: MigratableContractTypes.MigrateFrom? = null): ContractInfo {
-        val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, snip721MigratableContractCodePath)
+    private suspend fun initializeAndUploadDealerContract(
+        senderAddress: String, migrateFrom: MigratableContractTypes.MigrateFrom? = null
+    ): ContractInfo {
+        val snip721MigratableCodeInfo =
+            DeployContractUtils.getOrStoreCode(client, senderAddress, snip721MigratableContractCodePath, null)
         val initMsg = if (migrateFrom == null) {
             Snip721DealerMsgs.Instantiate(
                 new = Snip721DealerMsgs.Instantiate.InstantiateSelfAnChildSnip721Msg(
@@ -56,7 +59,7 @@ class IntegrationTests {
                     prices = purchasePrices,
                     publicMetadata = Snip721Msgs.Metadata("publicMetadataUri"),
                     privateMetadata = Snip721Msgs.Metadata("privateMetadataUri"),
-                    admin = client.senderAddress,
+                    admin = senderAddress,
                     entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
                 )
             )
@@ -70,7 +73,7 @@ class IntegrationTests {
         }
         val instantiateMsgs = listOf(
             MsgInstantiateContract(
-                sender = client.senderAddress,
+                sender = senderAddress,
                 codeId = null, // will be set later
                 initMsg = Json.encodeToString(initMsg),
                 label = "Snip721Dealer" + ceil(Random.nextDouble() * 1000000),
@@ -78,42 +81,35 @@ class IntegrationTests {
             )
         )
         return DeployContractUtils.getOrStoreCodeAndInstantiate(
-            client,
-            snip721DealerContractCodePath,
-            instantiateMsgs,
+            client, senderAddress, snip721DealerContractCodePath, instantiateMsgs, null, null
         ).let {
             ContractInfo(
-                it.address,
-                it.codeInfo.codeHash
+                it.address, it.codeInfo.codeHash
             )
         }
     }
 
-    private suspend fun migrateSnip721Contract(contract: ContractInfo) =
-        migrateContract(contract, "Snip721Migratable", snip721MigratableContractCodePath)
+    private suspend fun migrateSnip721Contract(senderAddress: String, contract: ContractInfo) =
+        migrateContract(senderAddress, contract, "Snip721Migratable", snip721MigratableContractCodePath)
 
-    private suspend fun migrateSnip721Dealer(contract: ContractInfo) =
-        migrateContract(contract, "Snip721Dealer", snip721DealerContractCodePath)
+    private suspend fun migrateSnip721Dealer(senderAddress: String, contract: ContractInfo) =
+        migrateContract(senderAddress, contract, "Snip721Dealer", snip721DealerContractCodePath)
 
     private suspend fun migrateContract(
-        contract: ContractInfo,
-        labelBase: String,
-        codepath: Path
+        senderAddress: String, contract: ContractInfo, labelBase: String, codepath: Path
     ): ContractInfo {
         val permit = PermitFactory.newPermit(
-            client.wallet,
-            client.senderAddress,
+            client.wallet!!,
+            senderAddress,
             client.getChainId(),
             "test",
             listOf(contract.address),
             listOf(Permission.Owner)
         )
         val migrateFrom = MigratableContractTypes.MigrateFrom(
-            contract.address,
-            contract.codeHash,
-            permit
+            contract.address, contract.codeHash, permit
         )
-        val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, codepath)
+        val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, senderAddress, codepath, null)
         val instantiateByMigration = MigratableContractMsg.Instantiate(
             migrate = MigratableContractTypes.InstantiateByMigration(
                 migrateFrom = migrateFrom,
@@ -123,27 +119,22 @@ class IntegrationTests {
 
         val instantiateMsgs = listOf(
             MsgInstantiateContract(
-                sender = client.senderAddress,
+                sender = senderAddress,
                 codeId = null, // will be set later
                 initMsg = Json.encodeToString(instantiateByMigration),
                 label = labelBase + ceil(Random.nextDouble() * 1000000),
                 codeHash = null // will be set later
             )
         )
-        return DeployContractUtils
-            .instantiateCode(client, snip721MigratableCodeInfo, instantiateMsgs)
-            .let {
-                ContractInfo(
-                    it.address,
-                    it.codeInfo.codeHash
-                )
-            }
+        return DeployContractUtils.instantiateCode(client, snip721MigratableCodeInfo, instantiateMsgs, null).let {
+            ContractInfo(
+                it.address, it.codeInfo.codeHash
+            )
+        }
     }
 
     private suspend fun purchaseOneMint(
-        client: SigningCosmWasmClient,
-        contractInfo: ContractInfo,
-        sentFunds: List<Coin>
+        client: SigningCosmWasmClient, senderAddress: String, contractInfo: ContractInfo, sentFunds: List<Coin>
     ): ExecuteResult<Any> {
         val purchaseMintMsg = Json.encodeToString(
             Snip721DealerMsgs.Execute(
@@ -152,7 +143,7 @@ class IntegrationTests {
         )
         val msgs = listOf(
             MsgExecuteContract(
-                sender = client.senderAddress,
+                sender = senderAddress,
                 contractAddress = contractInfo.address,
                 codeHash = contractInfo.codeHash,
                 msg = purchaseMintMsg,
@@ -165,8 +156,7 @@ class IntegrationTests {
         val txOptions = TxOptions(gasLimit = gasLimit)
         val res = try {
             client.execute(
-                msgs,
-                txOptions = txOptions
+                msgs, txOptions = txOptions
             )
         } catch (t: Throwable) {
             Logger.i(t.message ?: "")
@@ -183,13 +173,10 @@ class IntegrationTests {
         client: SigningCosmWasmClient,
         contractInfo: ContractInfo,
     ): ExecuteResult<Any> {
-        val savedSender = client.senderAddress
-        client.senderAddress = from
         val msg = Json.encodeToString(
             Snip721Msgs.Execute(
                 transferNft = Snip721Msgs.Execute.TransferNft(
-                    recipient = to,
-                    tokenId = tokenId
+                    recipient = to, tokenId = tokenId
                 )
             )
         )
@@ -208,21 +195,18 @@ class IntegrationTests {
         val txOptions = TxOptions(gasLimit = gasLimit)
         val res = try {
             client.execute(
-                msgs,
-                txOptions = txOptions
+                msgs, txOptions = txOptions
             )
         } catch (t: Throwable) {
             Logger.i(t.message ?: "")
             null
         }
-        client.senderAddress = savedSender
         val gasFee = client.gasToFee(txOptions.gasLimit, txOptions.gasPriceInFeeDenom)
         return ExecuteResult(res, Coin(gasFee, "uscrt"))
     }
 
     private suspend fun migrateTokens(
-        client: SigningCosmWasmClient,
-        contractInfo: ContractInfo
+        client: SigningCosmWasmClient, senderAddress: String, contractInfo: ContractInfo
     ): ExecuteResult<Snip721DealerMsgs.ExecuteAnswer.MigrateTokensIn> {
         val msg = Json.encodeToString(
             Snip721DealerMsgs.Execute(
@@ -231,7 +215,7 @@ class IntegrationTests {
         )
         val msgs = listOf(
             MsgExecuteContract(
-                sender = client.senderAddress,
+                sender = senderAddress,
                 contractAddress = contractInfo.address,
                 codeHash = contractInfo.codeHash,
                 msg = msg,
@@ -244,8 +228,7 @@ class IntegrationTests {
         val txOptions = TxOptions(gasLimit = gasLimit)
         val res = try {
             client.execute(
-                msgs,
-                txOptions = txOptions
+                msgs, txOptions = txOptions
             )
         } catch (t: Throwable) {
             Logger.i(t.message ?: "")
@@ -256,22 +239,15 @@ class IntegrationTests {
     }
 
     suspend fun getNumTokensOfOwner(
-        ownerAddress: String,
-        contractAddr: String
+        ownerAddress: String, contractAddr: String
     ): Snip721Msgs.QueryAnswer.NumTokens {
         val permit = PermitFactory.newPermit(
-            client.wallet,
-            client.senderAddress,
-            client.getChainId(),
-            "test",
-            listOf(contractAddr),
-            listOf(Permission.Owner)
+            client.wallet!!, ownerAddress, client.getChainId(), "test", listOf(contractAddr), listOf(Permission.Owner)
         )
         val numTokensQuery = Json.encodeToString(
             Snip721Msgs.Query(
                 withPermit = Snip721Msgs.Query.WithPermit(
-                    permit,
-                    query = Snip721Msgs.QueryWithPermit(
+                    permit, query = Snip721Msgs.QueryWithPermit(
                         numTokensOfOwner = Snip721Msgs.QueryWithPermit.NumTokensOfOwner(ownerAddress),
                     )
                 )
@@ -279,8 +255,7 @@ class IntegrationTests {
         )
         return Json.decodeFromString<Snip721Msgs.QueryAnswer>(
             client.queryContractSmart(
-                contractAddr,
-                numTokensQuery
+                contractAddr, numTokensQuery
             )
         ).numTokens!!
     }
@@ -288,8 +263,7 @@ class IntegrationTests {
     suspend fun getSnip721ContractInfo(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.ContractInfo {
         val query = Snip721Msgs.Query(contractInfo = Snip721Msgs.Query.ContractInfo())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).contractInfo!!
     }
@@ -297,8 +271,7 @@ class IntegrationTests {
     suspend fun getContractConfig(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.ContractConfig {
         val query = Snip721Msgs.Query(contractConfig = Snip721Msgs.Query.ContractConfig())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).contractConfig!!
     }
@@ -306,8 +279,7 @@ class IntegrationTests {
     suspend fun getPurchasePrice(contractInstance: ContractInstance): List<Coin> {
         val query = Snip721DealerMsgs.Query(getPrices = Snip721DealerMsgs.Query.GetPrices())
         val res = client.queryContractSmart(
-            contractInstance.address,
-            Json.encodeToString(query), contractInstance.codeInfo.codeHash
+            contractInstance.address, Json.encodeToString(query), contractInstance.codeInfo.codeHash
         )
         return Json.decodeFromString<Snip721DealerMsgs.QueryAnswer>(res).getPrices!!.prices
     }
@@ -315,8 +287,7 @@ class IntegrationTests {
     suspend fun getMigratedToContractInfo(contractInfo: ContractInfo): ContractInfo? {
         val query = Snip721DealerMsgs.Query(migratedTo = Snip721DealerMsgs.Query.MigratedTo())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721DealerMsgs.QueryAnswer>(res).migrationInfo
     }
@@ -324,8 +295,7 @@ class IntegrationTests {
     suspend fun getMigratedFromContractInfo(contractInfo: ContractInfo): ContractInfo? {
         val query = Snip721DealerMsgs.Query(migratedFrom = Snip721DealerMsgs.Query.MigratedFrom())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721DealerMsgs.QueryAnswer>(res).migrationInfo
     }
@@ -333,8 +303,7 @@ class IntegrationTests {
     suspend fun getChildSnip721ContractInfo(contractInfo: ContractInfo): ContractInfo {
         val query = Snip721DealerMsgs.Query(getChildSnip721 = Snip721DealerMsgs.Query.GetChildSnip721())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721DealerMsgs.QueryAnswer>(res).contractInfo!!
     }
@@ -342,8 +311,7 @@ class IntegrationTests {
     suspend fun getMinters(contractInfo: ContractInfo): Snip721Msgs.QueryAnswer.Minters {
         val query = Snip721Msgs.Query(minters = Snip721Msgs.Query.Minters())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).minters!!
     }
@@ -351,19 +319,17 @@ class IntegrationTests {
     suspend fun getNumTokens(contractInfo: ContractInfo): Int {
         val query = Snip721Msgs.Query(numTokens = Snip721Msgs.Query.NumTokens())
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         return Json.decodeFromString<Snip721Msgs.QueryAnswer>(res).numTokens!!.count
     }
 
     suspend fun getBatchNftDossiers(
-        contractInfo: ContractInfo,
-        tokenIds: List<String>
+        senderAddress: String, contractInfo: ContractInfo, tokenIds: List<String>
     ): Snip721Msgs.QueryAnswer.BatchNftDossier {
         val permit = PermitFactory.newPermit(
-            client.wallet,
-            client.senderAddress,
+            client.wallet!!,
+            senderAddress,
             client.getChainId(),
             "test",
             listOf(contractInfo.address),
@@ -371,15 +337,13 @@ class IntegrationTests {
         )
         val query = Snip721Msgs.Query(
             withPermit = Snip721Msgs.Query.WithPermit(
-                permit = permit,
-                query = Snip721Msgs.QueryWithPermit(
+                permit = permit, query = Snip721Msgs.QueryWithPermit(
                     batchNftDossier = Snip721Msgs.QueryWithPermit.BatchNftDossier(tokenIds)
                 )
             )
         )
         val res = client.queryContractSmart(
-            contractInfo.address,
-            Json.encodeToString(query), contractInfo.codeHash
+            contractInfo.address, Json.encodeToString(query), contractInfo.codeHash
         )
         val json = Json { ignoreUnknownKeys = true }
         // workaround deserialize public_ownership_expiration by ignoring it.
@@ -392,15 +356,13 @@ class IntegrationTests {
     ): Snip721Msgs.QueryAnswer.TransactionHistory {
         val query = Snip721Msgs.Query(
             withPermit = Snip721Msgs.Query.WithPermit(
-                permit = permit,
-                query = Snip721Msgs.QueryWithPermit(
+                permit = permit, query = Snip721Msgs.QueryWithPermit(
                     transactionHistory = Snip721Msgs.QueryWithPermit.TransactionHistory()
                 )
             )
         )
         val res = client.queryContractSmart(
-            contractInstance.address,
-            Json.encodeToString(query), contractInstance.codeInfo.codeHash
+            contractInstance.address, Json.encodeToString(query), contractInstance.codeInfo.codeHash
         )
         val json = Json { ignoreUnknownKeys = true }
         // workaround deserialize public_ownership_expiration by ignoring it.
@@ -413,25 +375,25 @@ class IntegrationTests {
         if (!clientInitialized) {
             val endpoint = testnetInfo.grpcGatewayEndpoint
             initializeClient(endpoint, testnetInfo.chainId, 3)
-            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[0].address)
-            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[1].address)
-            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet.getAccounts()[2].address)
-            intializeAccountBeforeExecuteWorkaround(client.wallet.getAccounts()[0].address)
-            intializeAccountBeforeExecuteWorkaround(client.wallet.getAccounts()[1].address)
-            intializeAccountBeforeExecuteWorkaround(client.wallet.getAccounts()[2].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet!!.getAccounts()[0].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet!!.getAccounts()[1].address)
+            BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet!!.getAccounts()[2].address)
+            intializeAccountBeforeExecuteWorkaround(client.wallet!!.getAccounts()[0].address)
+            intializeAccountBeforeExecuteWorkaround(client.wallet!!.getAccounts()[1].address)
+            intializeAccountBeforeExecuteWorkaround(client.wallet!!.getAccounts()[2].address)
         }
-        client.senderAddress = client.wallet.getAccounts()[0].address
     }
 
     @Test
     fun snip721_migrated_info() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
+        val senderAddress = client.wallet!!.getAccounts()[0].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress)
         val dealerQueriedSnip721V1 = getChildSnip721ContractInfo(dealerContractInfo)
         val migratedFromInfoV1 = getMigratedFromContractInfo(dealerQueriedSnip721V1)
         assertEquals(null, migratedFromInfoV1)
         var migratedToInfoV1 = getMigratedToContractInfo(dealerQueriedSnip721V1)
         assertEquals(null, migratedToInfoV1)
-        val snip721ContractInfoV2 = migrateSnip721Contract(dealerQueriedSnip721V1)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress, dealerQueriedSnip721V1)
 
         assertNotEquals(dealerQueriedSnip721V1, snip721ContractInfoV2)
 
@@ -445,7 +407,7 @@ class IntegrationTests {
 
         assertEquals(null, migratedToInfoV2)
 
-        migrateTokens(client, snip721ContractInfoV2)
+        migrateTokens(client, senderAddress, snip721ContractInfoV2)
 
         // test again to make sure queries are still available after contract changes mode to Running
         migratedToInfoV1 = getMigratedToContractInfo(dealerQueriedSnip721V1)
@@ -460,12 +422,13 @@ class IntegrationTests {
 
     @Test
     fun dealer_migrated_info() = runTest(timeout = 60.seconds) {
-        val dealerContractV1 = initializeAndUploadDealerContract()
+        val senderAddress = client.wallet!!.getAccounts()[0].address
+        val dealerContractV1 = initializeAndUploadDealerContract(senderAddress)
         val migratedFromInfoV1 = getMigratedFromContractInfo(dealerContractV1)
         assertEquals(null, migratedFromInfoV1)
         var migratedToInfoV1 = getMigratedToContractInfo(dealerContractV1)
         assertEquals(null, migratedToInfoV1)
-        val dealerContractV2 = migrateSnip721Dealer(dealerContractV1)
+        val dealerContractV2 = migrateSnip721Dealer(senderAddress, dealerContractV1)
 
         assertNotEquals(dealerContractV1, dealerContractV2)
 
@@ -493,181 +456,162 @@ class IntegrationTests {
 
     @Test
     fun dealer_can_mint_after_dealer_migrates() = runTest(timeout = 60.seconds) {
-        val dealerContractV1 = initializeAndUploadDealerContract()
-        val dealerContractV2 = migrateSnip721Dealer(dealerContractV1)
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val dealerContractV1 = initializeAndUploadDealerContract(senderAddress0)
+        val dealerContractV2 = migrateSnip721Dealer(senderAddress0, dealerContractV1)
         val snip721Contract = getChildSnip721ContractInfo(dealerContractV2)
-        client.senderAddress = client.wallet.getAccounts()[1].address
-        purchaseOneMint(client, dealerContractV2, purchasePrices)
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        purchaseOneMint(client, senderAddress1, dealerContractV2, purchasePrices)
 
         assertEquals(
-            1,
-            getNumTokensOfOwner(client.senderAddress, snip721Contract.address).count
+            1, getNumTokensOfOwner(senderAddress1, snip721Contract.address).count
         )
     }
 
     @Test
     fun dealer_can_mint_after_dealer_migrates_twice() = runTest(timeout = 60.seconds) {
-        val dealerContractV1 = initializeAndUploadDealerContract()
-        val dealerContractV2 = migrateSnip721Dealer(dealerContractV1)
-        val dealerContractV3 = migrateSnip721Dealer(dealerContractV2)
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractV1 = initializeAndUploadDealerContract(senderAddress0)
+        val dealerContractV2 = migrateSnip721Dealer(senderAddress0, dealerContractV1)
+        val dealerContractV3 = migrateSnip721Dealer(senderAddress0, dealerContractV2)
 
         val snip721Contract = getChildSnip721ContractInfo(dealerContractV3)
-        client.senderAddress = client.wallet.getAccounts()[1].address
-        purchaseOneMint(client, dealerContractV3, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractV3, purchasePrices)
 
         assertEquals(
-            1,
-            getNumTokensOfOwner(client.senderAddress, snip721Contract.address).count
+            1, getNumTokensOfOwner(senderAddress1, snip721Contract.address).count
         )
     }
 
     @Test
     fun purchase_one_and_migrate_snip721() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
 
 
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        val numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        val numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         assertEquals(1, numTokensOfOwner)
 
         val snip721ContractInfoQueryV1 = getSnip721ContractInfo(snip721ContractV1)
         val contractConfigV1 = getContractConfig(snip721ContractV1)
         val numTokensV1 = getNumTokens(snip721ContractV1)
-        val nftDossiersV1 = getBatchNftDossiers(snip721ContractV1, listOf("0"))
+        val nftDossiersV1 = getBatchNftDossiers(senderAddress1, snip721ContractV1, listOf("0"))
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
 
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
 
-        migrateTokens(client, snip721ContractInfoV2)
-
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        migrateTokens(client, senderAddress0, snip721ContractInfoV2)
 
         assertNotEquals(snip721ContractV1.address, snip721ContractInfoV2.address)
         assertEquals(
-            snip721ContractInfoQueryV1,
-            getSnip721ContractInfo(snip721ContractInfoV2)
+            snip721ContractInfoQueryV1, getSnip721ContractInfo(snip721ContractInfoV2)
         )
         assertEquals(contractConfigV1, getContractConfig(snip721ContractInfoV2))
         assertEquals(numTokensV1, getNumTokens(snip721ContractInfoV2))
         val json = Json { prettyPrint = true }
-        val nftDossiersV2 = getBatchNftDossiers(snip721ContractInfoV2, listOf("0"))
+        val nftDossiersV2 = getBatchNftDossiers(senderAddress1, snip721ContractInfoV2, listOf("0"))
         assertTrue(
             nftDossiersV1.equals(
-                nftDossiersV2,
-                ignoreCollectionCreator = true,
-                ignoreTokenCreator = true,
-                ignoreTimeOfMinting = true
-            ),
-            "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
+                nftDossiersV2, ignoreCollectionCreator = true, ignoreTokenCreator = true, ignoreTimeOfMinting = true
+            ), "expected:\n${json.encodeToString(nftDossiersV1)}\nactual:\n${json.encodeToString(nftDossiersV2)}"
         )
     }
 
     @Test
     fun dealer_is_notified_of_migrated_child_snip721_address() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        val startingNumTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        val startingNumTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        val numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        val numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         assertEquals(startingNumTokensOfOwner + 1, numTokensOfOwner)
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
 
-        migrateTokens(client, snip721ContractInfoV2)
+        migrateTokens(client, senderAddress0, snip721ContractInfoV2)
 
         assertEquals(snip721ContractInfoV2, getChildSnip721ContractInfo(dealerContractInfo))
     }
 
     @Test
     fun minters_are_migrated() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
         val mintersV1 = getMinters(snip721ContractV1)
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
-        migrateTokens(client, snip721ContractInfoV2)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
+        migrateTokens(client, senderAddress0, snip721ContractInfoV2)
         val mintersV2 = getMinters(snip721ContractInfoV2)
         assertEquals(mintersV1, mintersV2)
     }
 
     @Test
     fun dealer_can_mint_after_snip721_migrates_tokens() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        var numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        var numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         assertEquals(1, numTokensOfOwner)
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
 
-        migrateTokens(client, snip721ContractInfoV2)
+        migrateTokens(client, senderAddress0, snip721ContractInfoV2)
 
-        client.senderAddress = client.wallet.getAccounts()[1].address
-
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractInfoV2.address).count
+        numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractInfoV2.address).count
         assertEquals(2, numTokensOfOwner)
     }
 
     @Test
     fun dealer_can_mint_after_snip721_migrates_tokens_twice() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        var numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        var numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         assertEquals(1, numTokensOfOwner)
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
-        migrateTokens(client, snip721ContractInfoV2)
-        val snip721ContractInfoV3 = migrateSnip721Contract(snip721ContractInfoV2)
-        migrateTokens(client, snip721ContractInfoV3)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
+        migrateTokens(client, senderAddress0, snip721ContractInfoV2)
+        val snip721ContractInfoV3 = migrateSnip721Contract(senderAddress0, snip721ContractInfoV2)
+        migrateTokens(client, senderAddress0, snip721ContractInfoV3)
 
-        client.senderAddress = client.wallet.getAccounts()[1].address
 
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractInfoV3.address).count
+        numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractInfoV3.address).count
         assertEquals(2, numTokensOfOwner)
     }
 
     @Test
     fun dealer_cannot_mint_before_snip721_migrates_tokens() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
-        val numTokensOfOwner =
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+        val numTokensOfOwner = getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         assertEquals(1, numTokensOfOwner)
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
-
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
 
         val purchaseError = try {
-            purchaseOneMint(client, dealerContractInfo, purchasePrices)
+            purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
             ""
         } catch (t: Throwable) {
             t.message!!
@@ -677,24 +621,23 @@ class IntegrationTests {
 
     @Test
     fun snip721_contract_state_being_migrated_cannot_be_altered_but_can_be_queried() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
 
         assertEquals(
-            1,
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+            1, getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         )
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
 
         val transferError = try {
             transferNft(
-                client.wallet.getAccounts()[1].address,
-                client.wallet.getAccounts()[2].address,
+                client.wallet!!.getAccounts()[1].address,
+                client.wallet!!.getAccounts()[2].address,
                 "0",
                 client,
                 snip721ContractV1
@@ -705,36 +648,32 @@ class IntegrationTests {
         }
         assertContains(transferError, "Not available in contact mode: MigrateOutStarted")
 
-        client.senderAddress = client.wallet.getAccounts()[1].address
         assertEquals(
-            1,
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+            1, getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         )
 
     }
 
     @Test
     fun migrated_snip721_tokens_cannot_be_queried() = runTest(timeout = 60.seconds) {
-        val dealerContractInfo = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContractInfo = initializeAndUploadDealerContract(senderAddress0)
         val snip721ContractV1 = getChildSnip721ContractInfo(dealerContractInfo)
-        purchaseOneMint(client, dealerContractInfo, purchasePrices)
+        purchaseOneMint(client, senderAddress1, dealerContractInfo, purchasePrices)
         // verify customer received one nft
 
         assertEquals(
-            1,
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+            1, getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
         )
 
-        client.senderAddress = client.wallet.getAccounts()[0].address
-        val snip721ContractInfoV2 = migrateSnip721Contract(snip721ContractV1)
+        val snip721ContractInfoV2 = migrateSnip721Contract(senderAddress0, snip721ContractV1)
 
-        migrateTokens(client, snip721ContractInfoV2)
+        migrateTokens(client, senderAddress0, snip721ContractInfoV2)
 
-        client.senderAddress = client.wallet.getAccounts()[1].address
 
         val getNumTokensOfOwnerError = try {
-            getNumTokensOfOwner(client.senderAddress, snip721ContractV1.address).count
+            getNumTokensOfOwner(senderAddress1, snip721ContractV1.address).count
             ""
         } catch (t: Throwable) {
             t.message!!
@@ -745,10 +684,11 @@ class IntegrationTests {
 
     @Test
     fun non_admin_permit_cannot_migrate_dealer() = runTest(timeout = 60.seconds) {
-        val dealerContract = initializeAndUploadDealerContract()
-        client.senderAddress = client.wallet.getAccounts()[1].address
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContract = initializeAndUploadDealerContract(senderAddress0)
         val errorMessage = try {
-            migrateSnip721Dealer(dealerContract)
+            migrateSnip721Dealer(senderAddress1, dealerContract)
             ""
         } catch (t: Throwable) {
             t.message!!
@@ -758,11 +698,12 @@ class IntegrationTests {
 
     @Test
     fun non_admin_permit_cannot_migrate_snip721() = runTest(timeout = 60.seconds) {
-        val dealerContract = initializeAndUploadDealerContract()
+        val senderAddress0 = client.wallet!!.getAccounts()[0].address
+        val senderAddress1 = client.wallet!!.getAccounts()[1].address
+        val dealerContract = initializeAndUploadDealerContract(senderAddress0)
         val snip721Contract = getChildSnip721ContractInfo(dealerContract)
-        client.senderAddress = client.wallet.getAccounts()[1].address
         val errorMessage = try {
-            migrateSnip721Contract(snip721Contract)
+            migrateSnip721Contract(senderAddress1, snip721Contract)
             ""
         } catch (t: Throwable) {
             t.message!!

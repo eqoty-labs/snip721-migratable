@@ -35,8 +35,7 @@ data class ContractCodeMetadata(
 )
 
 suspend fun storeUpdatedContracts(
-    client: SigningCosmWasmClient,
-    nodeInfo: NodeInfo
+    client: SigningCosmWasmClient, senderAddress: String, nodeInfo: NodeInfo
 ): Map<ContractType, ContractCodeMetadata> {
     val outOfDateContractsToVersions = mutableMapOf<ContractType, ContractCodeMetadata>()
     val snip721DealerCargoTomlPath = "../../contracts/snip721-dealer/Cargo.toml".toPath()
@@ -66,7 +65,7 @@ suspend fun storeUpdatedContracts(
 
             false -> {
                 println("$contractType out of date, storing version $cargoTomlVersion")
-                val codeInfo = DeployContractUtils.storeCode(client, contractType.codePath)
+                val codeInfo = DeployContractUtils.storeCode(client, senderAddress, contractType.codePath, null)
                 val codeInfoJson = json.encodeToString(codeInfo)
                 fileSystem.createDirectories(deployedVersionPath.parent!!)
                 fileSystem.write(deployedVersionPath) {
@@ -87,18 +86,15 @@ suspend fun main() {
     val client = with(nodeInfo) {
         val wallet =
             DirectSigningWallet("sand check forward humble between movie language siege where social crumble mouse") // Use default constructor of wallet to generate random mnemonic.
-        val accAddress = wallet.accounts[0].address
         SigningCosmWasmClient.init(
-            grpcGatewayEndpoint,
-            accAddress,
-            wallet,
-            chainId = chainId
+            grpcGatewayEndpoint, wallet, chainId = chainId
         )
     }
+    val accAddress = (client.wallet as DirectSigningWallet).accounts[0].address
     if (nodeInfo !is Secret4) {
-        BalanceUtils.fillUpFromFaucet(nodeInfo, client, 100_000_000)
+        BalanceUtils.fillUpFromFaucet(nodeInfo, client, 100_000_000, accAddress)
     }
 
-    val storedContracts = storeUpdatedContracts(client, nodeInfo)
+    val storedContracts = storeUpdatedContracts(client, accAddress, nodeInfo)
     println("storedContracts: $storedContracts")
 }
