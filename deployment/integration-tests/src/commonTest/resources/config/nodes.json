@@ -13,6 +13,12 @@
       "faucetAddressEndpoint": "https://faucetbe.pulsar.scrttestnet.com/credit"
     },
     {
+      "type": "Pulsar3",
+      "chainId": "pulsar-3",
+      "grpcGatewayEndpoint": "https://api.pulsar3.scrttestnet.com",
+      "faucetAddressEndpoint": "https://faucetbe.pulsar3.scrttestnet.com/credit"
+    },
+    {
       "type": "Custom",
       "chainId": "secretdev-1",
       "grpcGatewayEndpoint": "http://eqoty.duckdns.org:1317",
