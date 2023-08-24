@@ -113,11 +113,7 @@ pub(crate) fn perform_token_migration(
     snip721_config: Config,
     page_size: Option<u32>,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::MigrateDataIn], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::MigrateDataIn], &contract_mode, None)?;
     let migrated_from_state = MIGRATED_FROM.load(deps.storage)?;
     let admin_addr = deps.api.addr_humanize(&snip721_config.admin).unwrap();
     if admin_addr != info.sender {
@@ -278,11 +274,7 @@ pub(crate) fn migrate(
     admin_permit: Permit,
     migrate_to: MigrateTo,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     let admin_addr = &deps.api.addr_humanize(&snip721config.admin).unwrap();
     let permit_creator = &deps
         .api
@@ -406,11 +398,7 @@ pub(crate) fn migration_dossier_list(
     max_count: Option<u32>,
     secret: &Binary,
 ) -> StdResult<Binary> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::MigrateOutStarted], contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::MigrateOutStarted], contract_mode, None)?;
     let migrated_to = MIGRATED_TO.may_load(deps.storage)?;
     if migrated_to.is_none() {
         return Err(StdError::generic_err(

@@ -21,5 +21,5 @@ serde-cw-value = { version = "0.7.0" }
 schemars = "0.8.12"
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "ca567c6" }
 secret-toolkit = { version = "0.9.0", features = ["crypto"] }
-cw-migratable-contract-std = "8.0.0"
+cw-migratable-contract-std = "11.0.0"
 serde = { version = "1.0.164", default-features = false, features = ["derive"] }

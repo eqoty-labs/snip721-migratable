@@ -84,11 +84,7 @@ pub(crate) fn migrate(
     admin_permit: Permit,
     migrate_to: MigrateTo,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     let admin_addr = &deps.api.addr_humanize(&ADMIN.load(deps.storage)?)?;
     let permit_creator = &deps
         .api

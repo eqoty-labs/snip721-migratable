@@ -143,6 +143,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             MigratableExecuteMsg::SubscribeToMigrationCompleteEvent { address, code_hash } => {
                 register_to_notify_on_migration_complete(deps, mode, address, code_hash)
             }
+            _ => Err(StdError::generic_err("Unsupported Migrate message")),
         },
         ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
             MigrationListenerExecuteMsg::MigrationCompleteNotification { to, .. } => {
@@ -158,11 +159,7 @@ fn update_child_snip721(
     contract_mode: ContractMode,
     migrated_to: ContractInfo,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     let current_child_snip721_address = CHILD_SNIP721_ADDRESS.load(deps.storage)?;
     let raw_sender = deps.api.addr_canonicalize(info.sender.as_str())?;
     if raw_sender != current_child_snip721_address {
@@ -183,11 +180,7 @@ fn purchase_and_mint(
     info: MessageInfo,
     contract_mode: ContractMode,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     if info.funds.len() != 1 {
         return Err(StdError::generic_err(format!(
             "Purchase requires one coin denom to be sent with transaction, {} were sent.",
@@ -316,11 +309,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     to_binary(&QueryAnswer::ContractInfo(ContractInfo {
         address: deps
             .api
@@ -335,11 +324,7 @@ fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Bin
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
 pub fn query_prices(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     to_binary(&QueryAnswer::GetPrices {
         prices: PURCHASE_PRICES.load(deps.storage)?,
     })

@@ -104,6 +104,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             MigratableExecuteMsg::SubscribeToMigrationCompleteEvent { address, code_hash } => {
                 register_to_notify_on_migration_complete(deps, mode, address, code_hash)
             }
+            _ => Err(StdError::generic_err("Unsupported Migrate message")),
         },
         ExecuteMsg::MigrateListener(migrated_msg) => match migrated_msg {
             MigrationListenerExecuteMsg::MigrationCompleteNotification { to, .. } => {
@@ -120,11 +121,7 @@ fn execute_base_snip721(
     contract_mode: ContractMode,
     msg: snip721_reference_impl::msg::ExecuteMsg,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::Running], &contract_mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     snip721_reference_impl::contract::execute(deps, env, info, msg)
 }
 
@@ -147,10 +144,7 @@ pub(crate) fn update_migrated_dependency(
     mode: ContractMode,
     migrated_to: ContractInfo,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) = check_contract_mode(vec![ContractMode::Running], &mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::Running], &mode, None)?;
     let mut minters: Vec<CanonicalAddr> = may_load(deps.storage, MINTERS_KEY)?.unwrap_or_default();
     let mut update = false;
     let from_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
@@ -194,11 +188,7 @@ pub(crate) fn on_migration_complete(
     info: MessageInfo,
     mode: ContractMode,
 ) -> StdResult<Response> {
-    if let Some(contract_mode_error) =
-        check_contract_mode(vec![ContractMode::MigrateOutStarted], &mode, None)
-    {
-        return Err(contract_mode_error);
-    }
+    check_contract_mode(vec![ContractMode::MigrateOutStarted], &mode, None)?;
     let migrated_to = MIGRATED_TO
         .load(deps.storage)?
         .contract
