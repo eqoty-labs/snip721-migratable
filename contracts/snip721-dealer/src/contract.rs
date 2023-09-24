@@ -3,22 +3,16 @@ use cosmwasm_std::{
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use cw_migratable_contract_std::execute::{
-    add_migration_complete_event_subscriber, check_contract_mode,
-    register_to_notify_on_migration_complete, update_migrated_subscriber,
+    add_migration_complete_event_subscriber, register_to_notify_on_migration_complete,
+    update_migrated_subscriber,
 };
-use cw_migratable_contract_std::msg::MigratableExecuteMsg::Migrate;
-use cw_migratable_contract_std::msg::MigratableQueryMsg::{MigratedFrom, MigratedTo};
 use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
-use cw_migratable_contract_std::msg_types::MigrateTo;
-use cw_migratable_contract_std::query::{query_migrated_info, MigrationDirection};
-use cw_migratable_contract_std::state::{canonicalize, ContractMode, CONTRACT_MODE};
+use cw_migratable_contract_std::state::canonicalize;
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
 use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 
-use crate::contract_migrate::{instantiate_with_migrated_config, migrate};
 use crate::msg::{
-    DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg,
-    InstantiateSelfAndChildSnip721Msg, QueryAnswer, QueryMsg,
+    DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg,
 };
 use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{
@@ -27,7 +21,6 @@ use crate::state::{
 };
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
-const MIGRATE_REPLY_ID: u64 = 2u64;
 
 #[entry_point]
 pub fn instantiate(
@@ -35,38 +28,6 @@ pub fn instantiate(
     env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
-    let mut deps = deps;
-    match msg {
-        InstantiateMsg::New(init) => init_snip721(&mut deps, env, info, init),
-        InstantiateMsg::Migrate(init) => {
-            let migrate_from = init.migrate_from;
-            let migrate_msg = Migrate {
-                admin_permit: migrate_from.admin_permit,
-                migrate_to: MigrateTo {
-                    address: env.contract.address.clone(),
-                    code_hash: env.contract.code_hash,
-                    entropy: init.entropy,
-                },
-            };
-            let migrate_wasm_msg: WasmMsg = WasmMsg::Execute {
-                contract_addr: migrate_from.address.to_string(),
-                code_hash: migrate_from.code_hash,
-                msg: to_binary(&migrate_msg)?,
-                funds: vec![],
-            };
-
-            Ok(Response::new()
-                .add_submessages([SubMsg::reply_on_success(migrate_wasm_msg, MIGRATE_REPLY_ID)]))
-        }
-    }
-}
-
-fn init_snip721(
-    deps: &mut DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: InstantiateSelfAndChildSnip721Msg,
 ) -> StdResult<Response> {
     if msg.prices.is_empty() {
         return Err(StdError::generic_err("No purchase prices were specified"));
@@ -91,8 +52,7 @@ fn init_snip721(
             private_metadata: msg.private_metadata,
         },
     )?;
-    CONTRACT_MODE.save(deps.storage, &ContractMode::Running)?;
-    let instantiate_msg = MigratableSnip721InstantiateMsg::New {
+    let instantiate_msg = MigratableSnip721InstantiateMsg {
         instantiate: Snip721InstantiateMsg {
             name: "PurchasableSnip721".to_string(),
             symbol: "PUR721".to_string(),
@@ -128,26 +88,21 @@ fn init_snip721(
 }
 
 #[entry_point]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     let mut deps = deps;
-    let mode = CONTRACT_MODE.load(deps.storage)?;
     match msg {
         ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
-            DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info, mode),
+            DealerExecuteMsg::PurchaseMint { .. } => purchase_and_mint(&mut deps, info),
         },
         ExecuteMsg::Migrate(migrate_msg) => match migrate_msg {
-            MigratableExecuteMsg::Migrate {
-                admin_permit,
-                migrate_to,
-            } => migrate(deps, env, info, mode, admin_permit, migrate_to),
             MigratableExecuteMsg::SubscribeToMigrationCompleteEvent { address, code_hash } => {
-                register_to_notify_on_migration_complete(deps, mode, address, code_hash)
+                register_to_notify_on_migration_complete(deps, address, code_hash)
             }
             _ => Err(StdError::generic_err("Unsupported Migrate message")),
         },
         ExecuteMsg::MigrateListener(migrate_listener_msg) => match migrate_listener_msg {
             MigrationListenerExecuteMsg::MigrationCompleteNotification { to, .. } => {
-                update_child_snip721(deps, info, mode, to)
+                update_child_snip721(deps, info, to)
             }
         },
     }
@@ -156,10 +111,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 fn update_child_snip721(
     deps: DepsMut,
     info: MessageInfo,
-    contract_mode: ContractMode,
     migrated_to: ContractInfo,
 ) -> StdResult<Response> {
-    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
     let current_child_snip721_address = CHILD_SNIP721_ADDRESS.load(deps.storage)?;
     let raw_sender = deps.api.addr_canonicalize(info.sender.as_str())?;
     if raw_sender != current_child_snip721_address {
@@ -175,12 +128,7 @@ fn update_child_snip721(
     Ok(Response::new())
 }
 
-fn purchase_and_mint(
-    deps: &mut DepsMut,
-    info: MessageInfo,
-    contract_mode: ContractMode,
-) -> StdResult<Response> {
-    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
+fn purchase_and_mint(deps: &mut DepsMut, info: MessageInfo) -> StdResult<Response> {
     if info.funds.len() != 1 {
         return Err(StdError::generic_err(format!(
             "Purchase requires one coin denom to be sent with transaction, {} were sent.",
@@ -238,7 +186,6 @@ fn purchase_and_mint(
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
         INSTANTIATE_SNIP721_REPLY_ID => on_instantiated_snip721_reply(deps, env, msg),
-        MIGRATE_REPLY_ID => instantiate_with_migrated_config(deps, msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
@@ -295,21 +242,15 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
 
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let mode = CONTRACT_MODE.load(deps.storage)?;
     match msg {
         QueryMsg::Dealer(dealer_msg) => match dealer_msg {
-            DealerQueryMsg::GetPrices {} => query_prices(deps, mode),
-            DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps, mode),
-        },
-        QueryMsg::Migrate(migrate_msg) => match migrate_msg {
-            MigratedTo {} => query_migrated_info(deps, MigrationDirection::To),
-            MigratedFrom {} => query_migrated_info(deps, MigrationDirection::From),
+            DealerQueryMsg::GetPrices {} => query_prices(deps),
+            DealerQueryMsg::GetChildSnip721 {} => query_child_snip721(deps),
         },
     }
 }
 
-fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {
-    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
+fn query_child_snip721(deps: Deps) -> StdResult<Binary> {
     to_binary(&QueryAnswer::ContractInfo(ContractInfo {
         address: deps
             .api
@@ -323,8 +264,7 @@ fn query_child_snip721(deps: Deps, contract_mode: ContractMode) -> StdResult<Bin
 /// # Arguments
 ///
 /// * `deps` - a reference to Extern containing all the contract's external dependencies
-pub fn query_prices(deps: Deps, contract_mode: ContractMode) -> StdResult<Binary> {
-    check_contract_mode(vec![ContractMode::Running], &contract_mode, None)?;
+pub fn query_prices(deps: Deps) -> StdResult<Binary> {
     to_binary(&QueryAnswer::GetPrices {
         prices: PURCHASE_PRICES.load(deps.storage)?,
     })

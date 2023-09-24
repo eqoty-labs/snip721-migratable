@@ -1,6 +1,4 @@
-use cw_migratable_contract_std::msg::{
-    MigratableExecuteMsg, MigratableQueryMsg, MigrationListenerExecuteMsg,
-};
+use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 
 use crate::msg::{DealerExecuteMsg, DealerQueryMsg, ExecuteMsg, QueryMsg};
 
@@ -90,16 +88,6 @@ const _: () = {
                     ),
                 ),
                 QueryMsg::Dealer,
-            ) {
-                return _serde::__private::Ok(__ok);
-            }
-            if let _serde::__private::Ok(__ok) = _serde::__private::Result::map(
-                <MigratableQueryMsg as _serde::Deserialize>::deserialize(
-                    serde_cw_value::ValueDeserializer::<serde_cw_value::DeserializerError>::new(
-                        __content.clone(),
-                    ),
-                ),
-                QueryMsg::Migrate,
             ) {
                 return _serde::__private::Ok(__ok);
             }

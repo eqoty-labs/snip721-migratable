@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
 
     use crate::contract::instantiate;
     use crate::test_utils::test_utils::instantiate_msg;
@@ -21,10 +20,5 @@ mod tests {
         );
 
         assert!(res.is_ok(),);
-
-        assert_eq!(
-            ContractMode::Running,
-            CONTRACT_MODE.load(deps.as_ref().storage).unwrap()
-        );
     }
 }
