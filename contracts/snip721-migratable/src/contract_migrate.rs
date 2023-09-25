@@ -1,6 +1,4 @@
-use std::io::Empty;
-
-use cosmwasm_std::{entry_point, DepsMut, Env, Response, StdResult};
+use cosmwasm_std::{entry_point, DepsMut, Empty, Env, Response, StdResult};
 use cw_migratable_contract_std::execute::broadcast_migration_complete_notification;
 use cw_migratable_contract_std::state::MIGRATION_COMPLETE_EVENT_SUBSCRIBERS;
 
