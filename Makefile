@@ -52,7 +52,7 @@ compile-optimized-reproducible:
 	docker run --rm -v "$$(pwd)":/contract \
 		--mount type=volume,source="$$(basename "$$(pwd)")_cache",target=/code/target \
 		--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-		mr7uca/secret-contract-optimizer:0.0.2
+		mr7uca/secret-contract-optimizer:0.0.1
 
 .PHONY: schema
 schema:
