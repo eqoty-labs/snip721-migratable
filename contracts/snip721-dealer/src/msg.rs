@@ -30,10 +30,6 @@ pub struct InstantiateMsg {
     /// minting function
     pub royalty_info: Option<RoyaltyInfo>,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateSelfAndChildSnip721Msg {}
-
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]

@@ -2,19 +2,13 @@
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
-        from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, StdResult, Uint128,
-        WasmMsg,
+        from_binary, Api, BankMsg, CanonicalAddr, Coin, CosmosMsg, StdError, Uint128, WasmMsg,
     };
-    use cw_migratable_contract_std::execute::build_operation_unavailable_error;
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use snip721_reference_impl::msg::ExecuteMsg as Snip721ExecuteMsg;
     use snip721_reference_impl::token::Metadata;
-    use strum::IntoEnumIterator;
 
     use crate::contract::{execute, instantiate, reply};
-    use crate::msg::{
-        DealerExecuteMsg, ExecuteMsg, InstantiateMsg, InstantiateSelfAndChildSnip721Msg,
-    };
+    use crate::msg::{DealerExecuteMsg, ExecuteMsg, InstantiateMsg};
     use crate::state::{PurchasableMetadata, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH};
     use crate::test_utils::test_utils::{
         child_snip721_address, successful_child_snip721_instantiate_reply,
@@ -41,17 +35,17 @@ mod tests {
         };
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
-        let _res = instantiate(
+        instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -166,16 +160,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
-        let _res = instantiate(
+        instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -217,16 +211,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -268,16 +262,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -319,16 +313,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
-        let _res = instantiate(
+        instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -370,16 +364,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -421,16 +415,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -471,16 +465,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -528,16 +522,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -585,16 +579,16 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
             admin: Some(admin_info.sender.to_string()),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let _res = instantiate(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg),
+            instantiate_msg,
         )
         .unwrap();
 
@@ -614,29 +608,5 @@ mod tests {
                 invalid_funds.len()
             ),)
         );
-    }
-
-    #[test]
-    fn purchase_and_mint_fails_when_in_invalid_contract_modes() -> StdResult<()> {
-        let minter_info = mock_info("minty", &vec![]);
-        let mut deps = mock_dependencies();
-        let exec_purchase_msg = ExecuteMsg::Dealer(DealerExecuteMsg::PurchaseMint {});
-        let invalid_modes: Vec<ContractMode> = ContractMode::iter()
-            .filter(|m| m != &ContractMode::Running)
-            .collect();
-        for invalid_mode in invalid_modes {
-            CONTRACT_MODE.save(deps.as_mut().storage, &invalid_mode)?;
-            let res = execute(
-                deps.as_mut(),
-                mock_env(),
-                minter_info.clone(),
-                exec_purchase_msg.clone(),
-            );
-            assert_eq!(
-                res.err().unwrap(),
-                build_operation_unavailable_error(&invalid_mode, None)
-            );
-        }
-        Ok(())
     }
 }

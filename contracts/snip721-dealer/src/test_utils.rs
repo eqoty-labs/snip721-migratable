@@ -3,7 +3,7 @@ pub mod test_utils {
     use cosmwasm_std::testing::mock_info;
     use cosmwasm_std::{Event, MessageInfo, Reply, SubMsgResponse, SubMsgResult};
 
-    use crate::msg::InstantiateSelfAndChildSnip721Msg;
+    use crate::msg::InstantiateMsg;
 
     pub fn admin_msg_info() -> MessageInfo {
         mock_info("admin", &[])
@@ -28,9 +28,9 @@ pub mod test_utils {
         }
     }
 
-    impl Default for InstantiateSelfAndChildSnip721Msg {
+    impl Default for InstantiateMsg {
         fn default() -> Self {
-            InstantiateSelfAndChildSnip721Msg {
+            InstantiateMsg {
                 snip721_code_hash: child_snip721_code_hash(),
                 snip721_code_id: 10,
                 snip721_label: "test_snip721_label".to_string(),

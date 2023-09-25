@@ -6,5 +6,4 @@ pub mod state;
 
 mod test_instantiate;
 mod test_migrate;
-mod test_query;
 mod test_utils;
