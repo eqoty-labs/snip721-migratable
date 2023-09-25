@@ -15,11 +15,10 @@ kotlinx-serialization = "1.6.0"
 kotlinx-coroutines = "1.7.3"
 
 okio = "3.5.0"
-##⬆ = "3.6.0-SNAPSHOT"
 
-kermit = "2.0.0-RC5"
+kermit = "2.0.1"
 
-secretk = "5.1.0"
+secretk = "5.1.1"
 getenv = "0.2.0"
 
 [libraries]
