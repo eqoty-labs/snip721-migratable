@@ -1,11 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Empty;
-
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{
-        from_binary, Addr, Binary, BlockInfo, Coin, ContractInfo, CosmosMsg, Deps, Env, ReplyOn,
-        StdResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
+        from_binary, Addr, Binary, BlockInfo, Coin, ContractInfo, CosmosMsg, Deps, Empty, Env,
+        ReplyOn, StdResult, Timestamp, TransactionInfo, Uint128, WasmMsg,
     };
     use cw_migratable_contract_std::execute::register_to_notify_on_migration_complete;
     use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
@@ -36,7 +34,11 @@ mod tests {
                     Binary::from_base64("wLsKdf/sYqvSMI0G0aWRjob25mrIB0VQVjTjDXnDafk=").unwrap(),
                 ),
             },
-            transaction: Some(TransactionInfo { index: 3 }),
+            transaction: Some(TransactionInfo {
+                index: 3,
+                hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
+            }),
             contract: ContractInfo {
                 address: Addr::unchecked(CONTRACT_ADDRESS_0),
                 code_hash: "code_hash_0".to_string(),
@@ -52,7 +54,11 @@ mod tests {
                 chain_id: "cosmos-testnet-14002".to_string(),
                 random: Some(Binary::from_base64("dGhlIGNha2UgaXMgYSBsaWU=").unwrap()),
             },
-            transaction: Some(TransactionInfo { index: 3 }),
+            transaction: Some(TransactionInfo {
+                index: 3,
+                hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
+            }),
             contract: ContractInfo {
                 address: Addr::unchecked(CONTRACT_ADDRESS_0),
                 code_hash: "code_hash_1".to_string(),

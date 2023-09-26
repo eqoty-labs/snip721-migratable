@@ -32,5 +32,4 @@ secret-toolkit = { workspace = true }
 
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.2.6" }
-strum = { version = "0.24.1", features = ["derive"] }
+cosmwasm-schema = { version = "1.4.0" }

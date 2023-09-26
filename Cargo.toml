@@ -15,14 +15,15 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
-cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/scrtlabs/cosmwasm", branch = "contract-upgrade-v2", default-features = false }
-cosmwasm-storage = { package = "secret-cosmwasm-storage", git = "https://github.com/scrtlabs/cosmwasm", branch = "contract-upgrade-v2", default-features = false }
+cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/luca992/cosmwasm", branch = "instantiate-admin", default-features = false }
+cosmwasm-storage = { package = "secret-cosmwasm-storage", git = "https://github.com/luca992/cosmwasm", branch = "instantiate-admin", default-features = false }
 serde-cw-value = { version = "0.7.0" }
 schemars = "0.8.15"
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "ca567c6" }
-secret-toolkit = { version = "0.9.0", features = ["crypto"] }
+secret-toolkit = { git = "https://github.com/luca992/secret-toolkit", branch = "instantiate-admin", features = ["crypto"] }
 cw-migratable-contract-std = { git = "https://github.com/eqoty-labs/cw-migratable-contract-std", branch = "native-cw-migrate" }
 serde = { version = "1.0.188", default-features = false, features = ["derive"] }
 
 [patch.crates-io]
-cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/scrtlabs/cosmwasm", branch = "contract-upgrade-v2" }
+cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/luca992/cosmwasm", branch = "instantiate-admin" }
+secret-toolkit = { git = "https://github.com/luca992/secret-toolkit", branch = "instantiate-admin" }

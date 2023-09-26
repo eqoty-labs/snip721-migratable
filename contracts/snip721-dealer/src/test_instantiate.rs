@@ -318,6 +318,7 @@ mod tests {
         match &res.messages[0].msg {
             CosmosMsg::Wasm(msg) => match msg {
                 WasmMsg::Instantiate {
+                    admin: _,
                     code_id,
                     code_hash,
                     msg,

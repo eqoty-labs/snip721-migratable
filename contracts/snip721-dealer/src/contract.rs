@@ -74,6 +74,7 @@ pub fn instantiate(
         max_migration_complete_event_subscribers: 1,
     };
     let instantiate_wasm_msg = WasmMsg::Instantiate {
+        admin: Some(true_admin.to_string()),
         code_id: msg.snip721_code_id,
         code_hash: msg.snip721_code_hash,
         msg: to_binary(&instantiate_msg).unwrap(),

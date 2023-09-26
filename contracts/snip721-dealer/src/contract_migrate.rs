@@ -5,7 +5,8 @@ use cw_migratable_contract_std::state::MIGRATION_COMPLETE_EVENT_SUBSCRIBERS;
 #[entry_point]
 pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
     let contracts_to_notify = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS
-        .load(deps.storage).unwrap_or_default()
+        .load(deps.storage)
+        .unwrap_or_default()
         .into_iter()
         .map(|c| c.into_humanized(deps.api))
         .collect::<StdResult<Vec<_>>>()?;
