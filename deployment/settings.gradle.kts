@@ -35,7 +35,7 @@ refreshVersions { // Optional: configure the plugin
 }
 
 
-rootProject.name = "tests"
+rootProject.name = "deployment"
 
 include(":integration-tests")
 include(":deploy")

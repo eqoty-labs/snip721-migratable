@@ -23,6 +23,7 @@ import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.extensions.accesscontrol.PermitFactory
 import io.eqoty.secretk.types.MsgExecuteContract
 import io.eqoty.secretk.types.MsgInstantiateContract
+import io.eqoty.secretk.types.MsgMigrateContract
 import io.eqoty.secretk.types.TxOptions
 import io.getenv
 import kotlinx.coroutines.test.runTest
@@ -63,10 +64,11 @@ class IntegrationTests {
         val instantiateMsgs = listOf(
             MsgInstantiateContract(
                 sender = senderAddress,
-                codeId = null, // will be set later
+                codeId = -1, // will be set later
                 initMsg = Json.encodeToString(initMsg),
                 label = "Snip721Dealer" + ceil(Random.nextDouble() * 1000000),
-                codeHash = null // will be set later
+                codeHash = null, // will be set later
+                admin = senderAddress
             )
         )
         return DeployContractUtils.getOrStoreCodeAndInstantiate(
@@ -79,48 +81,38 @@ class IntegrationTests {
     }
 
     private suspend fun migrateSnip721Contract(senderAddress: String, contract: ContractInfo) =
-        migrateContract(senderAddress, contract, "Snip721Migratable", snip721MigratableContractCodePath)
+        migrateContract(senderAddress, contract, snip721MigratableContractCodePath)
 
     private suspend fun migrateSnip721Dealer(senderAddress: String, contract: ContractInfo) =
-        migrateContract(senderAddress, contract, "Snip721Dealer", snip721DealerContractCodePath)
+        migrateContract(senderAddress, contract, snip721DealerContractCodePath)
 
     private suspend fun migrateContract(
-        senderAddress: String, contract: ContractInfo, labelBase: String, codepath: Path
+        senderAddress: String, contract: ContractInfo, codepath: Path
     ): ContractInfo {
-        TODO()
-//        val permit = PermitFactory.newPermit(
-//            client.wallet!!,
-//            senderAddress,
-//            client.getChainId(),
-//            "test",
-//            listOf(contract.address),
-//            listOf(Permission.Owner)
-//        )
-//        val migrateFrom = MigratableContractTypes.MigrateFrom(
-//            contract.address, contract.codeHash, permit
-//        )
-//        val snip721MigratableCodeInfo = DeployContractUtils.getOrStoreCode(client, senderAddress, codepath, null)
-//        val instantiateByMigration = MigratableContractMsg.Instantiate(
-//            migrate = MigratableContractTypes.InstantiateByMigration(
-//                migrateFrom = migrateFrom,
-//                entropy = "sometimes you gotta close a door to open a window: " + Random.nextDouble().toString()
-//            )
-//        )
-//
-//        val instantiateMsgs = listOf(
-//            MsgInstantiateContract(
-//                sender = senderAddress,
-//                codeId = null, // will be set later
-//                initMsg = Json.encodeToString(instantiateByMigration),
-//                label = labelBase + ceil(Random.nextDouble() * 1000000),
-//                codeHash = null // will be set later
-//            )
-//        )
-//        return DeployContractUtils.instantiateCode(client, snip721MigratableCodeInfo, instantiateMsgs, null).let {
-//            ContractInfo(
-//                it.address, it.codeInfo.codeHash
-//            )
-//        }
+        val codeIdBeforeMigrate = client.getContractInfoByAddress(contract.address).contractInfo.codeId.toInt()
+        val snip721MigratableCodeInfo = DeployContractUtils.storeCode(client, senderAddress, codepath, null)
+        val migrateMsgs = listOf(
+            MsgMigrateContract(
+                sender = senderAddress,
+                contractAddress = contract.address,
+                codeId = snip721MigratableCodeInfo.codeId.toInt(),
+                msg = "{}",
+                codeHash = snip721MigratableCodeInfo.codeHash
+            )
+        )
+        val res = client.execute(migrateMsgs, TxOptions(gasLimit = 500_000))
+        val migrateAttributes = res.logs[0].events
+            .find { it.type == "migrate" }
+            ?.attributes
+        val contractAddress = migrateAttributes?.find { it.key == "contract_address" }?.value!!
+        val migratedToCodeId = migrateAttributes.find { it.key == "code_id" }?.value!!.toInt()
+        assertNotEquals(codeIdBeforeMigrate, migratedToCodeId)
+        println("codeIdBeforeMigrate:$codeIdBeforeMigrate vs migratedToCodeId:$migratedToCodeId")
+        return ContractInstance(snip721MigratableCodeInfo, contractAddress).let {
+            ContractInfo(
+                it.address, it.codeInfo.codeHash
+            )
+        }
     }
 
     private suspend fun purchaseOneMint(
