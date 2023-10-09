@@ -30,6 +30,7 @@ pub struct InstantiateMsg {
     /// minting function
     pub royalty_info: Option<RoyaltyInfo>,
 }
+
 #[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
@@ -48,17 +49,7 @@ pub enum DealerExecuteMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ExecuteAnswer {}
-
-#[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Dealer(DealerQueryMsg),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum DealerQueryMsg {
     /// GetPrices returns the purchase price in acceptable coin types.
     GetPrices {},
     GetChildSnip721 {},

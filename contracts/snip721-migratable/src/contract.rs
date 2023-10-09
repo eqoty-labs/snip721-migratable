@@ -1,9 +1,10 @@
 use cosmwasm_std::{
-    entry_point, Binary, ContractInfo, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    Binary, ContractInfo, Deps, DepsMut, entry_point, Env, MessageInfo, Response, StdError,
     StdResult,
 };
-use cw_migratable_contract_std::execute::register_to_notify_on_migration_complete;
-use cw_migratable_contract_std::execute::update_migrated_subscriber;
+use cw_migratable_contract_std::execute::{
+    register_to_notify_on_migration_complete, update_migrated_subscriber,
+};
 use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cw_migratable_contract_std::state::{
     canonicalize, REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS,

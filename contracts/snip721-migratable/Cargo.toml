@@ -1,6 +1,6 @@
 [package]
 name = "snip721-migratable"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Luca Spinazzola"]
 edition = "2021"
 
@@ -24,12 +24,11 @@ crate-type = ["cdylib", "rlib"]
 snip721-reference-impl = { workspace = true }
 cw-migratable-contract-std = { workspace = true }
 serde = { workspace = true }
-serde-cw-value = { workspace = true }
 schemars = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true }
-secret-toolkit = { workspace = true }
-
+secret-toolkit = { workspace = true, default-features = false, features = ["storage"] }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.4.0" }
+secret-toolkit = { workspace = true, default-features = false, features = ["permit"] }
