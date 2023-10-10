@@ -42,7 +42,7 @@ compress-wasm:
 	@## The following line (wasm-opt) is not necessary, may work only on linux (extra size optimization)
 	if [ -x "$$(command -v wasm-opt)" ]; then \
 		for w in ./build/*.wasm; do \
-		  wasm-opt -Oz $$w -o $$w ; \
+		  wasm-opt -Oz $$w -o $${w%.wasm}-optimized.wasm ; \
 		done \
 	fi
 	(cd ./build && gzip -n -9 -k -f *)
