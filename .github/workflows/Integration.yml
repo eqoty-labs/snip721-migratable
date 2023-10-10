@@ -5,25 +5,24 @@ on: [pull_request]
 jobs:
   tests:
     name: ${{ matrix.make.name }} (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest  # Specifies the runner environment
+    container:
+      image: alpine:latest  # Specifies that an Alpine Linux container should be used for executing the job's steps
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
         rust: [1.73.0]
         make:
           - name: Run integration tests # Integration tests
             task: "(cd deployment && NODE_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
-        include:
-          - os: ubuntu-latest
-            sccache-path: /home/runner/.cache/sccache
 
     env:
       RUST_BACKTRACE: full
       RUSTC_WRAPPER: sccache
       RUSTV: ${{ matrix.rust }}
       SCCACHE_CACHE_SIZE: 2G
-      SCCACHE_DIR: ${{ matrix.sccache-path }}
+      SCCACHE_DIR: /home/runner/.cache/sccache
       # SCCACHE_RECACHE: 1 # Uncomment this to clear cache, then comment it back out
 
     # Service containers to run with `container-job`
@@ -40,6 +39,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          apk --no-cache add curl tar make gcc g++ musl-dev openjdk11 rust cargo binaryen
       - name: Install sccache
         env:
           LINK: https://github.com/mozilla/sccache/releases/download
@@ -51,22 +53,9 @@ jobs:
           mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
           chmod +x $HOME/.local/bin/sccache
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: Set up JDK 11
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: 11
-          cache: 'gradle'
-      - uses: ./.github/actions/install-rust
-        with:
-          toolchain: ${{ matrix.rust }}
       - name: Add wasm toolchain
         run: |
           rustup target add wasm32-unknown-unknown
-      - name: Install wasm-opt
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binaryen
       - name: Cache cargo registry
         uses: actions/cache@v3
         continue-on-error: false
