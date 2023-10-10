@@ -3,7 +3,7 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
-        id("de.fayard.refreshVersions") version "0.60.0"
+        id("de.fayard.refreshVersions") version "0.60.3"
     }
 }
 
@@ -35,7 +35,7 @@ refreshVersions { // Optional: configure the plugin
 }
 
 
-rootProject.name = "tests"
+rootProject.name = "deployment"
 
 include(":integration-tests")
 include(":deploy")

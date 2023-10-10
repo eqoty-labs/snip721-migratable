@@ -42,7 +42,7 @@ compress-wasm:
 	@## The following line (wasm-opt) is not necessary, may work only on linux (extra size optimization)
 	if [ -x "$$(command -v wasm-opt)" ]; then \
 		for w in ./build/*.wasm; do \
-		  wasm-opt -Oz $$w -o $$w ; \
+		  wasm-opt -Oz $$w -o $${w%.wasm}-optimized.wasm ; \
 		done \
 	fi
 	(cd ./build && gzip -n -9 -k -f *)
@@ -52,7 +52,7 @@ compile-optimized-reproducible:
 	docker run --rm -v "$$(pwd)":/contract \
 		--mount type=volume,source="$$(basename "$$(pwd)")_cache",target=/code/target \
 		--mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-		mr7uca/secret-contract-optimizer:0.0.1
+		mr7uca/secret-contract-optimizer:0.0.3
 
 .PHONY: schema
 schema:

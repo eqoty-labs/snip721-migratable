@@ -5,18 +5,19 @@ on: [pull_request]
 jobs:
   tests:
     name: ${{ matrix.make.name }} (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest  # Specifies the runner environment
+    container:
+      image: archlinux:latest  # Specifies that an Arch Linux container should be used for executing the job's steps
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        rust: [1.69.0]
+        os: [archlinux-latest]  # This can be kept for naming consistency, but isn't functionally necessary
+        rust: [1.73.0]
         make:
           - name: Run integration tests # Integration tests
             task: "(cd deployment && NODE_TYPE=LocalSecret ./gradlew jvmTest --build-cache --no-daemon)"
-        include:
-          - os: ubuntu-latest
-            sccache-path: /home/runner/.cache/sccache
+        sccache-path: [/home/runner/.cache/sccache]
 
     env:
       RUST_BACKTRACE: full
@@ -31,7 +32,7 @@ jobs:
       # Label used to access the service container
       secret:
         # Docker Hub image
-        image: ghcr.io/scrtlabs/localsecret:v1.9.3
+        image: ghcr.io/scrtlabs/localsecret:v1.12.0-beta.8
         ports:
           # Opens tcp port
           - 5000:5000
@@ -57,13 +58,29 @@ jobs:
           distribution: 'zulu'
           java-version: 11
           cache: 'gradle'
-      - uses: ./.github/actions/install-rust
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
+          profile: minimal
+          override: true
       - name: Add wasm toolchain
         run: |
           rustup target add wasm32-unknown-unknown
-
+      - name: Install wasm-opt
+        run: |
+          pacman -Syu binaryen --noconfirm
+      - name: Install development tools
+        run: pacman -Syu base-devel --noconfirm
+      - name: Install Clang
+        run: pacman -Syu clang --noconfirm
+      - name: Install socat
+        run: pacman -Syu --noconfirm socat
+      - name: Set up port forwarding to secret service
+        run: |
+          socat TCP4-LISTEN:5000,reuseaddr,fork TCP4:secret:5000 &
+          socat TCP4-LISTEN:9091,reuseaddr,fork TCP4:secret:9091 &
+          socat TCP4-LISTEN:1317,reuseaddr,fork TCP4:secret:1317 &
       - name: Cache cargo registry
         uses: actions/cache@v3
         continue-on-error: false

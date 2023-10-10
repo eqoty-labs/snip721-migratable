@@ -8,14 +8,13 @@ mod tests {
         StdResult, Uint128, WasmMsg,
     };
     use cw_migratable_contract_std::msg::MigratableExecuteMsg;
-    use cw_migratable_contract_std::state::{ContractMode, CONTRACT_MODE};
     use snip721_reference_impl::msg::{
         ExecuteMsg, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
     };
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{instantiate, reply};
-    use crate::msg::{InstantiateMsg, InstantiateSelfAndChildSnip721Msg};
+    use crate::msg::InstantiateMsg;
     use crate::msg_external::MigratableSnip721InstantiateMsg;
     use crate::state::{
         PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
@@ -28,7 +27,7 @@ mod tests {
     fn instantiate_successfully() -> StdResult<(
         OwnedDeps<MockStorage, MockApi, MockQuerier>,
         Env,
-        InstantiateSelfAndChildSnip721Msg,
+        InstantiateMsg,
     )> {
         let mut deps = mock_dependencies();
         let env = mock_env();
@@ -37,20 +36,19 @@ mod tests {
             amount: Uint128::new(100),
             denom: "`uscrt`".to_string(),
         }];
-        let instantiate_new_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             admin: Some(admin_info.sender.to_string()),
             prices: prices.clone(),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
-        let instantiate_msg = InstantiateMsg::New(instantiate_new_msg.clone());
 
         instantiate(
             deps.as_mut(),
             env.clone(),
             admin_info.clone(),
-            instantiate_msg,
+            instantiate_msg.clone(),
         )?;
-        Ok((deps, env, instantiate_new_msg))
+        Ok((deps, env, instantiate_msg))
     }
 
     #[test]
@@ -75,14 +73,14 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             admin: Some(admin_info.sender.to_string()),
             snip721_code_hash: snip721_code_hash.clone(),
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
-            ..InstantiateSelfAndChildSnip721Msg::default()
-        });
+            ..InstantiateMsg::default()
+        };
 
         let res = instantiate(
             deps.as_mut(),
@@ -106,11 +104,6 @@ mod tests {
         let saved_child_snip721_code_hash =
             CHILD_SNIP721_CODE_HASH.load(deps.as_ref().storage).unwrap();
         assert_eq!(snip721_code_hash, saved_child_snip721_code_hash);
-
-        assert_eq!(
-            ContractMode::Running,
-            CONTRACT_MODE.load(deps.as_ref().storage).unwrap()
-        );
     }
 
     #[test]
@@ -238,13 +231,13 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             admin: None,
             prices: prices.clone(),
             private_metadata: purchasable_metadata.private_metadata.clone(),
             public_metadata: purchasable_metadata.public_metadata.clone(),
-            ..InstantiateSelfAndChildSnip721Msg::default()
-        });
+            ..InstantiateMsg::default()
+        };
 
         let admin_info = admin_msg_info();
         instantiate(
@@ -273,11 +266,11 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateMsg::New(InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             admin: Some(admin_info.sender.to_string()),
             prices,
-            ..InstantiateSelfAndChildSnip721Msg::default()
-        });
+            ..InstantiateMsg::default()
+        };
         let res = instantiate(
             deps.as_mut(),
             mock_env(),
@@ -301,9 +294,9 @@ mod tests {
 
         let mut deps = mock_dependencies();
 
-        let instantiate_msg = InstantiateSelfAndChildSnip721Msg {
+        let instantiate_msg = InstantiateMsg {
             prices: prices.clone(),
-            ..InstantiateSelfAndChildSnip721Msg::default()
+            ..InstantiateMsg::default()
         };
         let env = mock_env();
         let admin_info = admin_msg_info();
@@ -311,7 +304,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             admin_info.clone(),
-            InstantiateMsg::New(instantiate_msg.clone()),
+            instantiate_msg.clone(),
         )?;
 
         assert_eq!(1, res.messages.len());
@@ -325,6 +318,7 @@ mod tests {
         match &res.messages[0].msg {
             CosmosMsg::Wasm(msg) => match msg {
                 WasmMsg::Instantiate {
+                    admin: _,
                     code_id,
                     code_hash,
                     msg,
@@ -342,7 +336,7 @@ mod tests {
                     // Then a second tx msg in Reply is sent to change the admin to the dealer's admin
                     // So we should make sure the contract address != admins address
                     assert_ne!(env.contract.address, admin_info.sender);
-                    let expected_snip721_instantiate_msg = MigratableSnip721InstantiateMsg::New {
+                    let expected_snip721_instantiate_msg = MigratableSnip721InstantiateMsg {
                         instantiate: Snip721InstantiateMsg {
                             name: "PurchasableSnip721".to_string(),
                             symbol: "PUR721".to_string(),

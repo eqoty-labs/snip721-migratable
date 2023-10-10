@@ -9,17 +9,16 @@ org-jetbrains-kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.
 
 kotlin = "1.9.10"
 
-ktor = "2.3.3"
+ktor = "2.3.5"
 
 kotlinx-serialization = "1.6.0"
 kotlinx-coroutines = "1.7.3"
 
-okio = "3.5.0"
-##⬆ = "3.6.0-SNAPSHOT"
+okio = "3.6.0"
 
-kermit = "2.0.0-RC5"
+kermit = "2.0.1"
 
-secretk = "5.1.0"
+secretk = "6.0.2"
 getenv = "0.2.0"
 
 [libraries]

@@ -15,11 +15,15 @@ incremental = false
 overflow-checks = true
 
 [workspace.dependencies]
-cosmwasm-std = { package = "secret-cosmwasm-std", version = "1.1.10", default-features = false }
-cosmwasm-storage = { package = "secret-cosmwasm-storage", version = "1.1.10", default-features = false }
-serde-cw-value = { version = "0.7.0" }
-schemars = "0.8.12"
+cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm", default-features = false }
+cosmwasm-storage = { package = "secret-cosmwasm-storage", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm", default-features = false }
+schemars = "0.8.15"
 snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-reference-impl", rev = "ca567c6" }
-secret-toolkit = { version = "0.9.0", features = ["crypto"] }
-cw-migratable-contract-std = "11.0.0"
-serde = { version = "1.0.164", default-features = false, features = ["derive"] }
+secret-toolkit = { git = "https://github.com/luca992/secret-toolkit", branch = "secret-v1.12-update-serde-json-wasm", default-features = false, features = [] }
+cw-migratable-contract-std = { git = "https://github.com/eqoty-labs/cw-migratable-contract-std", branch = "native-cw-migrate" }
+serde = { version = "1.0.188", default-features = false, features = ["derive"] }
+
+[patch.crates-io]
+cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm" }
+secret-toolkit = { git = "https://github.com/luca992/secret-toolkit", branch = "secret-v1.12-update-serde-json-wasm" }
+serde-json-wasm = { git = "https://github.com/luca992/serde-json-wasm", branch = "deserialize-bytes" }
