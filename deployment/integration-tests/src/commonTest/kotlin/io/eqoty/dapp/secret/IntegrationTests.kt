@@ -10,7 +10,6 @@ import io.eqoty.dapp.secret.TestGlobals.clientInitialized
 import io.eqoty.dapp.secret.TestGlobals.initializeClient
 import io.eqoty.dapp.secret.TestGlobals.intializeAccountBeforeExecuteWorkaround
 import io.eqoty.dapp.secret.TestGlobals.testnetInfo
-import io.eqoty.dapp.secret.types.ContractInstance
 import io.eqoty.dapp.secret.types.ExecuteResult
 import io.eqoty.dapp.secret.types.contract.Snip721DealerMsgs
 import io.eqoty.dapp.secret.types.contract.equals
@@ -18,7 +17,6 @@ import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
 import io.eqoty.secret.std.contract.msg.Snip721Msgs
 import io.eqoty.secret.std.types.Permission
-import io.eqoty.secret.std.types.Permit
 import io.eqoty.secretk.client.SigningCosmWasmClient
 import io.eqoty.secretk.extensions.accesscontrol.PermitFactory
 import io.eqoty.secretk.types.MsgExecuteContract
@@ -88,7 +86,12 @@ class IntegrationTests {
                 admin = senderAddress
             )
         )
-        return DeployContractUtils.instantiateCode(client, snip721DealerCodeInfo(senderAddress), instantiateMsgs, 500_000)
+        return DeployContractUtils.instantiateCode(
+            client,
+            snip721DealerCodeInfo(senderAddress),
+            instantiateMsgs,
+            500_000
+        )
             .let {
                 ContractInfo(
                     it.address, it.codeInfo.codeHash
@@ -144,18 +147,11 @@ class IntegrationTests {
                 sentFunds = sentFunds
             )
         )
-        val simulate = client.simulate(msgs)
-        val gasLimit = (simulate.gasUsed.toDouble() * 1.1).toInt()
 
-        val txOptions = TxOptions(gasLimit = gasLimit)
-        val res = try {
-            client.execute(
-                msgs, txOptions = txOptions
-            )
-        } catch (t: Throwable) {
-            Logger.i(t.message ?: "")
-            null
-        }
+
+        val txOptions = TxOptions(gasLimit = 100_000)
+        val res = client.execute(msgs, txOptions = txOptions)
+
         val gasFee = client.gasToFee(txOptions.gasLimit, txOptions.gasPriceInFeeDenom)
         return ExecuteResult(res, Coin(gasFee, "uscrt"))
     }
