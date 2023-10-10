@@ -249,10 +249,10 @@ class IntegrationTests {
     @BeforeTest
     fun beforeEach() = runTest(timeout = 60.seconds) {
         Logger.setTag("tests")
-        fileSystem.list(getenv(Constants.CONTRACT_PATH_ENV_NAME)!!.toPath()).forEach {
-            Logger.i("file: $it")
-        }
         if (!clientInitialized) {
+            fileSystem.list(getenv(Constants.CONTRACT_PATH_ENV_NAME)!!.toPath()).forEach {
+                Logger.i("file: $it")
+            }
             val endpoint = testnetInfo.grpcGatewayEndpoint
             initializeClient(endpoint, testnetInfo.chainId, 3)
             BalanceUtils.fillUpFromFaucet(testnetInfo, client, 100_000_000, client.wallet!!.getAccounts()[0].address)
