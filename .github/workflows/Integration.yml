@@ -41,6 +41,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
+          echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
+          apk --no-cache update
           apk --no-cache add curl tar make gcc g++ musl-dev openjdk11 rust@edge cargo@edge binaryen@edge rustup@edge
       - name: Install sccache
         env:
