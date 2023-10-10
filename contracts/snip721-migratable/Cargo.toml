@@ -1,6 +1,6 @@
 [package]
 name = "snip721-migratable"
-version = "1.0.1"
+version = "2.0.0"
 authors = ["Luca Spinazzola"]
 edition = "2021"
 
