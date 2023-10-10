@@ -63,7 +63,10 @@ jobs:
       - name: Add wasm toolchain
         run: |
           rustup target add wasm32-unknown-unknown
-
+      - name: Install wasm-opt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binaryen
       - name: Cache cargo registry
         uses: actions/cache@v3
         continue-on-error: false
