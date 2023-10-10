@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, entry_point, Env, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, to_binary, WasmMsg,
+    entry_point, to_binary, Addr, BankMsg, Binary, ContractInfo, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 use cw_migratable_contract_std::execute::{
     add_migration_complete_event_subscriber, register_to_notify_on_migration_complete,
@@ -8,16 +8,14 @@ use cw_migratable_contract_std::execute::{
 };
 use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
 use cw_migratable_contract_std::state::canonicalize;
-use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 use snip721_reference_impl::msg::ExecuteMsg::{ChangeAdmin, MintNft};
+use snip721_reference_impl::msg::{InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg};
 
-use crate::msg::{
-    DealerExecuteMsg, ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg,
-};
+use crate::msg::{DealerExecuteMsg, ExecuteMsg, InstantiateMsg, QueryAnswer, QueryMsg};
 use crate::msg_external::MigratableSnip721InstantiateMsg;
 use crate::state::{
-    ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH, PURCHASABLE_METADATA,
-    PurchasableMetadata, PURCHASE_PRICES,
+    PurchasableMetadata, ADMIN, CHILD_SNIP721_ADDRESS, CHILD_SNIP721_CODE_HASH,
+    PURCHASABLE_METADATA, PURCHASE_PRICES,
 };
 
 const INSTANTIATE_SNIP721_REPLY_ID: u64 = 1u64;
@@ -89,7 +87,12 @@ pub fn instantiate(
 }
 
 #[entry_point]
-pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> StdResult<Response> {
     let mut deps = deps;
     match msg {
         ExecuteMsg::Dealer(dealer_msg) => match dealer_msg {
@@ -231,7 +234,7 @@ fn on_instantiated_snip721_reply(deps: DepsMut, env: Env, reply: Reply) -> StdRe
             address: admin.to_string(),
             padding: None,
         })
-            .unwrap(),
+        .unwrap(),
         funds: vec![],
     };
 

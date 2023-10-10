@@ -1,20 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{
-        Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg, Deps,
-        DepsMut, Empty, Env, from_binary, ReplyOn, StdResult, Timestamp, TransactionInfo, WasmMsg,
-    };
     use cosmwasm_std::testing::{mock_dependencies, mock_info};
+    use cosmwasm_std::{
+        from_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Coin, ContractInfo, CosmosMsg,
+        Deps, DepsMut, Empty, Env, ReplyOn, StdResult, Timestamp, TransactionInfo, WasmMsg,
+    };
     use cw_migratable_contract_std::execute::add_migration_complete_event_subscriber;
     use cw_migratable_contract_std::msg::{MigratableExecuteMsg, MigrationListenerExecuteMsg};
     use cw_migratable_contract_std::state::{
-        CanonicalContractInfo, canonicalize, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
+        canonicalize, CanonicalContractInfo, MIGRATION_COMPLETE_EVENT_SUBSCRIBERS,
     };
     use secret_toolkit::permit::{
-        Permit, PermitParams, PermitSignature, PubKey, TokenPermissions, validate,
+        validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
     };
-    use secret_toolkit::serialization::{Json, Serde};
-    use snip721_reference_impl::state::{Config, CONFIG_KEY, save};
+    use snip721_reference_impl::state::{save, Config, CONFIG_KEY};
 
     use crate::contract::{execute, instantiate, update_migrated_dependency};
     use crate::contract_migrate::migrate;
@@ -144,23 +143,14 @@ mod tests {
             address: Addr::unchecked("secret1rf03820fp8gngzg2w02vd30ns78qkc8rg8dxaq"),
             code_hash: "code_hash".to_string(),
         };
-        let s = String::from_utf8(Json::serialize(&ExecuteMsg::Migrate(
-            MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
-                address: receiver.address.to_string(),
-                code_hash: receiver.code_hash.to_string(),
-            },
-        )).unwrap()).unwrap();
-        let msg: ExecuteMsg = cosmwasm_std::from_slice(s.as_bytes()).unwrap();
         execute(
             deps.as_mut(),
             custom_mock_env_0(),
             admin_info.clone(),
-            ExecuteMsg::Migrate(
-                MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
-                    address: receiver.address.to_string(),
-                    code_hash: receiver.code_hash.to_string(),
-                },
-            ),
+            ExecuteMsg::Migrate(MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
+                address: receiver.address.to_string(),
+                code_hash: receiver.code_hash.to_string(),
+            }),
         )?;
 
         let saved_contract = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?;
@@ -172,7 +162,8 @@ mod tests {
     }
 
     #[test]
-    fn on_migration_complete_notification_sets_submsgs_to_notify_other_registered_contracts() -> StdResult<()> {
+    fn on_migration_complete_notification_sets_submsgs_to_notify_other_registered_contracts(
+    ) -> StdResult<()> {
         let mut deps = mock_dependencies();
         let admin_permit = &get_admin_permit();
         let admin_addr = get_secret_address(deps.as_ref(), admin_permit)?;
@@ -247,7 +238,7 @@ mod tests {
                 burn_is_enabled: false,
             },
         )
-            .unwrap();
+        .unwrap();
     }
 
     #[test]

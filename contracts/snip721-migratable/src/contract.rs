@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    Binary, ContractInfo, Deps, DepsMut, entry_point, Env, MessageInfo, Response, StdError,
+    entry_point, Binary, ContractInfo, Deps, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult,
 };
 use cw_migratable_contract_std::execute::{

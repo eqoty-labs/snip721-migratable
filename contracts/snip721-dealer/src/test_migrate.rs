@@ -11,7 +11,6 @@ mod tests {
     use secret_toolkit::permit::{
         validate, Permit, PermitParams, PermitSignature, PubKey, TokenPermissions,
     };
-    use secret_toolkit::serialization::{Json, Serde};
     use snip721_reference_impl::token::Metadata;
 
     use crate::contract::{execute, instantiate, reply};
@@ -322,15 +321,10 @@ mod tests {
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
-            Binary::from(
-                Json::serialize(&ExecuteMsg::Migrate(
-                    MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
-                        address: receiver.address.to_string(),
-                        code_hash: receiver.code_hash.to_string(),
-                    },
-                ))
-                .unwrap(),
-            ),
+            ExecuteMsg::Migrate(MigratableExecuteMsg::SubscribeToMigrationCompleteEvent {
+                address: receiver.address.to_string(),
+                code_hash: receiver.code_hash.to_string(),
+            }),
         )?;
 
         let saved_contract = MIGRATION_COMPLETE_EVENT_SUBSCRIBERS.load(deps.as_ref().storage)?;
