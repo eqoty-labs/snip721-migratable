@@ -88,7 +88,7 @@ class IntegrationTests {
                 admin = senderAddress
             )
         )
-        return DeployContractUtils.instantiateCode(client, snip721DealerCodeInfo(senderAddress), instantiateMsgs, null)
+        return DeployContractUtils.instantiateCode(client, snip721DealerCodeInfo(senderAddress), instantiateMsgs, 500_000)
             .let {
                 ContractInfo(
                     it.address, it.codeInfo.codeHash
