@@ -15,6 +15,7 @@ import io.eqoty.dapp.secret.types.contract.Snip721DealerMsgs
 import io.eqoty.dapp.secret.types.contract.equals
 import io.eqoty.dapp.secret.utils.BalanceUtils
 import io.eqoty.dapp.secret.utils.Constants
+import io.eqoty.dapp.secret.utils.fileSystem
 import io.eqoty.secret.std.contract.msg.Snip721Msgs
 import io.eqoty.secret.std.types.Permission
 import io.eqoty.secretk.client.SigningCosmWasmClient
@@ -248,6 +249,9 @@ class IntegrationTests {
     @BeforeTest
     fun beforeEach() = runTest(timeout = 60.seconds) {
         Logger.setTag("tests")
+        fileSystem.list(getenv(Constants.CONTRACT_PATH_ENV_NAME)!!.toPath()).forEach {
+            Logger.i("file: $it")
+        }
         if (!clientInitialized) {
             val endpoint = testnetInfo.grpcGatewayEndpoint
             initializeClient(endpoint, testnetInfo.chainId, 3)
