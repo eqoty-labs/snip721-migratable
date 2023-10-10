@@ -44,7 +44,12 @@ jobs:
           echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
           echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
           apk --no-cache update
-          apk --no-cache add curl tar make gcc g++ musl-dev openjdk11 rust@edge cargo@edge binaryen@edge rustup@edge
+          apk --no-cache add curl tar make gcc g++ musl-dev openjdk11 binaryen
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Install Rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: Install sccache
         env:
           LINK: https://github.com/mozilla/sccache/releases/download
