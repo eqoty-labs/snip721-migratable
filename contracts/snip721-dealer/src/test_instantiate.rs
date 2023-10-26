@@ -8,6 +8,7 @@ mod tests {
         StdResult, Uint128, WasmMsg,
     };
     use cw_migratable_contract_std::msg::MigratableExecuteMsg;
+    use secret_toolkit::serialization::{Json, Serde};
     use snip721_reference_impl::msg::{
         ExecuteMsg, InstantiateConfig, InstantiateMsg as Snip721InstantiateMsg,
     };
@@ -204,7 +205,10 @@ mod tests {
                         address: instantiate_new_msg.admin.unwrap(),
                         padding: None,
                     };
-                    assert_eq!(expected_execute_msg, execute_msg);
+                    assert_eq!(
+                        Json::serialize(&expected_execute_msg).unwrap(),
+                        Json::serialize(&execute_msg).unwrap()
+                    );
                 }
                 _ => panic!("unexpected"),
             },
@@ -357,7 +361,10 @@ mod tests {
                         },
                         max_migration_complete_event_subscribers: 1,
                     };
-                    assert_eq!(expected_snip721_instantiate_msg, snip721_instantiate_msg);
+                    assert_eq!(
+                        Json::serialize(&expected_snip721_instantiate_msg).unwrap(),
+                        Json::serialize(&snip721_instantiate_msg).unwrap()
+                    );
                 }
                 _ => panic!("unexpected"),
             },

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct MigratableSnip721InstantiateMsg {
     pub instantiate: Snip721InstantiateMsg,

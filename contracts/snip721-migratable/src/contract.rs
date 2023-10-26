@@ -20,17 +20,16 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    let mut deps = deps;
     REMAINING_MIGRATION_COMPLETE_EVENT_SUB_SLOTS
         .save(deps.storage, &msg.max_migration_complete_event_subscribers)?;
-    snip721_reference_impl::contract::instantiate(&mut deps, &env, info, msg.instantiate)
+    snip721_reference_impl::contract::instantiate(deps, env, info, msg.instantiate)
 }
 
 #[entry_point]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::Base(base_msg) => {
-            snip721_reference_impl::contract::execute(deps, env, info, base_msg.as_ref().to_owned())
+            snip721_reference_impl::contract::execute(deps, env, info, *base_msg)
         }
         ExecuteMsg::Migrate(ext_msg) => match ext_msg {
             MigratableExecuteMsg::SubscribeToMigrationCompleteEvent { address, code_hash } => {

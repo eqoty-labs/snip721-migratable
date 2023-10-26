@@ -1,5 +1,5 @@
-use cosmwasm_std::{entry_point, DepsMut, Empty, Env, Response, StdResult};
-use cw_migratable_contract_std::execute::broadcast_migration_complete_notification;
+use cosmwasm_std::{entry_point, DepsMut, Empty, Env, ReplyOn, Response, StdResult};
+use cw_migratable_contract_std::execute::create_broadcast_migration_complete_notification_msgs;
 use cw_migratable_contract_std::state::MIGRATION_COMPLETE_EVENT_SUBSCRIBERS;
 
 #[entry_point]
@@ -10,10 +10,13 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> StdResult<Response> {
         .into_iter()
         .map(|c| c.into_humanized(deps.api))
         .collect::<StdResult<Vec<_>>>()?;
-    broadcast_migration_complete_notification(
+    let msgs = create_broadcast_migration_complete_notification_msgs(
         deps.as_ref(),
+        ReplyOn::Never,
+        0,
         &env.contract,
         contracts_to_notify,
         None,
-    )
+    )?;
+    Ok(Response::new().add_submessages(msgs))
 }
