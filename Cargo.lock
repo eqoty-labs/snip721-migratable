@@ -100,9 +100,8 @@ checksum = "28c122c3980598d243d63d9a704629a2d748d101f278052ff068be5a4423ab6f"
 
 [[package]]
 name = "cosmwasm-derive"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e199424486ea97d6b211db6387fd72e26b4a439d40cc23140b2d8305728055b"
+version = "1.1.11"
+source = "git+https://github.com/luca992/cosmwasm?branch=update-serde-json-wasm#0a8e211bc490cdcc4ed11807172b9c4f0443c909"
 dependencies = [
  "syn 1.0.109",
 ]
@@ -583,8 +582,7 @@ dependencies = [
 [[package]]
 name = "secret-cosmwasm-crypto"
 version = "1.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8535d61c88d0a6c222df2cebb69859d8e9ba419a299a1bc84c904b0d9c00c7b2"
+source = "git+https://github.com/luca992/cosmwasm?branch=update-serde-json-wasm#0a8e211bc490cdcc4ed11807172b9c4f0443c909"
 dependencies = [
  "digest 0.10.7",
  "ed25519-zebra",
@@ -596,8 +594,7 @@ dependencies = [
 [[package]]
 name = "secret-cosmwasm-std"
 version = "1.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50e4393b01aa6587007161a6bb193859deaa8165ab06c8a35f253d329ff99e4d"
+source = "git+https://github.com/luca992/cosmwasm?branch=update-serde-json-wasm#0a8e211bc490cdcc4ed11807172b9c4f0443c909"
 dependencies = [
  "base64 0.13.1",
  "cosmwasm-derive",
@@ -615,8 +612,7 @@ dependencies = [
 [[package]]
 name = "secret-cosmwasm-storage"
 version = "1.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb43da2cb72a53b16ea1555bca794fb828b48ab24ebeb45f8e26f1881c45a783"
+source = "git+https://github.com/luca992/cosmwasm?branch=update-serde-json-wasm#0a8e211bc490cdcc4ed11807172b9c4f0443c909"
 dependencies = [
  "secret-cosmwasm-std",
  "serde",
@@ -727,9 +723,8 @@ dependencies = [
 
 [[package]]
 name = "serde-json-wasm"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "479b4dbc401ca13ee8ce902851b834893251404c4f3c65370a49e047a6be09a5"
+version = "1.0.0"
+source = "git+https://github.com/luca992/serde-json-wasm?branch=deserialize-bytes#2b88a1876dbaa7a5a4d9df7c395ee645b9e3ec4b"
 dependencies = [
  "serde",
 ]

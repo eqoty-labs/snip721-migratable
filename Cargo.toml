@@ -23,3 +23,13 @@ secret-toolkit = { version = "0.10.0", default-features = false, features = [] }
 cw-migratable-contract-std = { version = "12.0.0" }
 serde = { version = "1.0.190", default-features = false, features = ["derive"] }
 cosmwasm-schema = { version = "1.4.1" }
+
+[patch.crates-io]
+serde-json-wasm = { git = "https://github.com/luca992/serde-json-wasm", branch = "deserialize-bytes" }
+# the "update-serde-json-wasm" branch on our fork just has the latest serde-json-wasm version
+# then by applying the serde-json-wasm patch above, based on the latest serde-json-wasm version
+# it will then use our "deserialize-bytes" branch everywhere
+# See: https://github.com/CosmWasm/serde-json-wasm/pull/63#issue-1933783760
+cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm" }
+cosmwasm-storage = { package = "secret-cosmwasm-storage", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm" }
+
