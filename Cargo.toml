@@ -22,3 +22,4 @@ snip721-reference-impl = { git = "https://github.com/eqoty-labs/snip721-referenc
 secret-toolkit = { version = "0.10.0", default-features = false, features = [] }
 cw-migratable-contract-std = { version = "12.0.0" }
 serde = { version = "1.0.190", default-features = false, features = ["derive"] }
+cosmwasm-schema = { version = "1.4.1" }

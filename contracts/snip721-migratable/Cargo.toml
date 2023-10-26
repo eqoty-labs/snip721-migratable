@@ -1,6 +1,6 @@
 [package]
 name = "snip721-migratable"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Luca Spinazzola"]
 edition = "2021"
 
@@ -30,5 +30,5 @@ cosmwasm-storage = { workspace = true }
 secret-toolkit = { workspace = true, default-features = false, features = ["storage"] }
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.4.0" }
+cosmwasm-schema = { workspace = true }
 secret-toolkit = { workspace = true, default-features = false, features = ["permit"] }

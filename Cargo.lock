@@ -814,7 +814,7 @@ dependencies = [
 
 [[package]]
 name = "snip721-dealer"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cw-migratable-contract-std",
@@ -828,7 +828,7 @@ dependencies = [
 
 [[package]]
 name = "snip721-migratable"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "cosmwasm-schema",
  "cw-migratable-contract-std",
