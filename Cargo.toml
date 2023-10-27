@@ -28,7 +28,8 @@ cosmwasm-schema = { version = "1.4.1" }
 serde-json-wasm = { git = "https://github.com/luca992/serde-json-wasm", branch = "deserialize-bytes" }
 # the "update-serde-json-wasm" branch on our fork just has the latest serde-json-wasm version
 # then by applying the serde-json-wasm patch above, based on the latest serde-json-wasm version
-# it will then use our "deserialize-bytes" branch everywhere
+# it will then use our "deserialize-bytes" branch everywhere including patching the patched version of cosmwasm-std
+# and cosmwasm-storage below.
 # See: https://github.com/CosmWasm/serde-json-wasm/pull/63#issue-1933783760
 cosmwasm-std = { package = "secret-cosmwasm-std", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm" }
 cosmwasm-storage = { package = "secret-cosmwasm-storage", git = "https://github.com/luca992/cosmwasm", branch = "update-serde-json-wasm" }
