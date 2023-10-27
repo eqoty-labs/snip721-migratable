@@ -7,16 +7,10 @@
       "faucetAddressEndpoint": "http://localhost:5000/faucet?address="
     },
     {
-      "type": "Pulsar2",
-      "chainId": "pulsar-2",
-      "grpcGatewayEndpoint": "https://api.pulsar.scrttestnet.com",
-      "faucetAddressEndpoint": "https://faucetbe.pulsar.scrttestnet.com/credit"
-    },
-    {
       "type": "Pulsar3",
       "chainId": "pulsar-3",
-      "grpcGatewayEndpoint": "https://api.pulsar3.scrttestnet.com",
-      "faucetAddressEndpoint": "https://faucetbe.pulsar3.scrttestnet.com/credit"
+      "grpcGatewayEndpoint": "https://api.pulsar.scrttestnet.com",
+      "faucetAddressEndpoint": "https://faucet.pulsar.scrttestnet.com/"
     },
     {
       "type": "Custom",

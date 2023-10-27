@@ -16,9 +16,9 @@ kotlinx-coroutines = "1.7.3"
 
 okio = "3.6.0"
 
-kermit = "2.0.1"
+kermit = "2.0.2"
 
-secretk = "6.0.2"
+secretk = "6.1.0"
 getenv = "0.2.0"
 
 [libraries]

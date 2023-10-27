@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snip721_reference_impl::msg::InstantiateMsg as Snip721InstantiateMsg;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct InstantiateMsg {
     pub instantiate: Snip721InstantiateMsg,
@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     pub max_migration_complete_event_subscribers: u8,
 }
 
-#[derive(Serialize, Clone, Debug, Eq, PartialEq, JsonSchema)]
+#[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[serde(untagged)]
 pub enum ExecuteMsg {
