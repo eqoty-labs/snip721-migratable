@@ -1,6 +1,6 @@
 [package]
 name = "snip721-dealer"
-version = "3.0.0"
+version = "3.0.1"
 authors = ["Luca Spinazzola"]
 edition = "2021"
 
